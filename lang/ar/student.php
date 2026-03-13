@@ -91,7 +91,7 @@ return [
     'student_number' => 'الرقم الجامعي',
     'export_excel' => 'تصدير إكسل',
     'export_pdf' => 'تصدير PDF',
-
+    'enrolled_students' => 'الطلاب المسجلين',
     // New translations for enhanced UI
     'time_remaining' => 'الوقت المتبقي',
     'online' => 'متصل',

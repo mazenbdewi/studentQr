@@ -19,6 +19,15 @@ class StudentsRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'name';
 
+ 
+
+    public static function getTitle(Model $ownerRecord, string $pageClass): string
+    {
+      return __('student.enrolled_students');
+    }
+
+
+
     public function table(Tables\Table $table): Tables\Table
     {
         return $table

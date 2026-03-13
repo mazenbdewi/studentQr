@@ -385,7 +385,7 @@
                     @enderror
                 </div>
 
-                <div class="form-group">
+                {{-- <div class="form-group">
                     <span class="role-title">
                         {{ __('auth.login_as_optional') }}
                     </span>
@@ -413,7 +413,7 @@
                     @error('role')
                     <div class="field-error">{{ $message }}</div>
                     @enderror
-                </div>
+                </div> --}}
 
                 <div class="remember-row">
                     <label class="remember-label">
@@ -426,7 +426,7 @@
                     {{ __('auth.login') }}
                 </button>
             </form>
-
+{{-- 
             @if (Route::has('register'))
             <div class="footer">
                 {{ __('auth.no_account') }}
@@ -435,7 +435,7 @@
                     {{ __('auth.create_account') }}
                 </a>
             </div>
-            @endif
+            @endif --}}
 
         </div>
     </div>

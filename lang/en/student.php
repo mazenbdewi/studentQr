@@ -16,7 +16,7 @@ return [
     'logout' => 'Logout',
     'page_title' => 'Student Dashboard - Al-Manara University',
     'dashboard' => 'Student Dashboard',
-
+    'enrolled_students' => 'Enrolled Students',
     'attendance_title' => 'Attendance Registration',
     'qr_title' => 'QR Code Attendance Registration',
     'scan_success' => 'QR scanned successfully',
