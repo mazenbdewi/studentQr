@@ -47,6 +47,10 @@ return [
     'delete_selected' => 'حذف المحدد',
     'delete_confirmation' => 'هل أنت متأكد من حذف هذه الجلسة؟',
     'delete_confirmation_message' => 'سيتم حذف هذه الجلسة وجميع الحضور المسجل لها.',
-    'delete_confirmation_button' => 'حذف',
+    'delete_confirmation_button' => 'حذف', 
+    'import_excel' => 'استيراد من إكسل',
+    'excel_file' => 'ملف إكسل',
+    'import_success' => 'تم الاستيراد بنجاح',
+    'import_failed' => 'فشل الاستيراد',
 
 ];

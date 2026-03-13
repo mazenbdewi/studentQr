@@ -236,7 +236,7 @@ class LectureSessionResource extends Resource
                         'activeRelationManager' => 'attendances',
                     ]))
                     ->openUrlInNewTab(),
-            ])
+            ])   ->defaultSort('session_date', 'desc')
             ->bulkActions([]);
     }
 

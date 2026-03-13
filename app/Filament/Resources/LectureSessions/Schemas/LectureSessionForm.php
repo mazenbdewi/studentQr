@@ -35,11 +35,11 @@ class LectureSessionForm
                 DateTimePicker::make('actual_end'),
                 Select::make('status')
                     ->options([
-            'scheduled' => 'Scheduled',
-            'active' => 'Active',
-            'completed' => 'Completed',
-            'cancelled' => 'Cancelled',
-        ])
+                        'scheduled' => 'Scheduled',
+                        'active' => 'Active',
+                        'completed' => 'Completed',
+                        'cancelled' => 'Cancelled',
+                    ])
                     ->default('scheduled')
                     ->required(),
                 Select::make('attendance_mode')

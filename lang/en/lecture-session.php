@@ -39,4 +39,8 @@ return [
     'status_active' => 'Active',
     'status_completed' => 'Completed',
     'status_cancelled' => 'Cancelled',
+    'import_excel' => 'Import from Excel',
+    'excel_file' => 'Excel File',
+    'import_success' => 'Import Successful',
+    'import_failed' => 'Import Failed',
 ];
