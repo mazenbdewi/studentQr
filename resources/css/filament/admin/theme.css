@@ -1,0 +1,208 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+
+
+:root {
+    --brand-primary: #1e40af;
+    --brand-primary-dark: #1e3a8a;
+}
+
+
+html[lang="ar"] {
+    direction: rtl;
+}
+
+html[lang="ar"] body {
+    text-align: right;
+    font-family: "Cairo", sans-serif;
+}
+
+
+* {
+    transition: all 0.18s cubic-bezier(.4,0,.2,1);
+}
+
+
+body {
+    background: #0b1120 !important;
+    font-family: "Cairo", sans-serif;
+}
+
+
+.fi-sidebar {
+    background: linear-gradient(180deg,#070b16 0%,#0b1120 100%) !important;
+    border-right: 1px solid rgba(255,255,255,0.03);
+}
+
+.fi-sidebar-item {
+    border-radius: 12px !important;
+    margin: 4px 10px !important;
+    padding: 10px !important;
+}
+
+.fi-sidebar-item:hover {
+    background: rgba(30,64,175,0.18) !important;
+    box-shadow:
+        0 0 12px rgba(30,64,175,0.25),
+        inset 0 0 6px rgba(30,64,175,0.12);
+}
+
+.fi-sidebar-item-active {
+    background: linear-gradient(135deg,#1e40af,#1e3a8a) !important;
+    box-shadow: 0 0 18px rgba(30,64,175,0.45);
+}
+
+
+
+.fi-topbar {
+    background: rgba(11,17,32,0.85) !important;
+    backdrop-filter: blur(18px);
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+
+
+.fi-card {
+    background: rgba(17,24,39,0.85) !important;
+    backdrop-filter: blur(16px);
+    border-radius: 20px !important;
+    border: 1px solid rgba(255,255,255,0.03);
+    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+}
+
+
+
+thead.fi-table-header {
+    background: rgba(30,64,175,0.12) !important;
+}
+
+tbody tr:hover {
+    background: rgba(30,64,175,0.08) !important;
+    transform: scale(1.004);
+}
+
+
+
+.fi-btn-primary,
+button[type="submit"],
+.fi-btn-color-primary {
+    background: linear-gradient(135deg,#1e40af,#1e3a8a) !important;
+    color: #fff !important;
+    border-radius: 12px !important;
+    border: none !important;
+    box-shadow: 0 0 15px rgba(30,64,175,0.4);
+}
+
+.fi-btn-primary:hover,
+button[type="submit"]:hover,
+.fi-btn-color-primary:hover {
+    transform: translateY(-2px);
+}
+
+
+
+input,
+select,
+textarea {
+    background: rgba(255,255,255,0.03) !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(255,255,255,0.04) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: #1e40af !important;
+    box-shadow: 0 0 0 3px rgba(30,64,175,0.25) !important;
+}
+
+
+
+.fi-dropdown-panel {
+    background: #0b1120 !important;
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 16px !important;
+}
+
+
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0b1120;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(30,64,175,0.5);
+    border-radius: 10px;
+}
+
+html:not(.dark) body {
+    background: #f8fafc !important;
+    color: #1f2937;
+}
+
+
+html:not(.dark) .fi-sidebar {
+    background: #ffffff !important;
+    border-right: 1px solid #e5e7eb;
+}
+
+html:not(.dark) .fi-sidebar-item {
+    color: #374151 !important;
+}
+
+html:not(.dark) .fi-sidebar-item:hover {
+    background: rgba(30,64,175,0.06) !important;
+}
+
+html:not(.dark) .fi-sidebar-item-active {
+    background: linear-gradient(135deg,#1e40af,#1e3a8a) !important;
+    color: white !important;
+}
+
+
+
+html:not(.dark) .fi-topbar {
+    background: rgba(255,255,255,0.9) !important;
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid #e5e7eb;
+}
+
+
+
+html:not(.dark) .fi-card {
+    background: #ffffff !important;
+    border-radius: 18px !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04) !important;
+}
+
+
+
+html:not(.dark) thead.fi-table-header {
+    background: #f1f5f9 !important;
+}
+
+html:not(.dark) tbody tr:hover {
+    background: rgba(30,64,175,0.03) !important;
+}
+
+
+
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea {
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+}
+
+html:not(.dark) input:focus,
+html:not(.dark) select:focus,
+html:not(.dark) textarea:focus {
+    border-color: #1e40af !important;
+    box-shadow: 0 0 0 3px rgba(30,64,175,0.15) !important;
+}
