@@ -124,21 +124,22 @@ class RolesAndPermissionsSeeder extends Seeder
             'view_audit_logs',
         ];
 
-        Hall::create([
+        Hall::create(
+            [
 
-            'code' => 'HALL-001',
-            'name' => 'القاعة الرئيسية',
-            'floor' => 1,
-            'capacity' => 100,
-            'has_projector' => true,
-            'has_computer' => true,
-            'network_ssid' => 'MainHall-WiFi',
-            'ip_range_start' => '192.168.1.100',
-            'ip_range_end' => '192.168.1.200',
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ],
+                'code' => 'HALL-001',
+                'name' => 'القاعة الرئيسية',
+                'floor' => 1,
+                'capacity' => 100,
+                'has_projector' => true,
+                'has_computer' => true,
+                'network_ssid' => 'MainHall-WiFi',
+                'ip_range_start' => '192.168.1.100',
+                'ip_range_end' => '192.168.1.200',
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
             [
                 'code' => 'HALL-003',
                 'name' => 'قاعة 2',
@@ -154,43 +155,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'updated_at' => now(),
             ]
         );
-        Subject::create([
 
-            'code' => 'P101',
-            'name' => 'programming 1',
-            'department_id' => 1,
-
-            'credit_hours' => 3,
-            'level' => 1,
-            'semester' => 1,
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ],
-            [
-                'code' => 'P102',
-                'name' => 'programming 2',
-                'department_id' => 1,
-                'credit_hours' => 3,
-                'level' => 1,
-                'semester' => 1,
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-
-            [
-                'code' => 'P103',
-                'name' => 'programming 3',
-                'department_id' => 1,
-                'credit_hours' => 3,
-                'level' => 1,
-                'semester' => 1,
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-        );
 
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
@@ -302,6 +267,21 @@ class RolesAndPermissionsSeeder extends Seeder
                 'is_active' => 0,
             ],
         ]);
+        Subject::create(
+            [
 
+                'code' => 'P101',
+                'name' => 'programming 1',
+                'department_id' => 1,
+                'lecturer_id' => 1,
+
+                'credit_hours' => 3,
+                'level' => 1,
+                'semester' => 1,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
     }
 }

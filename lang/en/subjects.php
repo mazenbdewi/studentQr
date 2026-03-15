@@ -7,7 +7,7 @@ return [
     'create_title' => 'Create Subject',
     'record_title' => 'Subject Record',
 
-
+    'lecturer' => 'Lecturer',
     'code' => 'Subject Code',
     'name' => 'Subject Name',
     'lecturer_id' => 'Lecturer ID',
@@ -32,4 +32,6 @@ return [
     'delete_selected' => 'Delete Selected',
 
     'not_available' => '-',
+    'subject' => 'Subject',
+    'not_found_in_row' => 'not found in row :row',
 ];

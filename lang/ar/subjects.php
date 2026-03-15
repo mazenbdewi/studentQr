@@ -9,7 +9,7 @@ return [
     'record_title' => 'سجل مادة',
 
     'import_students' => 'استيراد طلاب المادة',
-
+    'lecturer' => 'مدرس المادة ',
     'code' => 'رمز المادة',
     'name' => 'اسم المادة',
     'lecturer_id' => 'معرف المحاضر',
@@ -29,6 +29,7 @@ return [
     'view' => 'عرض',
     'edit' => 'تعديل',
     'delete_selected' => 'حذف المحدد',
-
+    'subject' => 'المادة',
+    'not_found_in_row' => 'غير موجودة في السطر :row',
     'not_available' => '-',
 ];

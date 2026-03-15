@@ -1,14 +1,14 @@
 <?php
 
 return [
-    // عناوين الموديل
+
     'singular'          => 'قاعة',
     'plural'            => 'القاعات',
     'create'            => 'إضافة',
     'create_title'      => 'إضافة قاعة',
     'record_title'      => 'سجل قاعة',
 
-    // أعمدة الجدول والحقول
+
     'code'              => 'رمز القاعة',
     'name'              => 'اسم القاعة',
     'floor'             => 'الطابق',
@@ -22,11 +22,16 @@ return [
     'created_at'        => 'تاريخ الإنشاء',
     'updated_at'        => 'تاريخ التحديث',
 
- 
+
     'view'              => 'عرض',
     'edit'              => 'تعديل',
     'delete_selected'   => 'حذف المحدد',
 
- 
+
     'not_available'     => '-',
+    'import_excel' => 'استيراد من إكسل',
+    'excel_file' => 'ملف إكسل',
+    'import_success' => 'تم الاستيراد بنجاح',
+    'import_failed' => 'فشل الاستيراد',
+    'hall' => 'القاعة'
 ];

@@ -1,14 +1,14 @@
 <?php
 
 return [
-    
+
     'singular'      => 'Hall',
     'plural'        => 'Halls',
     'create'        => 'Create',
     'create_title'  => 'Create Hall',
     'record_title'  => 'Hall Record',
 
-  
+
     'code'           => 'Hall Code',
     'name'           => 'Hall Name',
     'floor'          => 'Floor',
@@ -22,11 +22,18 @@ return [
     'created_at'     => 'Created At',
     'updated_at'     => 'Updated At',
 
-   
+
     'view'            => 'View',
     'edit'            => 'Edit',
     'delete_selected' => 'Delete Selected',
 
- 
+
     'not_available'   => '-',
+
+    'import_excel' => 'Import from Excel',
+    'excel_file' => 'Excel File',
+    'import_success' => 'Import Successful',
+    'import_failed' => 'Import Failed',
+    
+   'hall' => 'Hall'
 ];

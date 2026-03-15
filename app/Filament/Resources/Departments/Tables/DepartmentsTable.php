@@ -29,10 +29,10 @@ class DepartmentsTable
             ->label(__('department.faculty'))
             ->numeric()
             ->sortable(),
-        TextColumn::make('head_of_department')
-            ->label(__('department.head'))
-            ->numeric()
-            ->sortable(),
+        // TextColumn::make('head_of_department')
+        //     ->label(__('department.head'))
+        //     ->numeric()
+        //     ->sortable(),
         TextColumn::make('total_students')
             ->label(__('department.total_students'))
             ->numeric()

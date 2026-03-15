@@ -62,78 +62,88 @@ class SubjectResource extends Resource
                     ->required()
                     ->unique(ignoreRecord: true)
                     ->maxLength(255),
+
                 Forms\Components\TextInput::make('name')
                     ->label(__('subjects.name'))
                     ->required()
                     ->maxLength(255),
+
                 Forms\Components\Select::make('department_id')
                     ->label(__('subjects.department_id'))
                     ->relationship('department', 'name')
                     ->searchable()
                     ->preload()
                     ->nullable(),
+
                 Forms\Components\TextInput::make('credit_hours')
                     ->label(__('subjects.credit_hours'))
                     ->required()
                     ->numeric()
                     ->minValue(1)
                     ->maxValue(6),
+
                 Forms\Components\TextInput::make('level')
                     ->label(__('subjects.level'))
                     ->required()
                     ->numeric()
                     ->minValue(1)
                     ->maxValue(5),
+
                 Forms\Components\TextInput::make('semester')
                     ->label(__('subjects.semester'))
                     ->required()
                     ->numeric()
                     ->minValue(1)
                     ->maxValue(2),
+
                 Forms\Components\Toggle::make('is_active')
                     ->label(__('subjects.is_active'))
                     ->default(true)
                     ->required(),
-                Forms\Components\Hidden::make('lecturer_id')
-                    ->default(fn() => auth()->id()),
+
+                Forms\Components\Select::make('lecturer_id')
+                    ->label(__('subjects.lecturer'))
+                    ->options(fn() => \App\Models\User::whereHas('roles', fn($q) => $q->where('name', 'course_lecturer'))->pluck('name', 'id'))
+                    ->searchable()
+                    ->required(),
             ]);
     }
 
     public static function table(Table $table): Table
-{
-    return $table
-        ->columns([
-            Tables\Columns\TextColumn::make('code')
-                ->label(__('subjects.code'))
-                ->searchable()
-                ->sortable(),
-            Tables\Columns\TextColumn::make('name')
-                ->label(__('subjects.name'))
-                ->searchable()
-                ->sortable(),
-            Tables\Columns\TextColumn::make('department.name')
-                ->label(__('subjects.department_id'))
-                ->searchable()
-                ->sortable(),
-            Tables\Columns\TextColumn::make('credit_hours')
-                ->label(__('subjects.credit_hours')),
-            Tables\Columns\IconColumn::make('is_active')
-                ->label(__('subjects.is_active'))
-                ->boolean(),
-        ])
-        ->filters([
-            Tables\Filters\SelectFilter::make('department')
-                ->label(__('subjects.department_id'))
-                ->relationship('department', 'name'),
-            Tables\Filters\TernaryFilter::make('is_active')
-                ->label(__('subjects.is_active')),
-        ])
-        ->actions([
-            // Tables\Actions\EditAction::make()->label(__('subjects.edit')),
-            // Tables\Actions\ViewAction::make()->label(__('subjects.view')),
-        ])
-        ->bulkActions([]);
-}
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('code')
+                    ->label(__('subjects.code'))
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('name')
+                    ->label(__('subjects.name'))
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('department.name')
+                    ->label(__('subjects.department_id'))
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('credit_hours')
+                    ->label(__('subjects.credit_hours')),
+                Tables\Columns\IconColumn::make('is_active')
+                    ->label(__('subjects.is_active'))
+                    ->boolean(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('department')
+                    ->label(__('subjects.department_id'))
+                    ->relationship('department', 'name'),
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label(__('subjects.is_active')),
+            ])
+            ->actions([
+                // Tables\Actions\EditAction::make()->label(__('subjects.edit')),
+                // Tables\Actions\ViewAction::make()->label(__('subjects.view')),
+            ])
+            ->bulkActions([]);
+    }
 
     public static function getRelations(): array
     {
