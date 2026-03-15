@@ -12,7 +12,7 @@ use Illuminate\Validation\Rule;
 
 class StudentsImport implements ToModel, WithHeadingRow, WithValidation
 {
-    
+
     private $faculties;
     private $departments;
 
@@ -66,5 +66,29 @@ class StudentsImport implements ToModel, WithHeadingRow, WithValidation
             // 'department_id' => 'required|exists:departments,id',
         ];
     }
-    
+
+    public function customValidationMessages(): array
+    {
+        return [
+            'name.required' => __('validation.name_required'),
+            'name.max' => __('validation.name_max'),
+            'student_number.unique' => __('validation.student_number_unique'),
+            'national_number.unique' => __('validation.national_number_unique'),
+            'faculty_id.required' => __('validation.faculty_required'),
+            'faculty_id.exists' => __('validation.faculty_not_found_in_row', ['row' => ':row']),
+            'department_id.required' => __('validation.department_required'),
+            'department_id.exists' => __('validation.department_not_found_in_row', ['row' => ':row']),
+        ];
+    }
+
+    public function customValidationAttributes(): array
+    {
+        return [
+            'name' => __('validation.name'),
+            'student_number' => __('validation.student_number'),
+            'national_number' => __('validation.national_number'),
+            'faculty_id' => __('validation.faculty'),
+            'department_id' => __('validation.department'),
+        ];
+    }
 }

@@ -52,4 +52,21 @@ class SubjectStudentsImport implements ToModel, WithHeadingRow, WithValidation
             'name' => ['required', 'string', 'max:255'],
         ];
     }
+
+    public function customValidationMessages(): array
+    {
+        return [
+            'student_number.required' => __('validation.student_number_required'),
+            'name.required'           => __('validation.name_required'),
+            'name.max'                => __('validation.name_max'),
+        ];
+    }
+
+    public function customValidationAttributes(): array
+    {
+        return [
+            'student_number' => 'رقم الطالب',
+            'name'           => 'الاسم',
+        ];
+    }
 }

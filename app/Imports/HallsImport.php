@@ -55,4 +55,51 @@ class HallsImport implements ToModel, WithHeadingRow, WithValidation
             'is_active'      => ['nullable', 'boolean'],
         ];
     }
+
+    public function customValidationMessages()
+    {
+        return [
+            'code.required'    => __('validation.code_required'),
+            'code.unique'      => __('validation.code_unique'),
+
+
+        
+
+            'code.max'         => __('validation.code_max'),
+
+            'name.required'    => __('validation.name_required'),
+            'name.max'         => __('validation.name_max'),
+
+            'floor.integer'    => __('validation.floor_integer'),
+            'floor.min'        => __('import.floor_min'),
+
+            'capacity.integer' => __('validation.capacity_integer'),
+            'capacity.min'     => __('validation.capacity_min'),
+
+            'has_projector.boolean' => __('validation.has_projector_boolean'),
+            'has_computer.boolean'  => __('validation.has_computer_boolean'),
+
+
+            'is_active.boolean' => __('validation.is_active_boolean'),
+        ];
+    }
+
+
+
+
+    public function customValidationAttributes()
+    {
+        return [
+            'code' => 'الكود',
+            'name' => 'الاسم',
+            'floor' => 'الدور',
+            'capacity' => 'السعة',
+            'has_projector' => 'جهاز العرض',
+            'has_computer' => 'الحاسب',
+            'network_ssid' => 'اسم الشبكة',
+            'ip_range_start' => 'بداية نطاق IP',
+            'ip_range_end' => 'نهاية نطاق IP',
+            'is_active' => 'الحالة',
+        ];
+    }
 }

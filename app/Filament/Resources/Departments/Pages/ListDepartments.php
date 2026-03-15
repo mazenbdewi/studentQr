@@ -10,6 +10,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Maatwebsite\Excel\Facades\Excel;
+use Maatwebsite\Excel\Validators\ValidationException;
 
 class ListDepartments extends ListRecords
 {
@@ -18,13 +19,13 @@ class ListDepartments extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-              Action::make('import')
-                ->label(__('hall.import_excel'))  
+            Action::make('import')
+                ->label(__('hall.import_excel'))
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('success')
                 ->form([
                     FileUpload::make('file')
-                        ->label(__('hall.excel_file'))  
+                        ->label(__('hall.excel_file'))
                         ->acceptedFileTypes([
                             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                             'application/vnd.ms-excel'
@@ -39,18 +40,44 @@ class ListDepartments extends ListRecords
                         );
 
                         Notification::make()
-                            ->title(__('hall.import_success'))  
+                            ->title(__('hall.import_success'))
                             ->success()
                             ->send();
-                    } catch (\Exception $e) {
+                    } catch (ValidationException $e) {
+                        $messages = [];
+                        foreach ($e->failures() as $failure) {
+                            $row = $failure->row();
+                            $values = $failure->values();
+
+                            foreach ($failure->errors() as $error) {
+                                $errorMessage = str_replace(
+                                    ':row',
+                                    $row,
+                                    $error
+                                );
+
+                                if (str_contains($errorMessage, ':input')) {
+                                    $attribute = $failure->attribute();
+                                    $errorMessage = str_replace(
+                                        ':input',
+                                        $values[$attribute] ?? $attribute,
+                                        $errorMessage
+                                    );
+                                }
+
+                                $messages[] = $errorMessage;
+                            }
+                        }
+
                         Notification::make()
-                            ->title(__('hall.import_failed'))  
-                            ->body($e->getMessage())
+                            ->title(__('hall.import_failed'))
+                            ->body(implode("<br>", $messages))
                             ->danger()
                             ->send();
                     }
+                 
                 }),
-         
+
             CreateAction::make(),
         ];
     }

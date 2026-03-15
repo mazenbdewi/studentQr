@@ -60,7 +60,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
             if (!isset($this->subjects[$data['subject_name']])) {
                 throw ValidationException::withMessages([
                     "subject_name" => __('subjects.subject') . " '{$data['subject_name']}' "
-                     . __('subjects.not_found_in_row', ['row' => $rowNumber])
+                        . __('subjects.not_found_in_row', ['row' => $rowNumber])
                 ]);
             }
 
@@ -130,6 +130,44 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
             'attendance_mode' => ['nullable', Rule::in(['qr_only', 'qr_otp', 'manual'])],
             'qr_refresh_rate' => ['nullable', 'integer', 'min:10'],
             'notes' => ['nullable', 'string'],
+        ];
+    }
+
+
+    public function customValidationMessages(): array
+    {
+        return [
+            'subject_id.required' => __('validation.subject_required'),
+            'subject_id.exists' => __('validation.subject_not_found'),
+            'hall_id.required' => __('validation.hall_required'),
+            'hall_id.exists' => __('validation.hall_not_found'),
+            'session_date.required' => __('validation.session_date_required'),
+            'session_date.date' => __('validation.session_date_invalid'),
+            'start_time.required' => __('validation.start_time_required'),
+            'start_time.date_format' => __('validation.start_time_format'),
+            'end_time.required' => __('validation.end_time_required'),
+            'end_time.date_format' => __('validation.end_time_format'),
+            'end_time.after' => __('validation.end_time_after_start'),
+            'status.in' => __('validation.status_invalid'),
+            'attendance_mode.in' => __('validation.attendance_mode_invalid'),
+            'qr_refresh_rate.integer' => __('validation.qr_refresh_rate_integer'),
+            'qr_refresh_rate.min' => __('validation.qr_refresh_rate_min'),
+            'notes.string' => __('validation.notes_string'),
+        ];
+    }
+
+    public function customValidationAttributes(): array
+    {
+        return [
+            'subject_id' => __('validation.subject'),
+            'hall_id' => __('validation.hall'),
+            'session_date' => __('validation.session_date'),
+            'start_time' => __('validation.start_time'),
+            'end_time' => __('validation.end_time'),
+            'status' => __('validation.status'),
+            'attendance_mode' => __('validation.attendance_mode'),
+            'qr_refresh_rate' => __('validation.qr_refresh_rate'),
+            'notes' => __('validation.notes'),
         ];
     }
 }

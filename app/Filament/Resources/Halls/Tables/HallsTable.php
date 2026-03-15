@@ -36,15 +36,15 @@ class HallsTable
             IconColumn::make('has_computer')
                 ->label(__('hall.has_computer'))
                 ->boolean(),
-            TextColumn::make('network_ssid')
-                ->label(__('hall.network_ssid'))
-                ->searchable(),
-            TextColumn::make('ip_range_start')
-                ->label(__('hall.ip_range_start'))
-                ->searchable(),
-            TextColumn::make('ip_range_end')
-                ->label(__('hall.ip_range_end'))
-                ->searchable(),
+            // TextColumn::make('network_ssid')
+            //     ->label(__('hall.network_ssid'))
+            //     ->searchable(),
+            // TextColumn::make('ip_range_start')
+            //     ->label(__('hall.ip_range_start'))
+            //     ->searchable(),
+            // TextColumn::make('ip_range_end')
+            //     ->label(__('hall.ip_range_end'))
+            //     ->searchable(),
             IconColumn::make('is_active')
                 ->label(__('hall.is_active'))
                 ->boolean(),

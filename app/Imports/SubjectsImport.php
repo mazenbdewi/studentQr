@@ -70,5 +70,23 @@ class SubjectsImport implements ToModel, WithHeadingRow, WithValidation
 
         ];
     }
-     
+    public function customValidationMessages(): array
+    {
+        return [
+            'code.required' => __('validation.code_required'),
+            'code.unique'   => __('validation.code_unique'),
+            'name.required' => __('validation.name_required'),
+            'name.max'      => __('validation.name_max'),
+        ];
+    }
+
+    public function customValidationAttributes(): array
+    {
+        return [
+            'code' => 'الكود',
+            'name' => 'الاسم',
+            'lecturer_id' => 'المحاضر',
+            'department_id' => 'القسم',
+        ];
+    }
 }

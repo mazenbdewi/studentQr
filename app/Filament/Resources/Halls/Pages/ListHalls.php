@@ -11,6 +11,8 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Maatwebsite\Excel\Facades\Excel;
 
+use Maatwebsite\Excel\Validators\ValidationException;
+
 
 
 class ListHalls extends ListRecords
@@ -20,8 +22,8 @@ class ListHalls extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-               Action::make('import')
-                ->label(__('hall.import_excel'))  
+            Action::make('import')
+                ->label(__('hall.import_excel'))
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('success')
                 ->form([
@@ -35,23 +37,66 @@ class ListHalls extends ListRecords
                 ])
                 ->action(function (array $data) {
                     try {
-                        Excel::import(
-                            new HallsImport,
-                            $data['file']
-                        );
+                        Excel::import(new HallsImport, $data['file']);
 
                         Notification::make()
                             ->title(__('hall.import_success'))
                             ->success()
                             ->send();
-                    } catch (\Exception $e) {
+                    }
+                    //  catch (ValidationException $e) {
+                    //     $messages = [];
+                    //     foreach ($e->failures() as $failure) {
+                    //         $row = $failure->row();
+                    //         foreach ($failure->errors() as $error) {
+                    //             $messages[] = str_replace(
+                    //                 [':row', ':input'],
+                    //                 [$row, $failure->values()['code'] ?? ''],
+                    //                 $error
+                    //             );
+                    //         }
+                    //     }
+
+                    //     Notification::make()
+                    //         ->title(__('hall.import_failed'))
+                    //         ->body(implode("\n", $messages))
+                    //         ->danger()
+                    //         ->send();
+                    // }
+                    catch (ValidationException $e) {
+                        $messages = [];
+                        foreach ($e->failures() as $failure) {
+                            $row = $failure->row();
+                            $values = $failure->values();
+
+                            foreach ($failure->errors() as $error) {
+                                $errorMessage = str_replace(
+                                    ':row',
+                                    $row,
+                                    $error
+                                );
+
+                                if (str_contains($errorMessage, ':input')) {
+                                    $attribute = $failure->attribute();
+                                    $errorMessage = str_replace(
+                                        ':input',
+                                        $values[$attribute] ?? $attribute,
+                                        $errorMessage
+                                    );
+                                }
+
+                                $messages[] = $errorMessage;
+                            }
+                        }
+
                         Notification::make()
                             ->title(__('hall.import_failed'))
-                            ->body($e->getMessage())
+                            ->body(implode("<br>", $messages))
                             ->danger()
                             ->send();
                     }
                 }),
+
             CreateAction::make(),
         ];
     }

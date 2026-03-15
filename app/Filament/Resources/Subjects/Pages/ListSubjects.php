@@ -10,6 +10,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\SubjectsImport;
+use Maatwebsite\Excel\Validators\ValidationException;
 
 class ListSubjects extends ListRecords
 {
@@ -45,14 +46,47 @@ class ListSubjects extends ListRecords
                             ->success()
                             ->send();
 
-                    } catch (\Exception $e) {
+                    }
+                    catch (ValidationException $e) {
+                        $messages = [];
+                        foreach ($e->failures() as $failure) {
+                            $row = $failure->row();
+                            $values = $failure->values();
+
+                            foreach ($failure->errors() as $error) {
+                                $errorMessage = str_replace(
+                                    ':row',
+                                    $row,
+                                    $error
+                                );
+
+                                if (str_contains($errorMessage, ':input')) {
+                                    $attribute = $failure->attribute();
+                                    $errorMessage = str_replace(
+                                        ':input',
+                                        $values[$attribute] ?? $attribute,
+                                        $errorMessage
+                                    );
+                                }
+
+                                $messages[] = $errorMessage;
+                            }
+                        }
 
                         Notification::make()
                             ->title(__('subjects.import_failed'))
-                            ->body($e->getMessage())
+                            ->body(implode("<br>", $messages))
                             ->danger()
                             ->send();
                     }
+                    //  catch (\Exception $e) {
+
+                    //     Notification::make()
+                    //         ->title(__('subjects.import_failed'))
+                    //         ->body($e->getMessage())
+                    //         ->danger()
+                    //         ->send();
+                    // }
                 }),
 
             CreateAction::make(),
