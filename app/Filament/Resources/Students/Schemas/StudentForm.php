@@ -34,10 +34,7 @@ class StudentForm
                     ->label(__('student.year'))
                     ->numeric()
                     ->default(null),
-                TextInput::make('type')
-                    ->label(__('student.type'))
-                    ->required()
-                    ->default('student'),
+       
                 TextInput::make('phone')
                     ->label(__('student.phone'))
                     ->tel()

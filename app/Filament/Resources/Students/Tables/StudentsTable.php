@@ -31,9 +31,7 @@ class StudentsTable
                     ->label(__('student.year'))
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('type')
-                    ->label(__('student.type'))
-                    ->searchable(),
+        
                 TextColumn::make('phone')
                     ->label(__('student.phone'))
                     ->searchable(),

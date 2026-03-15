@@ -31,12 +31,7 @@ class DepartmentInfolist
                 ->label(__('department.description'))
                 ->placeholder(__('department.not_available'))
                 ->columnSpanFull(),
-            TextEntry::make('total_students')
-                ->label(__('department.total_students'))
-                ->numeric(),
-            TextEntry::make('total_lecturers')
-                ->label(__('department.total_lecturers'))
-                ->numeric(),
+   
             IconEntry::make('is_active')
                 ->label(__('department.is_active'))
                 ->boolean(),

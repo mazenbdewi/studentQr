@@ -24,8 +24,7 @@ class StudentInfolist
                     ->label(__('student.year'))
                     ->numeric()
                     ->placeholder('-'),
-                TextEntry::make('type')
-                    ->label(__('student.type')),
+           
                 TextEntry::make('phone')
                     ->label(__('student.phone'))
                     ->placeholder('-'),
