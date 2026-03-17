@@ -2,6 +2,8 @@
 
 namespace App\Imports;
 
+use App\Models\Attendance;
+use App\Models\LectureSession;
 use App\Models\Student;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Concerns\ToModel;
@@ -42,6 +44,19 @@ class SubjectStudentsImport implements ToModel, WithHeadingRow, WithValidation
             ]
         ]);
 
+        $sessions =
+            LectureSession::where('subject_id', $this->subjectId)
+            ->pluck('id')
+            ->each(function ($sessionId) use ($student) {
+                Attendance::firstOrCreate([
+                    'student_id' => $student->id,
+                    'lecture_session_id' => $sessionId,
+                ], [
+                    'attendance_status' => 'pending'
+                ]);
+            });
+
+
         return $student;
     }
 
@@ -57,8 +72,8 @@ class SubjectStudentsImport implements ToModel, WithHeadingRow, WithValidation
     {
         return [
             'student_number.required' => __('validation.student_number_required'),
-            'name.required'           => __('validation.name_required'),
-            'name.max'                => __('validation.name_max'),
+            'name.required' => __('validation.name_required'),
+            'name.max' => __('validation.name_max'),
         ];
     }
 
@@ -66,7 +81,7 @@ class SubjectStudentsImport implements ToModel, WithHeadingRow, WithValidation
     {
         return [
             'student_number' => 'رقم الطالب',
-            'name'           => 'الاسم',
+            'name' => 'الاسم',
         ];
     }
 }

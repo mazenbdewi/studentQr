@@ -16,6 +16,7 @@ return [
     'level' => 'Level',
     'semester' => 'Semester',
     'is_active' => 'Active',
+    'students_and_subjects' => 'Students and Subjects',
     'created_at' => 'Created At',
     'updated_at' => 'Updated At',
     'import_excel'   => 'Import from Excel',

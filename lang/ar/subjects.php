@@ -7,7 +7,7 @@ return [
     'create' => 'إضافة',
     'create_title' => 'إضافة مادة',
     'record_title' => 'سجل مادة',
-
+    'students_and_subjects' => 'الطلاب والمواد',
     'import_students' => 'استيراد طلاب المادة',
     'lecturer' => 'مدرس المادة ',
     'code' => 'رمز المادة',

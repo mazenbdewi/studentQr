@@ -53,14 +53,14 @@ class AdminPanelProvider extends PanelProvider
             // Only show specific resources - hide: Attendances, FailedAttempts, StudentDevices
             ->resources([
                 config('filament-logger.activity_resource'),
-                StudentResource::class,
+                // StudentResource::class,
                 SubjectResource::class,
                 LectureSessionResource::class,
                 HallResource::class,
                 DepartmentResource::class,
                 UserResource::class,
                 // Hidden resources (can be accessed programmatically if needed):
-                // AttendanceResource::class,
+                 AttendanceResource::class,
                 // FailedAttemptResource::class,
                 // StudentDeviceResource::class,
             ])

@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
+
 class AttendanceController extends Controller
 {
     /**
@@ -49,50 +50,52 @@ class AttendanceController extends Controller
      * Uses qr_started_at (when QR was generated) not created_at.
      * Returns 0 if expired or invalid.
      */
-  private function calculateRemainingSeconds(LectureSession $session): int
-{
-    if ($session->qr_expires_at) {
+    private function calculateRemainingSeconds(LectureSession $session): int
+    {
+        if ($session->qr_expires_at) {
+            $expiresAt = $session->qr_expires_at instanceof Carbon
+                ? $session->qr_expires_at
+                : Carbon::parse($session->qr_expires_at);
+
+            return max(0, now()->diffInSeconds($expiresAt, false));
+        }
+
+        if ($session->qr_started_at) {
+            $startedAt = $session->qr_started_at instanceof Carbon
+                ? $session->qr_started_at
+                : Carbon::parse($session->qr_started_at);
+
+            $expiresAt = $startedAt->copy()->addSeconds((int)($session->qr_refresh_rate ?? 120));
+
+            return max(0, now()->diffInSeconds($expiresAt, false));
+        }
+
+        return 0;
+    }
+
+    private function finalizeExpiredSession(LectureSession $session): void
+    {
+        $session->refresh();
+
+        if (!$session->qr_expires_at) {
+            return;
+        }
+
         $expiresAt = $session->qr_expires_at instanceof Carbon
             ? $session->qr_expires_at
             : Carbon::parse($session->qr_expires_at);
 
-        return max(0, now()->diffInSeconds($expiresAt, false));
+        if (now()->greaterThanOrEqualTo($expiresAt) && !$session->qr_expired) {
+            $session->update([
+                'qr_expired' => true,
+                'status' => 'completed',
+                'actual_end' => $session->actual_end ?? now(),
+            ]);
+
+            $session->refresh();
+        }
     }
 
-    if ($session->qr_started_at) {
-        $startedAt = $session->qr_started_at instanceof Carbon
-            ? $session->qr_started_at
-            : Carbon::parse($session->qr_started_at);
-
-        $expiresAt = $startedAt->copy()->addSeconds((int) ($session->qr_refresh_rate ?? 120));
-
-        return max(0, now()->diffInSeconds($expiresAt, false));
-    }
-
-    return 0;
-}
-private function finalizeExpiredSession(LectureSession $session): void
-{
-    $session->refresh();
-
-    if (! $session->qr_expires_at) {
-        return;
-    }
-
-    $expiresAt = $session->qr_expires_at instanceof Carbon
-        ? $session->qr_expires_at
-        : Carbon::parse($session->qr_expires_at);
-
-    if (now()->greaterThanOrEqualTo($expiresAt) && ! $session->qr_expired) {
-        $session->update([
-            'qr_expired' => true,
-            'status' => 'completed',
-            'actual_end' => $session->actual_end ?? now(),
-        ]);
-
-        $session->refresh();
-    }
-}
     /**
      * Generate and display QR code for a session.
      */
@@ -141,7 +144,7 @@ private function finalizeExpiredSession(LectureSession $session): void
             ->first();
 
         // If no valid token exists, generate a new one
-        if (! $existingToken) {
+        if (!$existingToken) {
             $tokenValue = Str::random(32);
             $expiresAt = now()->addSeconds($session->qr_refresh_rate);
 
@@ -170,7 +173,7 @@ private function finalizeExpiredSession(LectureSession $session): void
             }
 
             // Ensure QR timing is set
-            if (! $session->qr_started_at) {
+            if (!$session->qr_started_at) {
                 $session->update([
                     'qr_started_at' => now(),
                     'qr_expires_at' => $existingToken->expires_at,
@@ -212,76 +215,76 @@ private function finalizeExpiredSession(LectureSession $session): void
     /**
      * Verify token from QR code.
      */
-   public function verifyToken($tokenValue)
-{
-    $token = AttendanceToken::where('token_value', $tokenValue)
-        ->where('expires_at', '>=', now())
-        ->where('is_used', false)
-        ->first();
+    public function verifyToken($tokenValue)
+    {
+        $token = AttendanceToken::where('token_value', $tokenValue)
+            ->where('expires_at', '>=', now())
+            ->where('is_used', false)
+            ->first();
 
-    if (! $token) {
-        abort(403, __('session.token_expired'));
-    }
+        if (!$token) {
+            abort(403, __('session.token_expired'));
+        }
 
-    $session = $token->lectureSession;
+        $session = $token->lectureSession;
 
-    if (! $session) {
-        abort(403, __('session.not_found'));
-    }
+        if (!$session) {
+            abort(403, __('session.not_found'));
+        }
 
-    $this->finalizeExpiredSession($session);
-
-    if ($session->qr_expired || $session->status !== 'active') {
-        abort(403, __('session.qr_session_expired'));
-    }
-
-    $remainingSeconds = $this->calculateRemainingSeconds($session);
-
-    if ($remainingSeconds <= 0) {
         $this->finalizeExpiredSession($session);
-        abort(403, __('session.token_expired'));
+
+        if ($session->qr_expired || $session->status !== 'active') {
+            abort(403, __('session.qr_session_expired'));
+        }
+
+        $remainingSeconds = $this->calculateRemainingSeconds($session);
+
+        if ($remainingSeconds <= 0) {
+            $this->finalizeExpiredSession($session);
+            abort(403, __('session.token_expired'));
+        }
+
+        $sessionDetails = LectureSession::with(['subject', 'lecturer', 'hall'])
+            ->findOrFail($session->id);
+
+        session(['verify_session' => $session->id]);
+
+        return view('student.attendance', [
+            'sessionId' => $session->id,
+            'sessionDetails' => $sessionDetails,
+            'remainingSeconds' => $remainingSeconds,
+        ]);
     }
-
-    $sessionDetails = LectureSession::with(['subject', 'lecturer', 'hall'])
-        ->findOrFail($session->id);
-
-    session(['verify_session' => $session->id]);
-
-    return view('student.attendance', [
-        'sessionId' => $session->id,
-        'sessionDetails' => $sessionDetails,
-        'remainingSeconds' => $remainingSeconds,
-    ]);
-}
 
     /**
      * Verify session and display attendance form.
      */
-  public function verifySession($sessionId)
-{
-    $session = LectureSession::with(['subject', 'lecturer', 'hall'])->findOrFail($sessionId);
+    public function verifySession($sessionId)
+    {
+        $session = LectureSession::with(['subject', 'lecturer', 'hall'])->findOrFail($sessionId);
 
-    $this->finalizeExpiredSession($session);
-
-    if ($session->qr_expired || $session->status !== 'active') {
-        abort(403, __('session.qr_session_expired'));
-    }
-
-    $remainingSeconds = $this->calculateRemainingSeconds($session);
-
-    if ($remainingSeconds <= 0) {
         $this->finalizeExpiredSession($session);
-        abort(403, __('session.token_expired'));
+
+        if ($session->qr_expired || $session->status !== 'active') {
+            abort(403, __('session.qr_session_expired'));
+        }
+
+        $remainingSeconds = $this->calculateRemainingSeconds($session);
+
+        if ($remainingSeconds <= 0) {
+            $this->finalizeExpiredSession($session);
+            abort(403, __('session.token_expired'));
+        }
+
+        session(['verify_session' => $sessionId]);
+
+        return view('student.attendance', [
+            'sessionId' => $sessionId,
+            'sessionDetails' => $session,
+            'remainingSeconds' => $remainingSeconds,
+        ]);
     }
-
-    session(['verify_session' => $sessionId]);
-
-    return view('student.attendance', [
-        'sessionId' => $sessionId,
-        'sessionDetails' => $session,
-        'remainingSeconds' => $remainingSeconds,
-    ]);
-}
 
     /**
      * Store attendance - optimized for high concurrency.
@@ -337,7 +340,7 @@ private function finalizeExpiredSession(LectureSession $session): void
                 // Process synchronously
                 $result = $job->handle();
 
-                if (! $result['success']) {
+                if (!$result['success']) {
                     Cache::forget($pendingKey);
 
                     return back()->with('error', $result['message']);
@@ -369,149 +372,161 @@ private function finalizeExpiredSession(LectureSession $session): void
      * Check attendance status - AJAX endpoint for real-time status.
      * This is called by the frontend to check if attendance was processed.
      */
-public function checkStatus(Request $request, $sessionId): JsonResponse
-{
-    $request->validate([
-        'student_number' => 'required|string',
-    ]);
-
-    $studentNumber = $request->student_number;
-
-    $session = LectureSession::find($sessionId);
-
-    if (! $session) {
-        return response()->json([
-            'success' => false,
-            'status' => 'failed',
-            'message' => __('session.not_found'),
-            'remaining_seconds' => 0,
-        ], 404);
-    }
-
-    $this->finalizeExpiredSession($session);
-
-    $remainingSeconds = $this->calculateRemainingSeconds($session);
-
-    if ($session->qr_expired || $session->status !== 'active' || $remainingSeconds <= 0) {
-        return response()->json([
-            'success' => false,
-            'status' => 'failed',
-            'message' => __('session.token_expired'),
-            'remaining_seconds' => 0,
+    public function checkStatus(Request $request, $sessionId): JsonResponse
+    {
+        $request->validate([
+            'student_number' => 'required|string',
         ]);
-    }
 
-    $student = Student::where('student_number', $studentNumber)->first();
+        $studentNumber = $request->student_number;
 
-    if ($student) {
-        $attendance = Attendance::where('student_id', $student->id)
-            ->where('lecture_session_id', $sessionId)
-            ->first();
+        $session = LectureSession::find($sessionId);
 
-        if ($attendance) {
-            Cache::forget("pending:{$sessionId}:{$studentNumber}");
+        if (!$session) {
+            return response()->json([
+                'success' => false,
+                'status' => 'failed',
+                'message' => __('session.not_found'),
+                'remaining_seconds' => 0,
+            ], 404);
+        }
+
+        $this->finalizeExpiredSession($session);
+
+        $remainingSeconds = $this->calculateRemainingSeconds($session);
+
+        if ($session->qr_expired || $session->status !== 'active' || $remainingSeconds <= 0) {
+            return response()->json([
+                'success' => false,
+                'status' => 'failed',
+                'message' => __('session.token_expired'),
+                'remaining_seconds' => 0,
+            ]);
+        }
+
+        $student = Student::where('student_number', $studentNumber)->first();
+
+        if ($student) {
+            $attendance = Attendance::where('student_id', $student->id)
+                ->where('lecture_session_id', $sessionId)
+                ->first();
+
+            if ($attendance) {
+                Cache::forget("pending:{$sessionId}:{$studentNumber}");
+
+                return response()->json([
+                    'success' => true,
+                    'status' => 'recorded',
+                    'message' => __('student.attendance_recorded'),
+                    'attendance_time' => $attendance->attendance_time->toIso8601String(),
+                    'remaining_seconds' => $remainingSeconds,
+                ]);
+            }
+        }
+
+        $failedKey = "failed:{$sessionId}:{$studentNumber}";
+        $failedReason = Cache::get($failedKey);
+
+        if ($failedReason) {
+            Cache::forget($failedKey);
 
             return response()->json([
-                'success' => true,
-                'status' => 'recorded',
-                'message' => __('student.attendance_recorded'),
-                'attendance_time' => $attendance->attendance_time->toIso8601String(),
+                'success' => false,
+                'status' => 'failed',
+                'message' => $failedReason,
                 'remaining_seconds' => $remainingSeconds,
             ]);
         }
-    }
-
-    $failedKey = "failed:{$sessionId}:{$studentNumber}";
-    $failedReason = Cache::get($failedKey);
-
-    if ($failedReason) {
-        Cache::forget($failedKey);
 
         return response()->json([
-            'success' => false,
-            'status' => 'failed',
-            'message' => $failedReason,
+            'success' => true,
+            'status' => 'processing',
+            'message' => __('student.checking'),
             'remaining_seconds' => $remainingSeconds,
         ]);
     }
-
-    return response()->json([
-        'success' => true,
-        'status' => 'processing',
-        'message' => __('student.checking'),
-        'remaining_seconds' => $remainingSeconds,
-    ]);
-}
 
     /**
      * Synchronous attendance check - for when queue is not available.
      * This provides immediate response for smaller scale usage.
      */
-   public function storeSync(Request $request, $sessionId)
-{
-    $request->validate([
-        'student_number' => 'required|string|max:50',
-        'otp' => 'required|string|size:6',
-    ]);
+    public function storeSync(Request $request, $sessionId)
+    {
+        $request->validate([
+            'student_number' => 'required|string|max:50',
+            'otp' => 'required|string|size:6',
+        ]);
 
-    $session = LectureSession::with('subject')->find($sessionId);
+        $session = LectureSession::with('subject')->find($sessionId);
 
-    if (! $session) {
-        return back()->with('error', __('session.not_found'));
-    }
+        if (!$session) {
+            return back()->with('error', __('session.not_found'));
+        }
 
-    $this->finalizeExpiredSession($session);
-
-    if ($session->qr_expired || $session->status !== 'active') {
-        return back()->with('error', __('session.token_expired'));
-    }
-
-    $remainingSeconds = $this->calculateRemainingSeconds($session);
-
-    if ($remainingSeconds <= 0) {
         $this->finalizeExpiredSession($session);
 
-        return back()->with('error', __('session.token_expired'));
-    }
-
-    if ((string) $session->session_otp !== (string) $request->otp) {
-        return back()->with('error', __('student.invalid_otp'));
-    }
-
-    $student = Student::where('student_number', $request->student_number)->first();
-
-    if (! $student) {
-        return back()->with('error', __('student.not_found'));
-    }
-
-    if ($session->subject_id) {
-        $isEnrolled = \DB::table('enrollments')
-            ->where('student_id', $student->id)
-            ->where('subject_id', $session->subject_id)
-            ->exists();
-
-        if (! $isEnrolled) {
-            return back()->with('error', __('student.not_enrolled_in_subject'));
+        if ($session->qr_expired || $session->status !== 'active') {
+            return back()->with('error', __('session.token_expired'));
         }
+
+        $remainingSeconds = $this->calculateRemainingSeconds($session);
+
+        if ($remainingSeconds <= 0) {
+            $this->finalizeExpiredSession($session);
+
+            return back()->with('error', __('session.token_expired'));
+        }
+
+        if ((string)$session->session_otp !== (string)$request->otp) {
+            return back()->with('error', __('student.invalid_otp'));
+        }
+
+        $student = Student::where('student_number', $request->student_number)->first();
+
+        if (!$student) {
+            return back()->with('error', __('student.not_found'));
+        }
+
+        if ($session->subject_id) {
+            $isEnrolled = \DB::table('enrollments')
+                ->where('student_id', $student->id)
+                ->where('subject_id', $session->subject_id)
+                ->exists();
+
+            if (!$isEnrolled) {
+                return back()->with('error', __('student.not_enrolled_in_subject'));
+            }
+        }
+        $attendance = Attendance::updateOrCreate(
+            [
+                'student_id' => $student->id,
+                'lecture_session_id' => $sessionId,
+            ],
+            [
+                'attendance_time' => now(),
+                'attendance_method' => 'qr_scan',
+                'attendance_status' => 'present',
+                'ip_address' => $request->ip(),
+            ]
+        );
+//    $exists = Attendance::where('student_id', $student->id)
+//        ->where('lecture_session_id', $sessionId)->wheres('status' ,'present')
+//        ->exists();
+//
+//    if ($exists) {
+//        return back()->with('error', __('student.already_attended'));
+//    }
+//
+//    Attendance::create([
+//        'student_id' => $student->id,
+//        'lecture_session_id' => $sessionId,
+//        'attendance_time' => now(),
+//        'attendance_method' => 'qr_scan',
+//        'attendance_status' => 'present',
+//        'ip_address' => $request->ip(),
+//    ]);
+
+        return back()->with('success', __('student.attendance_recorded'));
     }
 
-    $exists = Attendance::where('student_id', $student->id)
-        ->where('lecture_session_id', $sessionId)
-        ->exists();
-
-    if ($exists) {
-        return back()->with('error', __('student.already_attended'));
-    }
-
-    Attendance::create([
-        'student_id' => $student->id,
-        'lecture_session_id' => $sessionId,
-        'attendance_time' => now(),
-        'attendance_method' => 'qr_scan',
-        'attendance_status' => 'present',
-        'ip_address' => $request->ip(),
-    ]);
-
-    return back()->with('success', __('student.attendance_recorded'));
-}
 }

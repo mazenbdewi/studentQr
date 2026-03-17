@@ -15,14 +15,27 @@ class AttendancesTable
     {
         return $table
             ->columns([
-                TextColumn::make('lecture_session_id')
-                    ->label(__('attendance.lecture_session_id'))
-                    ->numeric()
+//                TextColumn::make('lecture_session_id')
+//                    ->label(__('attendance.lecture_session_id'))
+//                    ->numeric()
+//                    ->sortable(),
+
+
+//                TextColumn::make('student_id')
+//                    ->label(__('attendance.student_id'))
+//                    ->numeric()
+//                    ->sortable(),
+                TextColumn::make('student.name')
+                    ->label(__('attendance.student_name'))
+                    ->searchable()
                     ->sortable(),
-                TextColumn::make('student_id')
-                    ->label(__('attendance.student_id'))
-                    ->numeric()
+
+                TextColumn::make('lectureSession.subject.name')
+                    ->label(__('subjects.name'))
+                    ->searchable()
                     ->sortable(),
+
+
                 TextColumn::make('attendance_token_id')
                     ->label(__('attendance.attendance_token_id'))
                     ->numeric()
@@ -67,5 +80,5 @@ class AttendancesTable
                 ]),
             ]);
     }
-    
+
 }

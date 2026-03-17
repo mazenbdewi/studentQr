@@ -46,7 +46,7 @@ class LectureSessionResource extends Resource
 
     public static function getRecordTitle($record): ?string
     {
-        return __('lecture-session.record_title').' #'.$record->id;
+        return __('lecture-session.record_title') . ' #' . $record->id;
     }
 
     public static function form(Schema $schema): Schema
@@ -103,7 +103,8 @@ class LectureSessionResource extends Resource
                         'manual' => __('lecture-session.mode_manual'),
                     ])
                     ->default('qr_otp')
-                    ->required(),
+                    ->required()
+                    ->disabled(),
 
                 Forms\Components\TextInput::make('qr_refresh_rate')
                     ->label(__('lecture-session.qr_refresh_rate'))
@@ -161,7 +162,7 @@ class LectureSessionResource extends Resource
                         'secondary' => 'completed',
                         'danger' => 'cancelled',
                     ])
-                    ->formatStateUsing(fn ($state) => __("lecture-session.status_{$state}")),
+                    ->formatStateUsing(fn($state) => __("lecture-session.status_{$state}")),
 
                 Tables\Columns\TextColumn::make('actual_attendance')
                     ->label(__('lecture-session.actual_attendance')),
@@ -198,7 +199,7 @@ class LectureSessionResource extends Resource
                             'qr_expires_at' => null,
                         ]);
                     })
-                    ->visible(fn (LectureSession $record) => $record->status === 'scheduled'),
+                    ->visible(fn(LectureSession $record) => $record->status === 'scheduled'),
 
                 \Filament\Actions\Action::make('end')
                     ->label(__('lecture-session.end_session'))
@@ -211,32 +212,32 @@ class LectureSessionResource extends Resource
                             'qr_expired' => true,
                         ]);
                     })
-                    ->visible(fn (LectureSession $record) => $record->status === 'active' && ! $record->qr_expired),
+                    ->visible(fn(LectureSession $record) => $record->status === 'active' && !$record->qr_expired),
 
                 ActionsAction::make('view_qr')
                     ->label(__('lecture-session.view_qr'))
                     ->icon('heroicon-o-qr-code')
-                    ->url(fn (LectureSession $record) => route('teacher.lecture-session.qr', $record))
+                    ->url(fn(LectureSession $record) => route('teacher.lecture-session.qr', $record))
                     ->openUrlInNewTab()
-                    ->visible(fn (LectureSession $record) => $record->status === 'active' && ! $record->qr_expired),
+                    ->visible(fn(LectureSession $record) => $record->status === 'active' && !$record->qr_expired),
 
                 ActionsAction::make('session_ended')
                     ->label(__('lecture-session.session_ended'))
                     ->icon('heroicon-o-x-circle')
                     ->color('gray')
                     ->disabled()
-                    ->visible(fn (LectureSession $record) => $record->status === 'completed' || $record->qr_expired),
+                    ->visible(fn(LectureSession $record) => $record->status === 'completed' || $record->qr_expired),
 
                 ActionsAction::make('view_attendance')
                     ->label(__('attendance.view_attendance'))
                     ->color('success')
                     ->icon('heroicon-o-users')
-                    ->url(fn (LectureSession $record) => LectureSessionResource::getUrl('view', [
+                    ->url(fn(LectureSession $record) => LectureSessionResource::getUrl('view', [
                         'record' => $record,
                         'activeRelationManager' => 'attendances',
                     ]))
                     ->openUrlInNewTab(),
-            ])   ->defaultSort('session_date', 'desc')
+            ])->defaultSort('session_date', 'desc')
             ->bulkActions([]);
     }
 

@@ -42,14 +42,15 @@ class LectureSessionForm
                     ])
                     ->default('scheduled')
                     ->required(),
-                Select::make('attendance_mode')
-                    ->options(['qr_only' => 'Qr only', 'qr_otp' => 'Qr otp', 'manual' => 'Manual'])
-                    ->default('qr_otp')
-                    ->required(),
-                TextInput::make('qr_refresh_rate')
-                    ->required()
-                    ->numeric()
-                    ->default(120),
+//                Select::make('attendance_mode')
+//                    ->options(['qr_only' => 'Qr only', 'qr_otp' => 'Qr otp', 'manual' => 'Manual'])
+//                    ->default('qr_otp')
+//                    ->required()
+//                    ->disabled(),
+        TextInput::make('qr_refresh_rate')
+            ->required()
+            ->numeric()
+            ->default(120),
                 TextInput::make('expected_students')
                     ->required()
                     ->numeric()

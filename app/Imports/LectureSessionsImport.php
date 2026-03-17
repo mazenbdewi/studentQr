@@ -2,6 +2,8 @@
 
 namespace App\Imports;
 
+use App\Models\Attendance;
+use App\Models\Enrollment;
 use App\Models\LectureSession;
 use App\Models\Subject;
 use App\Models\Hall;
@@ -30,6 +32,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
             ->pluck('id', 'name')
             ->toArray();
     }
+
     private function convertExcelTime($excelTime)
     {
         if (!is_numeric($excelTime)) {
@@ -44,6 +47,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
         return sprintf('%02d:%02d', $hours, $minutes);
         // return sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
     }
+
     public function prepareForValidation($data, $index)
     {
         $rowNumber = $index + 2;
@@ -72,15 +76,12 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
 
             if (!isset($this->halls[$data['hall_name']])) {
                 throw ValidationException::withMessages([
-                    "hall_name" => __('hall.hall') . "'{$data['hall_name']}'  "  . __('subjects.not_found_in_row', ['row' => $rowNumber])
+                    "hall_name" => __('hall.hall') . "'{$data['hall_name']}'  " . __('subjects.not_found_in_row', ['row' => $rowNumber])
                 ]);
             }
 
             $data['hall_id'] = $this->halls[$data['hall_name']];
         }
-
-
-
 
 
         unset(
@@ -98,24 +99,38 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
         $lecturerId = $subject ? $subject->lecturer_id : null;
 
 
-        return new LectureSession([
+        $session = LectureSession::firstOrCreate(
+            [
+                'subject_id' => $row['subject_id'],
+                'hall_id' => $row['hall_id'],
+                'session_date' => Carbon::createFromFormat('d-m-Y', $row['session_date'])->format('Y-m-d')
+            ],
+            [
+                'lecturer_id' => $lecturerId,
+                'start_time' => $row['start_time'],
+                'end_time' => $row['end_time'],
+                'status' => $row['status'] ?? 'scheduled',
+                'attendance_mode' => $row['attendance_mode'] ?? 'qr_otp',
+                'qr_refresh_rate' => $row['qr_refresh_rate'] ?? 120,
+                'notes' => $row['notes'] ?? null,
+            ]
+        );
 
-            'subject_id' => $row['subject_id'],
-            'hall_id' => $row['hall_id'],
-            'lecturer_id' => $lecturerId,
-            'session_date' => Carbon::createFromFormat('d-m-Y', $row['session_date'])
-                ->format('Y-m-d'),
 
-            'start_time' => $row['start_time'],
-            'end_time' => $row['end_time'],
+        $enrollments = Enrollment::where('subject_id', $row['subject_id'])->get();
 
-            'status' => $row['status'] ?? 'scheduled',
-            'attendance_mode' => $row['attendance_mode'] ?? 'qr_otp',
-            'qr_refresh_rate' => $row['qr_refresh_rate'] ?? 120,
-
-            'notes' => $row['notes'] ?? null,
-
-        ]);
+        foreach ($enrollments as $enrollment) {
+            Attendance::firstOrCreate( // updateOrCreate
+                [
+                    'student_id' => $enrollment->student_id,
+                    'lecture_session_id' => $session->id,
+                ],
+                [
+                    'attendance_status' => 'pending'
+                ]
+            );
+        }
+        return $session;
     }
 
     public function rules(): array

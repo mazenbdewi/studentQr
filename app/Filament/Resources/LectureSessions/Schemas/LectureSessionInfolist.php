@@ -31,8 +31,8 @@ class LectureSessionInfolist
                     ->placeholder('-'),
                 TextEntry::make('status')
                     ->badge(),
-                TextEntry::make('attendance_mode')
-                    ->badge(),
+//                TextEntry::make('attendance_mode')
+//                    ->badge(),
                 TextEntry::make('qr_refresh_rate')
                     ->numeric(),
                 TextEntry::make('expected_students')

@@ -41,8 +41,8 @@ class LectureSessionsTable
                     ->sortable(),
                 TextColumn::make('status')
                     ->badge(),
-                TextColumn::make('attendance_mode')
-                    ->badge(),
+//                TextColumn::make('attendance_mode')
+//                    ->badge(),
                 TextColumn::make('qr_refresh_rate')
                     ->numeric()
                     ->sortable(),

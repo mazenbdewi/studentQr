@@ -26,7 +26,10 @@ class SubjectResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
-
+public static function getNavigationLabel(): string
+{
+    return __('subjects.students_and_subjects');
+}
     public static function getModelLabel(): string
     {
         return __('subjects.singular');
