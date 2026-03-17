@@ -3,6 +3,7 @@
 
 namespace App\Filament\Resources\Subjects\RelationManagers;
 
+use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Tables;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -11,7 +12,9 @@ use Filament\Actions\DetachAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DetachBulkAction;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
+use Maatwebsite\Excel\Validators\ValidationException;
 
 class StudentsRelationManager extends RelationManager
 {
@@ -19,11 +22,11 @@ class StudentsRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'name';
 
- 
+
 
     public static function getTitle(Model $ownerRecord, string $pageClass): string
     {
-      return __('student.enrolled_students');
+        return __('student.enrolled_students');
     }
 
 
@@ -79,14 +82,48 @@ class StudentsRelationManager extends RelationManager
                             ->default('enrolled')
                             ->required(),
                     ])
-                    ->using(function (array $data) {
-                        $this->ownerRecord->students()->attach($data['recordId'], [
+                    ->using(function (array $data , AttachAction $action) {
+                        $studentId = $data['recordId'];
+
+                          
+                        $exists = $this->ownerRecord->students()
+                            ->wherePivot('student_id', $studentId)
+                            // ->wherePivot('semester', $data['semester'])
+                            // ->wherePivot('year', $data['year'])
+                            // ->wherePivot('status', $data['status'])
+                            ->exists();
+
+                        if ($exists) {
+                            Notification::make()
+                                ->title(__('student.already_enrolled'))
+                                ->danger()
+                                ->send();
+
+                           $action->cancel();                     }
+
+                         $this->ownerRecord->students()->attach($studentId, [
                             'semester' => $data['semester'],
                             'year' => $data['year'],
                             'status' => $data['status'],
                         ]);
+
+                        $lectureSessions = $this->ownerRecord->lectureSessions()->pluck('id');
+                        foreach ($lectureSessions as $sessionId) {
+                            \App\Models\Attendance::firstOrCreate(
+                                [
+                                    'student_id' => $studentId,
+                                    'lecture_session_id' => $sessionId,
+                                ],
+                                [
+                                    'attendance_status' => 'pending',
+                                    'attendance_time' => now(),
+                                ]
+                            );
+                        }
+
                         return $this->ownerRecord;
                     }),
+
             ])
             ->actions([
                 EditAction::make()

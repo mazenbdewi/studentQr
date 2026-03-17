@@ -13,6 +13,8 @@ return [
     'home' => 'Home',
     'attendance' => 'Attendance',
     'profile' => 'Profile',
+    'already_enrolled' => 'Student is already enrolled for this subject.',
+
     'logout' => 'Logout',
     'page_title' => 'Student Dashboard - Al-Manara University',
     'dashboard' => 'Student Dashboard',
