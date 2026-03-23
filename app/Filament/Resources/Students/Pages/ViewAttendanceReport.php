@@ -78,7 +78,7 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
                         'warning' => 'late',
                         'danger' => 'absent',
                     ]),
-                Tables\Columns\TextColumn::make('recorded_at')
+                Tables\Columns\TextColumn::make('created_at')
                     ->label(__('attendance.recorded_at'))
                     ->dateTime()
                     ->sortable()

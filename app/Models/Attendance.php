@@ -16,6 +16,14 @@ class Attendance extends Model
         return $this->belongsTo(Student::class);
     }
 
+
+//     protected static function booted()
+// {
+//     static::creating(function ($attendance) {
+//         $attendance->recorded_at = $attendance->recorded_at ?? now();
+//     });
+// }
+
 //     public function student()
 // {
 //     return $this->belongsTo(Student::class, 'student_id');

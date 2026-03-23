@@ -16,6 +16,7 @@ return [
     'device_fingerprint' => 'بصمة الجهاز',
     'created_at' => 'تاريخ الإنشاء',
     'updated_at' => 'تاريخ التحديث',
+    'recorded_at' => 'تاريخ تسجيل الحضور',
 
     'method' => [
         'qr_only' => 'QR فقط',

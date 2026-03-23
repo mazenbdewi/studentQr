@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Subjects\RelationManagers;
 
+use App\Filament\Resources\Students\StudentResource;
 use App\Models\Student;
 use Filament\Actions\Action;
 use Filament\Actions\DetachAction;

@@ -15,6 +15,7 @@ return [
     'ip_address' => 'IP Address',
     'device_fingerprint' => 'Device Fingerprint',
     'created_at' => 'Created At',
+    'recorded_at' => 'Attendance Recorded At',
     'updated_at' => 'Updated At',
     'method' => [
         'qr_only' => 'QR Only',

@@ -6,6 +6,8 @@ use App\Filament\Resources\Students\RelationManagers\SubjectsRelationManager;
 use App\Filament\Resources\Students\StudentResource;
 use App\Models\Attendance;
 use Filament\Actions\EditAction;
+use Filament\Actions\ExportBulkAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Tables;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -45,7 +47,7 @@ class ViewStudent extends ViewRecord implements HasTable
                     ->label('Attendance Date')
                     ->date()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('recorded_at')
+                Tables\Columns\TextColumn::make('created_at')
                     ->label('Attendance Time')
                     ->dateTime('H:i')
                     ->sortable(),
@@ -70,8 +72,8 @@ class ViewStudent extends ViewRecord implements HasTable
                 Tables\Filters\Filter::make('date_range')
                     ->label('Date Range')
                     ->form([
-                        Tables\Filters\Components\DatePicker::make('date_from'),
-                        Tables\Filters\Components\DatePicker::make('date_to'),
+                       DatePicker::make('date_from'),
+                      DatePicker::make('date_to'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
@@ -90,7 +92,7 @@ class ViewStudent extends ViewRecord implements HasTable
             ->filtersLayout(FiltersLayout::AboveContentCollapsible)
             ->defaultSort('recorded_at', 'desc')
             ->headerActions([
-                Tables\Actions\ExportBulkAction::make(),
+                ExportBulkAction::make(),
             ]);
     }
 
