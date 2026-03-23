@@ -42,5 +42,17 @@ return [
     'import_excel' => 'Import from Excel',
     'excel_file' => 'Excel File',
     'import_success' => 'Import Successful',
+'import_failed' => 'Import Failed',
+    'help_title' => 'Lecture Sessions Import Instructions',
+'import_with_template' => 'Import Using Template',
+    'template_download' => 'Download Template',
+    'import_excel' => 'Import Excel',
+    'excel_file' => 'Excel File',
+    'import_success' => 'Import Successful',
     'import_failed' => 'Import Failed',
+'no_lectures_today' => 'No lectures scheduled for today.',
+    'todays_lectures' => 'Today\'s Lectures',
 ];
+
+
+

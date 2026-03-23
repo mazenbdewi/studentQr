@@ -11,39 +11,63 @@ use Maatwebsite\Excel\Concerns\WithValidation;
 
 class DepartmentsImport implements ToModel, WithHeadingRow, WithValidation
 {
-    private $faculties;
-
-    public function __construct()
-    {
-
-        $this->faculties = Faculty::pluck('id', 'name')->toArray();
+ public function prepareForValidation($data, $index)
+{
+    if (isset($data['code']) && $data['code'] !== null) {
+        $data['code'] = trim((string) $data['code']);
     }
 
-    public function prepareForValidation($data, $index)
-    {
-        $data['faculty_id'] = $this->faculties[$data['faculty_name']] ?? null;
-
-        return $data;
+    if (isset($data['name']) && $data['name'] !== null) {
+        $data['name'] = trim((string) $data['name']);
     }
 
-    public function model(array $row)
-    {
-        // $row['total_students'] = $row['total_students'] ?? 0;
-        // $row['total_lecturers'] = $row['total_lecturers'] ?? 0;
-        $row['is_active'] = isset($row['is_active'])
-            ? filter_var($row['is_active'], FILTER_VALIDATE_BOOLEAN)
-            : true;
-
-        return new Department([
-            'code'            => $row['code'],
-            'name'            => $row['name'],
-            'name_en'         => $row['name_en'] ?? null,
-            'faculty_id'      => $row['faculty_id'],
-            // 'total_students'  => $row['total_students'],
-            // 'total_lecturers' => $row['total_lecturers'],
-            'is_active'       => $row['is_active'],
-        ]);
+    if (isset($data['name_en']) && $data['name_en'] !== null) {
+        $data['name_en'] = trim((string) $data['name_en']);
     }
+
+    if (isset($data['faculty_name']) && $data['faculty_name'] !== null) {
+        $data['faculty_name'] = trim((string) $data['faculty_name']);
+    }
+
+    $faculty = null;
+
+    if (!empty($data['faculty_name'])) {
+        $faculty = Faculty::query()
+            ->where('name', $data['faculty_name'])
+            ->first();
+    }
+
+    $data['faculty_id'] = $faculty?->id;
+
+    if (array_key_exists('is_active', $data) && $data['is_active'] !== null && $data['is_active'] !== '') {
+        $normalized = strtolower(trim((string) $data['is_active']));
+
+        $booleanMap = [
+            'true' => true,
+            'false' => false,
+            '1' => true,
+            '0' => false,
+            'yes' => true,
+            'no' => false,
+        ];
+
+        $data['is_active'] = $booleanMap[$normalized] ?? $data['is_active'];
+    } else {
+        $data['is_active'] = true;
+    }
+
+    return $data;
+}
+  public function model(array $row)
+{
+    return new Department([
+        'code'        => $row['code'],
+        'name'        => $row['name'],
+        'name_en'     => $row['name_en'] ?? null,
+        'faculty_id'  => $row['faculty_id'],
+        'is_active'   => $row['is_active'] ?? true,
+    ]);
+}
 
     public function rules(): array
     {
@@ -52,44 +76,31 @@ class DepartmentsImport implements ToModel, WithHeadingRow, WithValidation
             'name'       => ['required', 'string', 'max:255'],
             'name_en'    => ['nullable', 'string', 'max:255'],
             'faculty_id' => ['required', 'exists:faculties,id'],
-            // 'total_students'  => ['nullable', 'integer', 'min:0'],
-            // 'total_lecturers' => ['nullable', 'integer', 'min:0'],
-            'is_active'       => ['nullable', 'boolean'],
+            'is_active'  => ['nullable', 'boolean'],
         ];
     }
 
-    public function customValidationMessages()
+    public function customValidationMessages(): array
     {
         return [
             'code.required'       => __('validation.code_required'),
             'code.unique'         => __('validation.code_unique'),
             'code.max'            => __('validation.code_max'),
-
             'name.required'       => __('validation.name_required'),
             'name.max'            => __('validation.name_max'),
-
-            'faculty_id.required' => __('validation.faculty_id_required'),
-            'faculty_id.exists'   => __('validation.faculty_id_exists'),
-
-            // 'total_students.integer' => __('validation.total_students_integer'),
-            // 'total_students.min'     => __('validation.total_students_min'),
-
-            // 'total_lecturers.integer' => __('validation.total_lecturers_integer'),
-            // 'total_lecturers.min'     => __('validation.total_lecturers_min'),
-
-            'is_active.boolean' => __('validation.is_active_boolean'),
+            'faculty_id.required' => 'حقل الكلية مطلوب في الصف :row. تأكد أن faculty_name يطابق اسم كلية موجودة في النظام.',
+            'faculty_id.exists'   => 'الكلية المحددة في الصف :row غير موجودة في النظام.',
+            'is_active.boolean'   => __('validation.is_active_boolean'),
         ];
     }
 
-    public function customValidationAttributes()
+    public function customValidationAttributes(): array
     {
         return [
-            'code'           => 'الكود',
-            'name'           => 'الاسم',
-            'faculty_id'     => 'الكلية',
-            // 'total_students' => 'عدد الطلاب',
-            // 'total_lecturers' => 'عدد المدرسين',
-            'is_active'      => 'الحالة',
+            'code'       => 'الكود',
+            'name'       => 'الاسم',
+            'faculty_id' => 'الكلية',
+            'is_active'  => 'الحالة',
         ];
     }
 }

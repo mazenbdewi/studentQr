@@ -72,10 +72,12 @@ class StudentResource extends Resource
         return [
             'index' => ListStudents::route('/'),
             'create' => CreateStudent::route('/create'),
-            'view' => ViewStudent::route('/{record}'),
+'view' => ViewStudent::route('/{record}'),
+'attendance-report' => \App\Filament\Resources\Students\Pages\ViewAttendanceReport::route('/{record}/attendance-report'),
             'edit' => EditStudent::route('/{record}/edit'),
         ];
     }
+
 
     public static function canAccess(): bool
     {

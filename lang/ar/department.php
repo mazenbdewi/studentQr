@@ -20,5 +20,17 @@ return [
     'create_title'   => 'إضافة قسم',
     'record_title'   => 'قسم',
     'not_available'    => '-',
-    'description'      => 'الوصف',
+'description'      => 'الوصف',
+    'help_title' => 'تعليمات استيراد الأقسام',
+    'import_excel' => 'استيراد من Excel',
+    'excel_file' => 'ملف Excel',
+    'import_with_template' => 'استيراد باستخدام القالب',
+    'import_success' => 'تم الاستيراد بنجاح',
+    'stats_imported' => ':count قسم مستورد',
+'import_stats' => ':imported مستورد, :errors خطأ',
+    'template_download' => 'تحميل القالب',
+    'import_excel' => 'استيراد Excel',
+    'excel_file' => 'ملف Excel',
 ];
+
+

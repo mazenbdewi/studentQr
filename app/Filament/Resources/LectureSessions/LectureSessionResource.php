@@ -165,7 +165,11 @@ class LectureSessionResource extends Resource
                     ->formatStateUsing(fn($state) => __("lecture-session.status_{$state}")),
 
                 Tables\Columns\TextColumn::make('actual_attendance')
-                    ->label(__('lecture-session.actual_attendance')),
+                    ->label(__('lecture-session.actual_attendance'))
+                    ->getStateUsing(fn ($record) => $record->attendances()
+                        ->select('student_id')
+                        ->distinct()
+                        ->count('student_id')),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('subject')

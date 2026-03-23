@@ -20,5 +20,17 @@ return [
     'create_title'   => 'Create Department',
     'record_title'   => 'Department',
     'not_available'    => '-',
-    'description'      => 'Description',    
+'description'      => 'Description',
+    'help_title' => 'Departments Import Instructions',
+    'import_excel' => 'Import from Excel',
+    'excel_file' => 'Excel File',
+    'import_with_template' => 'Import Using Template',
+    'import_success' => 'Import Successful',
+    'stats_imported' => ':count departments imported',
+'import_stats' => ':imported imported, :errors errors',
+    'template_download' => 'Download Template',
+    'import_excel' => 'Import Excel',
+    'excel_file' => 'Excel File',
 ];
+
+

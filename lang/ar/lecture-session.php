@@ -51,6 +51,18 @@ return [
     'import_excel' => 'استيراد من إكسل',
     'excel_file' => 'ملف إكسل',
     'import_success' => 'تم الاستيراد بنجاح',
+'import_failed' => 'فشل الاستيراد',
+    'help_title' => 'تعليمات استيراد جلسات المحاضرات',
+'import_with_template' => 'استيراد باستخدام القالب',
+    'template_download' => 'تحميل النموذج',
+    'import_excel' => 'استيراد Excel',
+    'excel_file' => 'ملف Excel',
+    'import_success' => 'تم الاستيراد بنجاح',
     'import_failed' => 'فشل الاستيراد',
+'no_lectures_today' => 'لا توجد محاضرات مجدولة لليوم.',
+    'todays_lectures' => 'محاضرات اليوم',
 
 ];
+
+
+

@@ -35,5 +35,12 @@ return [
     'import_success' => 'Import Successful',
     'import_failed' => 'Import Failed',
     
-   'hall' => 'Hall'
+'hall' => 'Hall',
+    'help_title' => 'Halls Import Instructions',
+'import_with_template' => 'Import Using Template',
+    'template_download' => 'Download Template',
+    'import_excel' => 'Import Excel',
+    'excel_file' => 'Excel File',
 ];
+
+

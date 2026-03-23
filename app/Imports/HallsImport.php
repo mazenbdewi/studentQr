@@ -10,49 +10,57 @@ use Maatwebsite\Excel\Concerns\WithValidation;
 
 class HallsImport implements ToModel, WithHeadingRow, WithValidation
 {
+    public function prepareForValidation($data, $index)
+    {
+        if (isset($data['code']) && $data['code'] !== null) {
+            $data['code'] = trim((string) $data['code']);
+        }
+
+        if (isset($data['name']) && $data['name'] !== null) {
+            $data['name'] = trim((string) $data['name']);
+        }
+
+        if (isset($data['floor']) && $data['floor'] !== null && $data['floor'] !== '') {
+            $data['floor'] = (int) $data['floor'];
+        }
+
+        if (array_key_exists('is_active', $data) && $data['is_active'] !== null && $data['is_active'] !== '') {
+            $normalized = strtolower(trim((string) $data['is_active']));
+
+            $map = [
+                'true'  => true,
+                'false' => false,
+                '1'     => true,
+                '0'     => false,
+                'yes'   => true,
+                'no'    => false,
+            ];
+
+            $data['is_active'] = $map[$normalized] ?? null;
+        } else {
+            $data['is_active'] = true;
+        }
+
+        return $data;
+    }
 
     public function model(array $row)
     {
-        $booleanFields = ['has_projector', 'has_computer', 'is_active'];
-        foreach ($booleanFields as $field) {
-            if (isset($row[$field])) {
-                $row[$field] = filter_var($row[$field], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false;
-            } else {
-                $row[$field] = false;
-            }
-        }
-
-        $row['floor'] = $row['floor'] ?? 0;
-        $row['capacity'] = $row['capacity'] ?? 1;
-
         return new Hall([
-            'code'             => $row['code'],
-            'name'             => $row['name'],
-            'floor'            => $row['floor'],
-            'capacity'         => $row['capacity'],
-            'has_projector'    => $row['has_projector'],
-            'has_computer'     => $row['has_computer'],
-            'network_ssid'     => $row['network_ssid'] ?? null,
-            'ip_range_start'   => $row['ip_range_start'] ?? null,
-            'ip_range_end'     => $row['ip_range_end'] ?? null,
-            'is_active'        => $row['is_active'],
+            'code'      => $row['code'],
+            'name'      => $row['name'],
+            'floor'     => $row['floor'] ?? 0,
+            'is_active' => $row['is_active'] ?? true,
         ]);
     }
-
 
     public function rules(): array
     {
         return [
-            'code'           => ['required', 'string', 'max:255', Rule::unique('halls', 'code')],
-            'name'           => ['required', 'string', 'max:255'],
-            'floor'          => ['nullable', 'integer', 'min:0'],
-            'capacity'       => ['nullable', 'integer', 'min:1'],
-            'has_projector'  => ['nullable', 'boolean'],
-            'has_computer'   => ['nullable', 'boolean'],
-            'network_ssid'   => ['nullable', 'string', 'max:255'],
-            'ip_range_start' => ['nullable', 'ip'],
-            'ip_range_end'   => ['nullable', 'ip'],
-            'is_active'      => ['nullable', 'boolean'],
+            'code'      => ['required', 'string', 'max:255', Rule::unique('halls', 'code')],
+            'name'      => ['required', 'string', 'max:255'],
+            'floor'     => ['required', 'integer', 'min:0'],
+            'is_active' => ['nullable', 'in:true,false,1,0,yes,no'],
         ];
     }
 
@@ -61,44 +69,25 @@ class HallsImport implements ToModel, WithHeadingRow, WithValidation
         return [
             'code.required'    => __('validation.code_required'),
             'code.unique'      => __('validation.code_unique'),
-
-
-        
-
             'code.max'         => __('validation.code_max'),
 
             'name.required'    => __('validation.name_required'),
             'name.max'         => __('validation.name_max'),
 
+            'floor.required'   => 'حقل الدور مطلوب.',
             'floor.integer'    => __('validation.floor_integer'),
             'floor.min'        => __('import.floor_min'),
 
-            'capacity.integer' => __('validation.capacity_integer'),
-            'capacity.min'     => __('validation.capacity_min'),
-
-            'has_projector.boolean' => __('validation.has_projector_boolean'),
-            'has_computer.boolean'  => __('validation.has_computer_boolean'),
-
-
-            'is_active.boolean' => __('validation.is_active_boolean'),
+            'is_active.in'     => 'حقل الحالة يجب أن يكون إحدى القيم: true / false / 1 / 0 / yes / no.',
         ];
     }
-
-
-
 
     public function customValidationAttributes()
     {
         return [
-            'code' => 'الكود',
-            'name' => 'الاسم',
-            'floor' => 'الدور',
-            'capacity' => 'السعة',
-            'has_projector' => 'جهاز العرض',
-            'has_computer' => 'الحاسب',
-            'network_ssid' => 'اسم الشبكة',
-            'ip_range_start' => 'بداية نطاق IP',
-            'ip_range_end' => 'نهاية نطاق IP',
+            'code'      => 'الكود',
+            'name'      => 'الاسم',
+            'floor'     => 'الدور',
             'is_active' => 'الحالة',
         ];
     }

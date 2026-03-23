@@ -19,7 +19,11 @@ return [
     'students_and_subjects' => 'Students and Subjects',
     'created_at' => 'Created At',
     'updated_at' => 'Updated At',
-    'import_excel'   => 'Import from Excel',
+'import_excel' => 'Import from Excel',
+'download_subject_students_template' => 'Download Subject Students Template',
+    'excel_file' => 'Excel File',
+    'import_excel' => 'Import Excel',
+    'template_download' => 'Download Template',
     'excel_file'     => 'Excel File',
     'import_success' => 'Students imported successfully',
     'import_failed'  => 'Import failed, please check the file format',
@@ -34,5 +38,8 @@ return [
 
     'not_available' => '-',
     'subject' => 'Subject',
-    'not_found_in_row' => 'not found in row :row',
+'not_found_in_row' => 'not found in row :row',
+    'help_title' => 'Subjects Import Instructions',
+    'import_with_template' => 'Import Using Template',
 ];
+

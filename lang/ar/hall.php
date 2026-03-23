@@ -1,13 +1,11 @@
 <?php
 
 return [
-
     'singular'          => 'قاعة',
     'plural'            => 'القاعات',
     'create'            => 'إضافة',
     'create_title'      => 'إضافة قاعة',
     'record_title'      => 'سجل قاعة',
-
 
     'code'              => 'رمز القاعة',
     'name'              => 'اسم القاعة',
@@ -22,16 +20,18 @@ return [
     'created_at'        => 'تاريخ الإنشاء',
     'updated_at'        => 'تاريخ التحديث',
 
-
     'view'              => 'عرض',
     'edit'              => 'تعديل',
     'delete_selected'   => 'حذف المحدد',
 
-
     'not_available'     => '-',
-    'import_excel' => 'استيراد من إكسل',
-    'excel_file' => 'ملف إكسل',
-    'import_success' => 'تم الاستيراد بنجاح',
-    'import_failed' => 'فشل الاستيراد',
-    'hall' => 'القاعة'
+    'hall'              => 'القاعة',
+    'import_excel'      => 'استيراد من إكسل',
+    'excel_file'        => 'ملف إكسل',
+    'template_download' => 'تحميل القالب',
+    'import_success'    => 'تم الاستيراد بنجاح',
+    'import_failed'     => 'فشل الاستيراد',
+    'help_title'        => 'تعليمات استيراد القاعات',
+    'import_with_template' => 'استيراد باستخدام القالب',
 ];
+

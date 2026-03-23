@@ -103,5 +103,22 @@ return [
     'teacher' => 'Teacher',
     'hall' => 'Hall',
     'date' => 'Date',
-    'subject' => 'Subject',
+'subject' => 'Subject',
+
+    // Attendance Report
+    'attendance_report' => 'Attendance Report',
+    'attendance_report_for' => 'Attendance Report for :name',
+    'student_info' => 'Student Information',
+    'summary_stats' => 'Summary Statistics',
+    'overall_attendance_summary' => 'Overall Attendance Summary',
+    'subject_attendance_summary' => 'Subject Attendance Summary',
+    'detailed_attendance_history' => 'Detailed Attendance History',
+    'total_enrolled_subjects' => 'Total Enrolled Subjects',
+    'total_lectures' => 'Total Lectures',
+    'total_attended' => 'Total Attended',
+    'overall_attendance' => 'Overall Attendance',
+'low_attendance_subjects' => 'Low Attendance Subjects (:count)',
+    'help_title' => 'Students Import Instructions',
 ];
+
+

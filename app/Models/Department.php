@@ -6,7 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class Department extends Model
 {
-    protected $fillable = ['faculty_id','name','code'];
+    protected $fillable = [
+        'faculty_id',
+        'name',
+        'code',
+        'name_en',
+        'description',
+        'is_active',
+    ];
 
     public function faculty()
     {

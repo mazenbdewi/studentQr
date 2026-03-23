@@ -78,6 +78,14 @@ return [
     'excel_file' => 'ملف Excel',
     'import_success' => 'تم استيراد الطلاب بنجاح',
     'import_failed' => 'فشل الاستيراد، يرجى التحقق من صيغة الملف',
+    'template_download' => 'تحميل القالب',
+    'import_with_template' => 'استيراد باستخدام القالب',
+    'help_title' => 'تعليمات الاستيراد',
+    'help_content' => 'قم بتحميل ملف Excel يحتوي على بيانات الطلاب. الأعمدة المطلوبة: رقم الطالب, الاسم, الرقم القومي, اسم الكلية, اسم القسم, السنة الدراسية. اسم الكلية واسم القسم يجب أن يكونا مطابقين تماماً للأسماء الموجودة في النظام. رقم الطالب والرقم القومي يجب أن يكونا فريدين. دعم حقول اختيارية: الهاتف, الحالة, الصورة, النوع.',
+    'preview_title' => 'معاينة الأعمدة المطلوبة',
+    'stats_imported' => ':count طالب تم استيرادهم بنجاح',
+    'import_stats' => ':imported ناجح | :errors خطأ',
+
     'enter_student_number_and_code' => 'أدخل الرقم الجامعي ورمز التحقق لإتمام تأكيد الحضور.',
     'absent_students' => 'الطلاب الغائبون',
     'already_attended' => 'لقد قمت بتسجيل حضورك بالفعل',
@@ -105,6 +113,22 @@ return [
     'hall' => 'القاعة',
     'date' => 'التاريخ',
     'subject' => 'المادة',
-    'already_enrolled' => 'الطالب مسجل مسبقًا في هذه المادة ',
+'already_enrolled' => 'الطالب مسجل مسبقًا في هذه المادة ',
 
+    // Attendance Report
+    'attendance_report' => 'تقرير الحضور',
+    'attendance_report_for' => 'تقرير الحضور لـ :name',
+    'student_info' => 'معلومات الطالب',
+    'summary_stats' => 'إحصائيات الملخص',
+    'overall_attendance_summary' => 'ملخص الحضور العام',
+    'subject_attendance_summary' => 'ملخص حضور المواد',
+    'detailed_attendance_history' => 'تاريخ الحضور التفصيلي',
+    'total_enrolled_subjects' => 'إجمالي المواد المسجلة',
+    'total_lectures' => 'إجمالي المحاضرات',
+    'total_attended' => 'إجمالي الحضور',
+    'overall_attendance' => 'نسبة الحضور العامة',
+'low_attendance_subjects' => 'المواد ذات الحضور المنخفض (:count)',
+    'help_title' => 'تعليمات استيراد الطلاب',
 ];
+
+

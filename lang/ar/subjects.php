@@ -20,7 +20,11 @@ return [
     'is_active' => 'نشط',
     'created_at' => 'تاريخ الإنشاء',
     'updated_at' => 'تاريخ التحديث',
-    'import_excel' => 'استيراد من Excel',
+'import_excel' => 'استيراد من Excel',
+'download_subject_students_template' => 'تحميل قالب طلاب المادة',
+    'excel_file' => 'ملف Excel',
+    'import_excel' => 'استيراد Excel',
+    'template_download' => 'تحميل القالب',
     'excel_file' => 'ملف Excel',
     'import_success' => 'تم استيراد الطلاب بنجاح',
     'import_failed' => 'فشل الاستيراد، يرجى التحقق من صيغة الملف',
@@ -30,6 +34,9 @@ return [
     'edit' => 'تعديل',
     'delete_selected' => 'حذف المحدد',
     'subject' => 'المادة',
-    'not_found_in_row' => 'غير موجودة في السطر :row',
+'not_found_in_row' => 'غير موجودة في السطر :row',
     'not_available' => '-',
+    'help_title' => 'تعليمات استيراد المواد',
+    'import_with_template' => 'استيراد باستخدام القالب',
 ];
+

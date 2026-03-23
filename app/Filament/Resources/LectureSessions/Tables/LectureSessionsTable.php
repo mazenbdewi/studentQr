@@ -49,9 +49,12 @@ class LectureSessionsTable
                 TextColumn::make('expected_students')
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('actual_attendance')
-                    ->numeric()
-                    ->sortable(),
+               TextColumn::make('actual_attendance')
+    ->label(__('attendance.actual_attendance'))
+    ->getStateUsing(fn ($record) => $record->attendances()
+        ->select('student_id')
+        ->distinct()
+        ->count('student_id')),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
