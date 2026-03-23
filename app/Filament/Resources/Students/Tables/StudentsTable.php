@@ -63,7 +63,6 @@ class StudentsTable
                 //
             ])
             ->recordActions([
-                ViewAction::make(),
                 Action::make('attendance-report')
                     ->label(__('student.attendance_report'))
                     ->icon('heroicon-o-chart-bar')
