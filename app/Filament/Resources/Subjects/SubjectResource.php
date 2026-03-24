@@ -20,16 +20,16 @@ class SubjectResource extends Resource
 {
     protected static ?string $model = Subject::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::AcademicCap;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::BookOpen;
 
     protected static ?string $recordTitleAttribute = 'name';
 
     protected static ?int $navigationSort = 1;
 
-public static function getNavigationLabel(): string
-{
-    return __('subjects.students_and_subjects');
-}
+    public static function getNavigationLabel(): string
+    {
+        return __('subjects.students_and_subjects');
+    }
     public static function getModelLabel(): string
     {
         return __('subjects.singular');
