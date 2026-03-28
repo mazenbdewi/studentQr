@@ -7,6 +7,8 @@ return [
     'failed_attempts'    => 'المحاولات الفاشلة',
     'halls'              => 'القاعات',
     'student_devices'    => 'أجهزة الطلاب',
-    'subjects'           => 'المواد',
+    'subjects'           => 'المواد وتسجيل الطلاب',
     'lecture_sessions'   => 'جلسات المحاضرات',
+    'academic_structure' => 'الهيكل الأكاديمي',
 ];
+

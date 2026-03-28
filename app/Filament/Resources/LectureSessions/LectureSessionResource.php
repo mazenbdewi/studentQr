@@ -22,7 +22,8 @@ class LectureSessionResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::RectangleStack;
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 6;
+
 
     public static function getModelLabel(): string
     {

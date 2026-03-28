@@ -22,9 +22,19 @@ class DepartmentResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::BuildingOffice2;
 
+    protected static ?int $navigationSort = 2;
+
     // protected static ?string $recordTitleAttribute = 'Department';
 
     protected static ?string $recordTitleAttribute = 'id';
+
+    public static function getNavigationGroup(): ?string
+    {
+        return __('sidebar.academic_structure');
+    }
+
+
+
 
 
 

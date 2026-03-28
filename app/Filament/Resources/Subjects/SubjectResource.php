@@ -24,16 +24,17 @@ class SubjectResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 5;
 
     public static function getNavigationLabel(): string
     {
-        return __('subjects.students_and_subjects');
+        return __('subjects.plural');
     }
     public static function getModelLabel(): string
     {
         return __('subjects.singular');
     }
+
 
     public static function getPluralModelLabel(): string
     {

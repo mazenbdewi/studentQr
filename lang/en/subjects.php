@@ -2,7 +2,7 @@
 
 return [
     'singular' => 'Subject',
-    'plural' => 'Subjects',
+    'plural' => 'Subjects & Student Enrollment',
     'create' => 'Create',
     'create_title' => 'Create Subject',
     'record_title' => 'Subject Record',

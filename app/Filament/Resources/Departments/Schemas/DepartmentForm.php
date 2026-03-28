@@ -23,10 +23,6 @@ class DepartmentForm
                 TextInput::make('name_en')
                     ->label(__('department.name_en'))
                     ->default(null),
-                // TextInput::make('faculty_id')
-                //     ->label(__('department.faculty'))
-                //     ->numeric()
-                //     ->default(null),
                 Select::make('faculty_id')
                     ->label(__('department.faculty'))
                     ->relationship('faculty', 'name')

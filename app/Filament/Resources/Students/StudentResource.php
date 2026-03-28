@@ -23,7 +23,10 @@ class StudentResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::AcademicCap;
 
+    protected static ?int $navigationSort = 4;
+
     protected static ?string $recordTitleAttribute = 'name';
+
 
     public static function getModelLabel(): string
     {

@@ -3,7 +3,7 @@
 return [
 
     'singular' => 'مادة',
-    'plural' => 'المواد',
+    'plural' => 'المواد و تسجيل الطلاب',
     'create' => 'إضافة',
     'create_title' => 'إضافة مادة',
     'record_title' => 'سجل مادة',

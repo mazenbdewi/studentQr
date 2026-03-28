@@ -12,6 +12,7 @@ use App\Filament\Resources\StudentDevices\StudentDeviceResource;
 use App\Filament\Resources\Students\StudentResource;
 use App\Filament\Resources\Subjects\SubjectResource;
 use App\Filament\Resources\Users\UserResource;
+use App\Filament\Resources\Faculties\FacultyResource;
 use App\Http\Middleware\SetAdminLocale;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Actions\Action;
@@ -58,6 +59,7 @@ class AdminPanelProvider extends PanelProvider
                 LectureSessionResource::class,
                 HallResource::class,
                 DepartmentResource::class,
+                FacultyResource::class,
                 UserResource::class,
                 // Hidden resources (can be accessed programmatically if needed):
                 //  AttendanceResource::class,

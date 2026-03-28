@@ -7,6 +7,8 @@ return [
     'failed_attempts'    => 'Failed Attempts',
     'halls'              => 'Halls',
     'student_devices'    => 'Student Devices',
-    'subjects'           => 'Subjects',
+    'subjects'           => 'Subjects & Student Enrollment',
     'lecture_sessions'   => 'Lecture Sessions',
+    'academic_structure' => 'Academic Structure',
 ];
+
