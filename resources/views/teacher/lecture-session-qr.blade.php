@@ -100,6 +100,10 @@ function startCountdown() {
                     window.location.href =
                         '{{ \App\Filament\Resources\LectureSessions\LectureSessionResource::getUrl("index") }}';
                 }, 2000);
+            })        
+            .finally(() => {
+            
+                window.location.reload();
             });
         }
     }, 1000);
