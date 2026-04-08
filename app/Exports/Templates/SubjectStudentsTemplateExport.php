@@ -5,18 +5,18 @@ namespace App\Exports\Templates;
 use App\Models\Subject;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithColumnWidths;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithTitle;
-use Maatwebsite\Excel\Concerns\WithColumnWidths;
 
-class SubjectStudentsTemplateExport implements FromCollection, WithHeadings, WithTitle, WithColumnWidths
+class SubjectStudentsTemplateExport implements FromCollection, WithColumnWidths, WithHeadings, WithTitle
 {
     public function __construct(public ?Subject $subject = null) {}
 
     public function collection(): Collection
     {
         return collect([
-            ['S001', 'أحمد محمد', '123456789', '1', '1'],
+            ['12345', 'أحمد محمد', '123456789', '1', '1'],
         ]);
     }
 

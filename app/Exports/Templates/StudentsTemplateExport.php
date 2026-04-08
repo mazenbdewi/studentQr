@@ -4,17 +4,17 @@ namespace App\Exports\Templates;
 
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithTitle;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 
-class StudentsTemplateExport implements FromCollection, WithHeadings, WithTitle, ShouldAutoSize
+class StudentsTemplateExport implements FromCollection, ShouldAutoSize, WithHeadings, WithTitle
 {
     public function collection(): Collection
     {
         return collect([
             [
-                'S001',
+                '12345',
                 'أحمد محمد',
                 '123456789',
                 'كلية الهندسة',
