@@ -557,6 +557,12 @@
 
 {{-- Messages --}}
 <div class="messages" id="messages">
+    @if (!empty($successMessage))
+    <div class="alert alert-success" data-session-success="true">
+        {{ $successMessage }}
+    </div>
+    @endif
+
     @if (session('success'))
     <div class="alert alert-success" data-session-success="true">
         {{ session('success') }}
@@ -594,8 +600,9 @@
 
 {{-- Attendance Form --}}
 <form method="POST" action="{{ route('student.attendance.store.sync', ['session' => $sessionId ?? 0]) }}" class="form-card"
-    id="attendanceForm" novalidate>
+    id="attendanceForm" novalidate data-completed="{{ ($attendanceCompleted ?? false) ? 'true' : 'false' }}">
     @csrf
+    <input type="hidden" id="submission_token" name="submission_token" value="{{ $submissionToken ?? '' }}">
 
     <div class="field">
         <label for="student_number" class="label">
@@ -609,7 +616,8 @@
         <input id="student_number" name="student_number" type="text" value="{{ old('student_number') }}"
             class="input {{ $errors->has('student_number') ? 'is-invalid' : '' }}"
             placeholder="{{ __('student.student_number') }}" autocomplete="off" inputmode="numeric" dir="ltr"
-            aria-invalid="{{ $errors->has('student_number') ? 'true' : 'false' }}" autofocus required>
+            aria-invalid="{{ $errors->has('student_number') ? 'true' : 'false' }}" autofocus required
+            @disabled($attendanceCompleted ?? false)>
 
         @error('student_number')
         <div class="field-error">{{ $message }}</div>
@@ -628,15 +636,16 @@
         <input id="otp" name="otp" type="text" value="{{ old('otp') }}"
             class="input {{ $errors->has('otp') ? 'is-invalid' : '' }}" placeholder="******"
             autocomplete="one-time-code" inputmode="numeric" dir="ltr" maxlength="6"
-            aria-invalid="{{ $errors->has('otp') ? 'true' : 'false' }}" required>
+            aria-invalid="{{ $errors->has('otp') ? 'true' : 'false' }}" required
+            @disabled($attendanceCompleted ?? false)>
 
         @error('otp')
         <div class="field-error">{{ $message }}</div>
         @enderror
     </div>
 
-    <button type="submit" class="submit-btn" id="submitBtn">
-        <span id="submitText">{{ __('student.verify') }}</span>
+    <button type="submit" class="submit-btn" id="submitBtn" @disabled($attendanceCompleted ?? false)>
+        <span id="submitText">{{ ($attendanceCompleted ?? false) ? __('student.attendance_recorded') : __('student.verify') }}</span>
     </button>
 
     <div class="footer-note">
@@ -687,6 +696,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const messagesDiv = document.getElementById('messages');
     const studentNumberInput = document.getElementById('student_number');
     const otpInput = document.getElementById('otp');
+    const submissionTokenInput = document.getElementById('submission_token');
     const connectionDot = document.getElementById('connectionDot');
     const connectionText = document.getElementById('connectionText');
     const countdownTimer = document.getElementById('countdownTimer');
@@ -694,6 +704,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const sessionId = {{ $sessionId ?? 0 }};
     const qrRefreshRate = {{ $sessionDetails?->qr_refresh_rate ?? 120 }};
+    const initialSuccessMessage = @json($successMessage ?? null);
+    let submissionCompleted = {{ ($attendanceCompleted ?? false) ? 'true' : 'false' }};
     
     // Safely handle remaining seconds - ensure it's a valid positive number
     let serverRemainingSeconds = {{ $remainingSeconds ?? 'null' }};
@@ -710,10 +722,14 @@ document.addEventListener('DOMContentLoaded', function() {
     let countdownInterval = null;
     let remainingSeconds = initialRemainingSeconds;
 
+    if (submissionCompleted && initialSuccessMessage) {
+        markAttendanceCompleted(initialSuccessMessage);
+    }
+
     // Initialize countdown only if we have valid session data
-    if (sessionId > 0 && qrRefreshRate > 0 && initialRemainingSeconds > 0) {
+    if (!submissionCompleted && sessionId > 0 && qrRefreshRate > 0 && initialRemainingSeconds > 0) {
         initCountdown();
-    } else if (sessionId > 0 && initialRemainingSeconds <= 0) {
+    } else if (!submissionCompleted && sessionId > 0 && initialRemainingSeconds <= 0) {
         // Session exists but timer expired - show the form but with expired state
         if (countdownTimer) {
             countdownTimer.textContent = '00:00';
@@ -801,14 +817,15 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        if (isSubmitting) return;
+        if (submissionCompleted || isSubmitting) return;
 
         hideStatus();
 
         const studentNumber = studentNumberInput.value.trim();
         const otp = otpInput.value.trim();
+        const submissionToken = submissionTokenInput ? submissionTokenInput.value.trim() : '';
 
-        if (!studentNumber || !otp) {
+        if (!studentNumber || !otp || !submissionToken) {
             showStatus('{{ __('student.please_fill_all_fields') }}', 'error');
             return;
         }
@@ -828,54 +845,44 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = new FormData();
             formData.append('student_number', studentNumber);
             formData.append('otp', otp);
+            formData.append('submission_token', submissionToken);
             formData.append('_token', '{{ csrf_token() }}');
 
             const response = await fetch('{{ route('student.attendance.store.sync', ['session' => $sessionId ?? 0]) }}', {
                 method: 'POST',
                 body: formData,
                 headers: {
-                    'Accept': 'text/html'
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
                 }
             });
 
-            const html = await response.text();
-
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-
-            const successAlert = doc.querySelector('.alert-success');
-            const errorAlert = doc.querySelector('.alert-error');
+            const data = await response.json().catch(() => null);
 
             loadingIndicator.style.display = 'none';
-            submitBtn.disabled = false;
-            submitText.textContent = '{{ __('student.verify') }}';
+            submitBtn.disabled = submissionCompleted;
+            submitText.textContent = submissionCompleted ?
+                '{{ __('student.attendance_recorded') }}' :
+                '{{ __('student.verify') }}';
 
-            if (successAlert && !errorAlert) {
-                const successMessage = successAlert.textContent.trim();
+            if (!data) {
+                showStatus('{{ __('student.connection_error') }}', 'error');
+                return;
+            }
 
-             showStatus(successMessage, 'success');
-studentNumberInput.value = '';
-otpInput.value = '';
-studentNumberInput.focus();
-            } else if (errorAlert) {
-                const errorMessage = errorAlert.textContent.trim();
-                showStatus(errorMessage, 'error');
+            if (response.ok && data.success) {
+                markAttendanceCompleted(data.message, data.attendance_time ?? null);
             } else {
-                const sessionSuccess = doc.querySelector('[data-session-success]');
-                if (sessionSuccess) {
-                    showStatus(sessionSuccess.textContent.trim(), 'success');
-                    studentNumberInput.value = '';
-                    otpInput.value = '';
-                } else {
-                    showStatus('{{ __('student.connection_error') }}', 'error');
-                }
+                showStatus(data.message || '{{ __('student.connection_error') }}', 'error');
             }
 
         } catch (error) {
             console.error('Error:', error);
             loadingIndicator.style.display = 'none';
-            submitBtn.disabled = false;
-            submitText.textContent = '{{ __('student.verify') }}';
+            submitBtn.disabled = submissionCompleted;
+            submitText.textContent = submissionCompleted ?
+                '{{ __('student.attendance_recorded') }}' :
+                '{{ __('student.verify') }}';
             showStatus('{{ __('student.connection_error') }}', 'error');
             updateConnectionStatus(false);
         } finally {
@@ -986,6 +993,23 @@ studentNumberInput.focus();
         if (countdownInterval) {
             clearInterval(countdownInterval);
         }
+    }
+
+    function markAttendanceCompleted(message, attendanceTimeIso = null) {
+        submissionCompleted = true;
+        form.dataset.completed = 'true';
+        submitBtn.disabled = true;
+        studentNumberInput.disabled = true;
+        otpInput.disabled = true;
+
+        if (submissionTokenInput) {
+            submissionTokenInput.value = '';
+        }
+
+        submitText.textContent = '{{ __('student.attendance_recorded') }}';
+        loadingIndicator.style.display = 'none';
+
+        showSuccessStatus(message, attendanceTimeIso);
     }
 
     function hideStatus() {

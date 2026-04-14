@@ -1,18 +1,13 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\CustomLoginController;
 use App\Http\Controllers\Student\AttendanceController;
-use App\Http\Controllers\Student\ProfileController;
 use App\Http\Controllers\Student\DashboardController;
-use App\Models\LectureSession;
-use Endroid\QrCode\QrCode;
-use Endroid\QrCode\Writer\PngWriter;
-
+use Illuminate\Support\Facades\Route;
 
 Route::get('/lang/{locale}', function ($locale) {
 
-    if (!in_array($locale, ['ar', 'en'])) {
+    if (! in_array($locale, ['ar', 'en'])) {
         abort(400);
     }
 
@@ -20,7 +15,6 @@ Route::get('/lang/{locale}', function ($locale) {
 
     return back();
 })->name('lang.switch');
-
 
 Route::redirect('/admin/login', '/login');
 
@@ -30,7 +24,6 @@ Route::post('/login', [CustomLoginController::class, 'login']);
 Route::post('/logout', [CustomLoginController::class, 'logout'])
     // ->middleware('auth')
     ->name('logout');
-
 
 // Public attendance page
 Route::get('/attendance', [AttendanceController::class, 'index'])
@@ -46,7 +39,8 @@ Route::post(
 Route::get(
     '/lecture-session/{session}/qr',
     [AttendanceController::class, 'showQr']
-)->name('teacher.lecture-session.qr');
+)->middleware(['auth', 'role:course_lecturer'])
+    ->name('teacher.lecture-session.qr');
 
 // Student routes group
 Route::prefix('student')

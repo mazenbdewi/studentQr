@@ -8,11 +8,18 @@ use Illuminate\Http\JsonResponse;
 
 class AttendanceController extends Controller
 {
+    private function ensureTeacherOwnsSession(LectureSession $session): void
+    {
+        abort_unless($session->canManageQr(auth()->user()), 403);
+    }
+
     /**
      * Check if session is still active - AJAX endpoint.
      */
     public function sessionStatus(LectureSession $session): JsonResponse
     {
+        $this->ensureTeacherOwnsSession($session);
+
         // Refresh to get latest data from database
         $session->refresh();
 
@@ -39,6 +46,8 @@ class AttendanceController extends Controller
      */
     public function expireQr(LectureSession $session): JsonResponse
     {
+        $this->ensureTeacherOwnsSession($session);
+
         // Refresh to ensure we're working with latest data
         $session->refresh();
 

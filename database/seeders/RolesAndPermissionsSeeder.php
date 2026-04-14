@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\Hall;
+use App\Models\LectureSession;
 use App\Models\Student;
 use App\Models\Subject;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -216,7 +217,7 @@ class RolesAndPermissionsSeeder extends Seeder
         )->assignRole('super-admin');
 
 
-        User::firstOrCreate(
+        $lecturer = User::firstOrCreate(
             ['email' => 'ahmed@uni.edu'],
             [
                 'name' => 'Dr. Ahmed',
@@ -225,7 +226,9 @@ class RolesAndPermissionsSeeder extends Seeder
                 'status' => 'active',
                 'title' => 'professor',
             ]
-        )->assignRole('course_lecturer');
+        );
+
+        $lecturer->assignRole('course_lecturer');
 
 
         User::firstOrCreate(
@@ -267,21 +270,21 @@ class RolesAndPermissionsSeeder extends Seeder
                 'is_active' => 0,
             ],
         ]);
-        Subject::create(
+        $subject = Subject::updateOrCreate(
+            ['code' => 'P101'],
             [
-
-                'code' => 'P101',
                 'name' => 'programming 1',
                 'department_id' => 1,
-                'lecturer_id' => 1,
-
+                'lecturer_id' => $lecturer->id,
                 'credit_hours' => 3,
                 'level' => 1,
                 'semester' => 1,
                 'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
             ]
         );
+
+        LectureSession::query()
+            ->where('subject_id', $subject->id)
+            ->update(['lecturer_id' => $lecturer->id]);
     }
 }

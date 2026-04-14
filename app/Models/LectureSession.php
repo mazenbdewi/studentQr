@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 
 class LectureSession extends Model
@@ -36,6 +37,20 @@ class LectureSession extends Model
         'session_date' => 'date',
         'qr_expired' => 'boolean',
     ];
+
+    public function canManageQr(?Authenticatable $user): bool
+    {
+        return $user instanceof User
+            && $user->hasRole('course_lecturer')
+            && (int) $user->getAuthIdentifier() === (int) $this->lecturer_id;
+    }
+
+    public function shouldShowQrAction(?Authenticatable $user): bool
+    {
+        return $this->canManageQr($user)
+            && $this->status === 'active'
+            && ! $this->qr_expired;
+    }
 
     public function canAccessPanel(\Filament\Panel $panel): bool
     {
