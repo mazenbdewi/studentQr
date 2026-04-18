@@ -8,12 +8,12 @@ class Attendance extends Model
 {
     public function lectureSession()
     {
-        return $this->belongsTo(LectureSession::class);
+        return $this->belongsTo(LectureSession::class)->withTrashed();
     }
 
     public function student()
     {
-        return $this->belongsTo(Student::class);
+        return $this->belongsTo(Student::class)->withTrashed();
     }
 
 

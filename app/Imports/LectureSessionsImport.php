@@ -185,7 +185,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
 
     public function model(array $row)
     {
-        return LectureSession::updateOrCreate(
+        $lectureSession = LectureSession::withTrashed()->updateOrCreate(
             [
                 'subject_id' => $row['subject_id'],
                 'hall_id' => $row['hall_id'],
@@ -201,6 +201,12 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
                 'notes' => $row['notes'] ?? null,
             ]
         );
+
+        if ($lectureSession->trashed()) {
+            $lectureSession->restore();
+        }
+
+        return $lectureSession;
     }
 
     public function rules(): array

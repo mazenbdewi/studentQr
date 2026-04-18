@@ -31,6 +31,7 @@ return [
     'create_title' => 'إضافة جلسة محاضرة',
     'record_title' => 'جلسة محاضرة',
     'not_available' => '-',
+    'deleted_at' => 'تاريخ الحذف',
     'description' => 'الوصف',
     'start_time' => 'وقت البدء',
     'end_time' => 'وقت الانتهاء',
@@ -63,6 +64,5 @@ return [
     'todays_lectures' => 'محاضرات اليوم',
 
 ];
-
 
 

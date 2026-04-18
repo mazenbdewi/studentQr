@@ -4,6 +4,8 @@ namespace App\Filament\Resources\Halls\Pages;
 
 use App\Filament\Resources\Halls\HallResource;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\ForceDeleteAction;
+use Filament\Actions\RestoreAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
@@ -16,6 +18,8 @@ class EditHall extends EditRecord
         return [
             ViewAction::make(),
             DeleteAction::make(),
+            RestoreAction::make(),
+            ForceDeleteAction::make(),
         ];
     }
 }

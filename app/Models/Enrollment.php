@@ -3,32 +3,50 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Enrollment extends Model
 {
-    public function student()
+    protected $fillable = [
+        'student_id',
+        'subject_id',
+        'semester',
+        'year',
+        'status',
+    ];
+
+    protected $casts = [
+        'student_id' => 'integer',
+        'subject_id' => 'integer',
+        'semester' => 'integer',
+        'year' => 'integer',
+    ];
+
+    public const STATUS_ENROLLED = 'enrolled';
+
+    public const STATUS_DROPPED = 'dropped';
+
+    public const STATUS_PASSED = 'passed';
+
+    public const STATUS_FAILED = 'failed';
+
+    public static function statusOptions(): array
     {
-        return $this->belongsTo(Student::class);
+        return [
+            self::STATUS_ENROLLED => __('enrollments.enrolled'),
+            self::STATUS_DROPPED => __('enrollments.dropped'),
+            self::STATUS_PASSED => __('enrollments.passed'),
+            self::STATUS_FAILED => __('enrollments.failed'),
+        ];
     }
 
-    public function subject()
+    public function student(): BelongsTo
     {
-        return $this->belongsTo(Subject::class);
+        return $this->belongsTo(Student::class)->withTrashed();
     }
 
-    public function attendances()
+    public function subject(): BelongsTo
     {
-        return $this->hasMany(Attendance::class, 'student_id')
-            ->whereColumn('lecture_session_id', 'enrollments.subject_id');
+        return $this->belongsTo(Subject::class)->withTrashed();
     }
-
-//    public function enrollments()
-//    {
-//        return $this->hasMany(Enrollment::class, 'student_id');
-//    }
-//
-//    public function attendances()
-//    {
-//        return $this->hasMany(Attendance::class, 'student_id');
-//    }
 }

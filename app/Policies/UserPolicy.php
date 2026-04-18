@@ -2,64 +2,69 @@
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class UserPolicy
 {
     use HandlesAuthorization;
     
-    public function viewAny(AuthUser $authUser): bool
+    public function viewAny(User $authUser): bool
     {
         return $authUser->can('view_any_user');
     }
 
-    public function view(AuthUser $authUser): bool
+    public function view(User $authUser, User $user): bool
     {
         return $authUser->can('view_user');
     }
 
-    public function create(AuthUser $authUser): bool
+    public function create(User $authUser): bool
     {
         return $authUser->can('create_user');
     }
 
-    public function update(AuthUser $authUser): bool
+    public function update(User $authUser, User $user): bool
     {
         return $authUser->can('update_user');
     }
 
-    public function delete(AuthUser $authUser): bool
+    public function delete(User $authUser, User $user): bool
     {
         return $authUser->can('delete_user');
     }
 
-    public function restore(AuthUser $authUser): bool
+    public function deleteAny(User $authUser): bool
+    {
+        return $authUser->can('delete_any_user');
+    }
+
+    public function restore(User $authUser, User $user): bool
     {
         return $authUser->can('restore_user');
     }
 
-    public function forceDelete(AuthUser $authUser): bool
+    public function forceDelete(User $authUser, User $user): bool
     {
         return $authUser->can('force_delete_user');
     }
 
-    public function forceDeleteAny(AuthUser $authUser): bool
+    public function forceDeleteAny(User $authUser): bool
     {
         return $authUser->can('force_delete_any_user');
     }
 
-    public function restoreAny(AuthUser $authUser): bool
+    public function restoreAny(User $authUser): bool
     {
         return $authUser->can('restore_any_user');
     }
 
-    public function replicate(AuthUser $authUser): bool
+    public function replicate(User $authUser, User $user): bool
     {
         return $authUser->can('replicate_user');
     }
 
-    public function reorder(AuthUser $authUser): bool
+    public function reorder(User $authUser): bool
     {
         return $authUser->can('reorder_user');
     }

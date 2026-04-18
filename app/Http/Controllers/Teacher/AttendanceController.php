@@ -8,7 +8,7 @@ use Illuminate\Http\JsonResponse;
 
 class AttendanceController extends Controller
 {
-    private function ensureTeacherOwnsSession(LectureSession $session): void
+    private function ensureUserCanManageSession(LectureSession $session): void
     {
         abort_unless($session->canManageQr(auth()->user()), 403);
     }
@@ -18,23 +18,9 @@ class AttendanceController extends Controller
      */
     public function sessionStatus(LectureSession $session): JsonResponse
     {
-        $this->ensureTeacherOwnsSession($session);
+        $this->ensureUserCanManageSession($session);
 
-        // Refresh to get latest data from database
-        $session->refresh();
-
-        // Server-side enforcement: Check if QR has expired based on qr_expires_at timestamp
-        if ($session->qr_expires_at && now()->greaterThan($session->qr_expires_at)) {
-            // Only update if not already expired
-            if (! $session->qr_expired) {
-                $session->update([
-                    'qr_expired' => true,
-                    'status' => 'completed',
-                    'actual_end' => now(),
-                ]);
-                $session->refresh();
-            }
-        }
+        $session->syncLifecycleState();
 
         return response()->json([
             'active' => $session->status === 'active' && ! $session->qr_expired,
@@ -46,13 +32,12 @@ class AttendanceController extends Controller
      */
     public function expireQr(LectureSession $session): JsonResponse
     {
-        $this->ensureTeacherOwnsSession($session);
+        $this->ensureUserCanManageSession($session);
 
-        // Refresh to ensure we're working with latest data
-        $session->refresh();
+        $session->syncLifecycleState();
 
         // If already expired, return success to avoid duplicate processing
-        if ($session->qr_expired) {
+        if ($session->qr_expired || $session->status === 'completed') {
             return response()->json([
                 'success' => true,
                 'message' => 'QR code has already been expired',
@@ -63,7 +48,7 @@ class AttendanceController extends Controller
         $session->update([
             'qr_expired' => true,
             'status' => 'completed',
-            'actual_end' => now(),
+            'actual_end' => $session->actual_end ?? now(),
         ]);
 
         return response()->json([

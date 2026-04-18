@@ -13,6 +13,7 @@ use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
 
 
@@ -22,28 +23,34 @@ class RolesAndPermissionsSeeder extends Seeder
     public function run(): void
     {
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
-        $cs = Faculty::create([
-            'name' => 'كلية المعلوماتية'
-        ]);
+        $cs = Faculty::withTrashed()->updateOrCreate(
+            ['name' => 'كلية المعلوماتية'],
+            ['name' => 'كلية المعلوماتية']
+        );
 
+        if ($cs->trashed()) {
+            $cs->restore();
+        }
 
-        Department::create([
-            'faculty_id' => $cs->id,
-            'code' => 'CS-SE',
-            'name' => 'هندسة البرمجيات'
-        ]);
+        $departments = collect([
+            ['code' => 'CS-SE', 'name' => 'هندسة البرمجيات'],
+            ['code' => 'CS-NET', 'name' => 'الشبكات'],
+            ['code' => 'CS-AI', 'name' => 'الذكاء'],
+        ])->mapWithKeys(function (array $department) use ($cs): array {
+            $record = Department::withTrashed()->updateOrCreate(
+                ['code' => $department['code']],
+                [
+                    'faculty_id' => $cs->id,
+                    'name' => $department['name'],
+                ]
+            );
 
-        Department::create([
-            'faculty_id' => $cs->id,
-            'code' => 'CS-NET',
-            'name' => 'الشبكات'
-        ]);
+            if ($record->trashed()) {
+                $record->restore();
+            }
 
-        Department::create([
-            'faculty_id' => $cs->id,
-            'code' => 'CS-AI',
-            'name' => 'الذكاء'
-        ]);
+            return [$department['code'] => $record];
+        });
 
 
         $permissions = [
@@ -125,37 +132,44 @@ class RolesAndPermissionsSeeder extends Seeder
             'view_audit_logs',
         ];
 
-        Hall::create(
-            [
+        $permissions = array_merge($permissions, [
+            'view_any_user',
+            'view_user',
+            'create_user',
+            'update_user',
+            'delete_user',
+            'delete_any_user',
+            'restore_user',
+            'restore_any_user',
+            'force_delete_user',
+            'force_delete_any_user',
+            'replicate_user',
+            'reorder_user',
+        ]);
 
+        collect([
+            [
                 'code' => 'HALL-001',
                 'name' => 'القاعة الرئيسية',
                 'floor' => 1,
-                // 'capacity' => 100,
-                // 'has_projector' => true,
-                // 'has_computer' => true,
-                // 'network_ssid' => 'MainHall-WiFi',
-                // 'ip_range_start' => '192.168.1.100',
-                // 'ip_range_end' => '192.168.1.200',
                 'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
             ],
             [
                 'code' => 'HALL-003',
                 'name' => 'قاعة 2',
                 'floor' => 3,
-                // 'capacity' => 30,
-                // 'has_projector' => false,
-                // 'has_computer' => true,
-                // 'network_ssid' => 'Lab-Net',
-                // 'ip_range_start' => '10.0.0.1',
-                // 'ip_range_end' => '10.0.0.254',
                 'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]
-        );
+            ],
+        ])->each(function (array $hall): void {
+            $record = Hall::withTrashed()->updateOrCreate(
+                ['code' => $hall['code']],
+                $hall,
+            );
+
+            if ($record->trashed()) {
+                $record->restore();
+            }
+        });
 
 
         foreach ($permissions as $permission) {
@@ -198,55 +212,76 @@ class RolesAndPermissionsSeeder extends Seeder
             'view_reports',
             'generate_reports',
         ]);
-
-
-        $this->createTestUsers();
+        $this->createTestUsers($cs, $departments);
     }
 
-    private function createTestUsers(): void
+    private function createTestUsers(Faculty $faculty, Collection $departments): void
     {
+        $softwareDepartment = $departments->get('CS-SE');
 
-        User::firstOrCreate(
+        $superAdmin = User::withTrashed()->updateOrCreate(
             ['email' => 'super@admin.com'],
             [
                 'name' => 'Super Admin',
                 'password' => Hash::make('123'),
+                'role' => 'super_admin',
                 'type' => 'admin',
                 'status' => 'active',
+                'is_active' => true,
             ]
-        )->assignRole('super-admin');
+        );
+
+        if ($superAdmin->trashed()) {
+            $superAdmin->restore();
+        }
+
+        $superAdmin->assignRole('super-admin');
 
 
-        $lecturer = User::firstOrCreate(
+        $lecturer = User::withTrashed()->updateOrCreate(
             ['email' => 'ahmed@uni.edu'],
             [
                 'name' => 'Dr. Ahmed',
                 'password' => Hash::make('123'),
+                'role' => 'course_lecturer',
                 'type' => 'lecturer',
                 'status' => 'active',
                 'title' => 'professor',
+                'is_active' => true,
             ]
         );
+
+        if ($lecturer->trashed()) {
+            $lecturer->restore();
+        }
 
         $lecturer->assignRole('course_lecturer');
 
 
-        User::firstOrCreate(
+        $manager = User::withTrashed()->updateOrCreate(
             ['email' => 'ali@uni.edu'],
             [
                 'name' => 'Ali',
                 'password' => Hash::make('123'),
+                'role' => 'attendance_monitor',
                 'type' => 'manager',
                 'status' => 'active',
                 'student_number' => 'S12345',
+                'is_active' => true,
             ]
-        )->assignRole('manager');
+        );
 
-        Student::insert([
+        if ($manager->trashed()) {
+            $manager->restore();
+        }
+
+        $manager->assignRole('manager');
+
+        collect([
             [
                 'name' => 'nour',
-                'faculty_id' => 1,
-                'department_id' => 1,
+                'faculty_id' => $faculty->id,
+                'department_id' => $softwareDepartment?->id,
                 'year' => 3,
                 'type' => 'student',
                 'phone' => '0912345678',
@@ -254,12 +289,12 @@ class RolesAndPermissionsSeeder extends Seeder
                 'student_number' => '20230001',
                 'national_number' => '12345678901',
                 'avatar' => null,
-                'is_active' => 0,
+                'is_active' => false,
             ],
             [
                 'name' => 'Lama',
-                'faculty_id' => 1,
-                'department_id' => 1,
+                'faculty_id' => $faculty->id,
+                'department_id' => $softwareDepartment?->id,
                 'year' => 2,
                 'type' => 'student',
                 'phone' => '0987654321',
@@ -267,14 +302,24 @@ class RolesAndPermissionsSeeder extends Seeder
                 'student_number' => '20230002',
                 'national_number' => '10987654321',
                 'avatar' => null,
-                'is_active' => 0,
+                'is_active' => false,
             ],
-        ]);
-        $subject = Subject::updateOrCreate(
+        ])->each(function (array $student): void {
+            $record = Student::withTrashed()->updateOrCreate(
+                ['student_number' => $student['student_number']],
+                $student,
+            );
+
+            if ($record->trashed()) {
+                $record->restore();
+            }
+        });
+
+        $subject = Subject::withTrashed()->updateOrCreate(
             ['code' => 'P101'],
             [
                 'name' => 'programming 1',
-                'department_id' => 1,
+                'department_id' => $softwareDepartment?->id,
                 'lecturer_id' => $lecturer->id,
                 'credit_hours' => 3,
                 'level' => 1,
@@ -282,6 +327,10 @@ class RolesAndPermissionsSeeder extends Seeder
                 'is_active' => true,
             ]
         );
+
+        if ($subject->trashed()) {
+            $subject->restore();
+        }
 
         LectureSession::query()
             ->where('subject_id', $subject->id)

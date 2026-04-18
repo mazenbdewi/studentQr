@@ -9,6 +9,8 @@ use App\Filament\Resources\Faculties\Schemas\FacultyInfolist;
 use App\Filament\Resources\Faculties\Tables\FacultiesTable;
 use App\Models\Faculty;
 use BackedEnum;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -89,9 +91,16 @@ class FacultyResource extends Resource
         ];
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
+    }
+
     public static function canAccess(): bool
     {
         return auth()->user()->hasRole('super-admin');
     }
 }
-

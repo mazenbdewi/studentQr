@@ -36,7 +36,8 @@ return [
     'subject' => 'المادة',
 'not_found_in_row' => 'غير موجودة في السطر :row',
     'not_available' => '-',
+    'not_assigned' => 'غير معيّن',
+    'deleted_at' => 'تاريخ الحذف',
     'help_title' => 'تعليمات استيراد المواد',
     'import_with_template' => 'استيراد باستخدام القالب',
 ];
-

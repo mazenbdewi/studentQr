@@ -2,11 +2,20 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 class LectureSession extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'subject_id',
         'lecturer_id',
@@ -40,8 +49,15 @@ class LectureSession extends Model
 
     public function canManageQr(?Authenticatable $user): bool
     {
-        return $user instanceof User
-            && $user->hasRole('course_lecturer')
+        if (! $user instanceof User) {
+            return false;
+        }
+
+        if ($user->hasRole('super-admin')) {
+            return true;
+        }
+
+        return $user->hasRole('course_lecturer')
             && (int) $user->getAuthIdentifier() === (int) $this->lecturer_id;
     }
 
@@ -49,7 +65,119 @@ class LectureSession extends Model
     {
         return $this->canManageQr($user)
             && $this->status === 'active'
-            && ! $this->qr_expired;
+            && ! $this->qr_expired
+            && ! $this->hasReachedScheduledEnd();
+    }
+
+    public function scheduledEndAt(): ?Carbon
+    {
+        if (! $this->session_date || ! $this->end_time) {
+            return null;
+        }
+
+        $sessionDate = $this->session_date instanceof CarbonInterface
+            ? $this->session_date->copy()
+            : Carbon::parse($this->session_date);
+
+        $endTime = $this->end_time instanceof CarbonInterface
+            ? $this->end_time->format('H:i:s')
+            : (string) $this->end_time;
+
+        return Carbon::parse($sessionDate->toDateString().' '.$endTime);
+    }
+
+    public function hasReachedScheduledEnd(?CarbonInterface $reference = null): bool
+    {
+        $scheduledEndAt = $this->scheduledEndAt();
+
+        if (! $scheduledEndAt) {
+            return false;
+        }
+
+        return ($reference ?? now())->greaterThanOrEqualTo($scheduledEndAt);
+    }
+
+    public function hasExpiredQrWindow(?CarbonInterface $reference = null): bool
+    {
+        if (! $this->qr_expires_at) {
+            return false;
+        }
+
+        $qrExpiresAt = $this->qr_expires_at instanceof CarbonInterface
+            ? $this->qr_expires_at
+            : Carbon::parse($this->qr_expires_at);
+
+        return ($reference ?? now())->greaterThanOrEqualTo($qrExpiresAt);
+    }
+
+    public function shouldBeAutomaticallyClosed(?CarbonInterface $reference = null): bool
+    {
+        if (in_array($this->status, ['completed', 'cancelled'], true)) {
+            return false;
+        }
+
+        return $this->hasExpiredQrWindow($reference) || $this->hasReachedScheduledEnd($reference);
+    }
+
+    public function syncLifecycleState(?CarbonInterface $reference = null, bool $refresh = true): bool
+    {
+        $reference ??= now();
+
+        if ($refresh) {
+            $this->refresh();
+        }
+
+        if (! $this->shouldBeAutomaticallyClosed($reference)) {
+            return false;
+        }
+
+        $scheduledEndAt = $this->scheduledEndAt();
+        $qrExpiresAt = $this->qr_expires_at instanceof CarbonInterface
+            ? $this->qr_expires_at
+            : ($this->qr_expires_at ? Carbon::parse($this->qr_expires_at) : null);
+
+        $this->update([
+            'status' => 'completed',
+            'qr_expired' => true,
+            'actual_end' => $this->actual_end
+                ?? ($this->hasReachedScheduledEnd($reference) ? $scheduledEndAt : $qrExpiresAt)
+                ?? $reference,
+        ]);
+
+        if ($refresh) {
+            $this->refresh();
+        }
+
+        return true;
+    }
+
+    public static function syncExpiredSessions(?CarbonInterface $reference = null): void
+    {
+        $reference ??= now();
+        $today = $reference->toDateString();
+        $currentTime = $reference->format('H:i:s');
+
+        static::query()
+            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->where(function (Builder $query) use ($reference, $today, $currentTime) {
+                $query
+                    ->where(function (Builder $query) use ($today, $currentTime) {
+                        $query
+                            ->whereDate('session_date', '<', $today)
+                            ->orWhere(function (Builder $query) use ($today, $currentTime) {
+                                $query
+                                    ->whereDate('session_date', $today)
+                                    ->whereTime('end_time', '<=', $currentTime);
+                            });
+                    })
+                    ->orWhere(function (Builder $query) use ($reference) {
+                        $query
+                            ->whereNotNull('qr_expires_at')
+                            ->where('qr_expires_at', '<=', $reference);
+                    });
+            })
+            ->get()
+            ->each(fn (self $session) => $session->syncLifecycleState($reference, refresh: false));
     }
 
     public function canAccessPanel(\Filament\Panel $panel): bool
@@ -57,36 +185,32 @@ class LectureSession extends Model
         return $this->email === 'super@admin.com' || $this->hasRole(['super_admin', 'manager', 'course_lecturer']);
     }
 
-    public function subject()
+    public function subject(): BelongsTo
     {
-        return $this->belongsTo(Subject::class);
+        return $this->belongsTo(Subject::class)->withTrashed();
     }
 
-    public function lecturer()
+    public function lecturer(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'lecturer_id');
+        return $this->belongsTo(User::class, 'lecturer_id')->withTrashed();
     }
 
-    public function hall()
+    public function hall(): BelongsTo
     {
-        return $this->belongsTo(Hall::class);
+        return $this->belongsTo(Hall::class)->withTrashed();
     }
 
-    // public function attendances()
-    // {
-    //     return $this->hasMany(Attendance::class);
-    // }
-    public function students()
+    public function students(): BelongsToMany
     {
-        return $this->belongsToMany(Student::class, 'subject_student', 'subject_id', 'student_id');
+        return $this->belongsToMany(Student::class, 'enrollments', 'subject_id', 'student_id');
     }
 
-    public function attendances()
+    public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class, 'lecture_session_id');
     }
 
-    public function tokens()
+    public function tokens(): HasMany
     {
         return $this->hasMany(AttendanceToken::class);
     }

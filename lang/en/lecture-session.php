@@ -31,6 +31,7 @@ return [
     'create_title' => 'Create Lecture Session',
     'record_title' => 'Lecture Session',
     'not_available' => '-',
+    'deleted_at' => 'Deleted At',
     'description' => 'Description',
     'start_time' => 'Start Time',
     'end_time' => 'End Time',
@@ -53,6 +54,5 @@ return [
 'no_lectures_today' => 'No lectures scheduled for today.',
     'todays_lectures' => 'Today\'s Lectures',
 ];
-
 
 

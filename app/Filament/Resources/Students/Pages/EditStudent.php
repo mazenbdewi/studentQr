@@ -5,6 +5,8 @@ namespace App\Filament\Resources\Students\Pages;
 use App\Filament\Resources\Students\RelationManagers\SubjectsRelationManager;
 use App\Filament\Resources\Students\StudentResource;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\ForceDeleteAction;
+use Filament\Actions\RestoreAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
@@ -16,6 +18,9 @@ class EditStudent extends EditRecord
     {
         return [
             DeleteAction::make(),
+            RestoreAction::make(),
+            ForceDeleteAction::make()
+                ->visible(fn (): bool => auth()->user()->hasRole('super-admin')),
         ];
     }
 

@@ -11,6 +11,8 @@ use App\Filament\Resources\Halls\Schemas\HallInfolist;
 use App\Filament\Resources\Halls\Tables\HallsTable;
 use App\Models\Hall;
 use BackedEnum;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -90,6 +92,14 @@ class HallResource extends Resource
             'view' => ViewHall::route('/{record}'),
             'edit' => EditHall::route('/{record}/edit'),
         ];
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
     }
 
     public static function canAccess(): bool

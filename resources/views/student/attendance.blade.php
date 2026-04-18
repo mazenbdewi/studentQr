@@ -613,7 +613,7 @@
             {{ __('student.student_number') }}
         </label>
 
-        <input id="student_number" name="student_number" type="text" value="{{ old('student_number') }}"
+        <input id="student_number" name="student_number" type="text" value="{{ old('student_number', $studentNumberValue ?? '') }}"
             class="input {{ $errors->has('student_number') ? 'is-invalid' : '' }}"
             placeholder="{{ __('student.student_number') }}" autocomplete="off" inputmode="numeric" dir="ltr"
             aria-invalid="{{ $errors->has('student_number') ? 'true' : 'false' }}" autofocus required
@@ -645,7 +645,7 @@
     </div>
 
     <button type="submit" class="submit-btn" id="submitBtn" @disabled($attendanceCompleted ?? false)>
-        <span id="submitText">{{ ($attendanceCompleted ?? false) ? __('student.attendance_recorded') : __('student.verify') }}</span>
+        <span id="submitText">{{ ($attendanceCompleted ?? false) ? __('student.attendance_already_submitted') : __('student.verify') }}</span>
     </button>
 
     <div class="footer-note">
@@ -705,6 +705,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const sessionId = {{ $sessionId ?? 0 }};
     const qrRefreshRate = {{ $sessionDetails?->qr_refresh_rate ?? 120 }};
     const initialSuccessMessage = @json($successMessage ?? null);
+    const initialAttendanceTime = @json($attendanceTime ?? null);
+    const completedButtonText = @json(__('student.attendance_already_submitted'));
     let submissionCompleted = {{ ($attendanceCompleted ?? false) ? 'true' : 'false' }};
     
     // Safely handle remaining seconds - ensure it's a valid positive number
@@ -723,7 +725,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let remainingSeconds = initialRemainingSeconds;
 
     if (submissionCompleted && initialSuccessMessage) {
-        markAttendanceCompleted(initialSuccessMessage);
+        markAttendanceCompleted(initialSuccessMessage, initialAttendanceTime);
     }
 
     // Initialize countdown only if we have valid session data
@@ -862,7 +864,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loadingIndicator.style.display = 'none';
             submitBtn.disabled = submissionCompleted;
             submitText.textContent = submissionCompleted ?
-                '{{ __('student.attendance_recorded') }}' :
+                completedButtonText :
                 '{{ __('student.verify') }}';
 
             if (!data) {
@@ -881,7 +883,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loadingIndicator.style.display = 'none';
             submitBtn.disabled = submissionCompleted;
             submitText.textContent = submissionCompleted ?
-                '{{ __('student.attendance_recorded') }}' :
+                completedButtonText :
                 '{{ __('student.verify') }}';
             showStatus('{{ __('student.connection_error') }}', 'error');
             updateConnectionStatus(false);
@@ -1006,7 +1008,7 @@ document.addEventListener('DOMContentLoaded', function() {
             submissionTokenInput.value = '';
         }
 
-        submitText.textContent = '{{ __('student.attendance_recorded') }}';
+        submitText.textContent = completedButtonText;
         loadingIndicator.style.display = 'none';
 
         showSuccessStatus(message, attendanceTimeIso);

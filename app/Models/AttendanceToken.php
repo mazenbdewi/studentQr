@@ -28,6 +28,6 @@ class AttendanceToken extends Model
 
     public function lectureSession()
     {
-        return $this->belongsTo(LectureSession::class, 'lecture_session_id');
+        return $this->belongsTo(LectureSession::class, 'lecture_session_id')->withTrashed();
     }
 }

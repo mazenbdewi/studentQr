@@ -2,10 +2,10 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Filament\Resources\Users\UserResource;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Facades\Hash;
 
 class UserForm
 {
@@ -15,32 +15,36 @@ class UserForm
             ->components([
                 TextInput::make('name')
                     ->label(__('user.name'))
-                    ->required(),
+                    ->required()
+                    ->maxLength(255),
                 TextInput::make('email')
                     ->label(__('user.email'))
                     ->email()
-                    ->required(),
+                    ->required()
+                    ->unique(ignoreRecord: true)
+                    ->maxLength(255),
 
                 TextInput::make('password')
                     ->label(__('user.password'))
                     ->password()
+                    ->autocomplete('new-password')
                     ->confirmed()
-                    ->dehydrateStateUsing(fn($state) => Hash::make($state))
-                    ->dehydrated(fn($state) => filled($state))
-                    ->required(fn(string $context): bool => $context === 'create'),
+                    ->dehydrated(fn ($state) => filled($state))
+                    ->required(fn (string $context): bool => $context === 'create')
+                    ->helperText(__('user.password_help')),
                 TextInput::make('password_confirmation')
                     ->label(__('user.password_confirmation'))
-                    ->required(fn(string $context): bool => $context === 'create')
+                    ->required(fn (string $context): bool => $context === 'create')
                     ->password()
+                    ->autocomplete('new-password')
                     ->dehydrated(false),
 
-                Select::make('roles')
-                    ->label(__('user.roles'))
-                    ->searchable()
-                    ->preload()
+                Select::make('role')
+                    ->label(__('user.role'))
+                    ->options(UserResource::getAssignableRoles())
                     ->required()
-                    ->multiple()
-                    ->relationship('roles', 'name'),
+                    ->helperText(__('user.role_permissions_help'))
+                    ->native(false),
             ]);
     }
 }

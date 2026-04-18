@@ -65,6 +65,7 @@ return [
     'is_active' => 'Active',
     'created_at' => 'Created At',
     'updated_at' => 'Updated At',
+    'deleted_at' => 'Deleted At',
     'view' => 'View',
     'edit' => 'Edit',
     'delete_selected' => 'Delete Selected',
@@ -80,6 +81,7 @@ return [
     'enter_student_number_and_code' => 'Enter your student number and verification code to confirm your attendance.',
     'absent_students' => 'Absent Students',
     'already_attended' => 'You have already recorded your attendance',
+    'attendance_already_submitted' => 'Attendance already submitted successfully',
     'already_attending' => 'You have a pending request, please wait',
     'attendance_processing' => 'Processing attendance request...',
     'please_fill_all_fields' => 'Please fill all fields',
@@ -108,6 +110,7 @@ return [
     // Attendance Report
     'attendance_report' => 'Attendance Report',
     'attendance_report_for' => 'Attendance Report for :name',
+    'subject_attendance_report_for' => 'Attendance Report for :name - :subject',
     'student_info' => 'Student Information',
     'summary_stats' => 'Summary Statistics',
     'overall_attendance_summary' => 'Overall Attendance Summary',
@@ -116,9 +119,14 @@ return [
     'total_enrolled_subjects' => 'Total Enrolled Subjects',
     'total_lectures' => 'Total Lectures',
     'total_attended' => 'Total Attended',
+    'total_present' => 'Total Present',
+    'total_absent' => 'Total Absent',
     'overall_attendance' => 'Overall Attendance',
 'low_attendance_subjects' => 'Low Attendance Subjects (:count)',
     'help_title' => 'Students Import Instructions',
+    'lecture' => 'Lecture',
+    'day_date' => 'Day / Date',
+    'time' => 'Time',
+    'generated_at' => 'Generated at',
+    'no_attendance_history' => 'No attendance history found for this student.',
 ];
-
-

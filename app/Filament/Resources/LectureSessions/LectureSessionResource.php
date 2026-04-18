@@ -8,13 +8,22 @@ use App\Models\LectureSession;
 use App\Models\Subject;
 use BackedEnum;
 use Filament\Actions\Action as ActionsAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ForceDeleteAction;
+use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class LectureSessionResource extends Resource
 {
@@ -55,7 +64,11 @@ class LectureSessionResource extends Resource
             ->schema([
                 Forms\Components\Select::make('subject_id')
                     ->label(__('lecture-session.subject'))
-                    ->relationship('subject', 'name')
+                    ->relationship(
+                        name: 'subject',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                    )
                     ->searchable()
                     ->preload()
                     ->required()
@@ -67,7 +80,11 @@ class LectureSessionResource extends Resource
 
                 Forms\Components\Select::make('hall_id')
                     ->label(__('lecture-session.hall'))
-                    ->relationship('hall', 'name')
+                    ->relationship(
+                        name: 'hall',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                    )
                     ->searchable()
                     ->preload()
                     ->required(),
@@ -118,7 +135,11 @@ class LectureSessionResource extends Resource
 
                 Forms\Components\Select::make('lecturer_id')
                     ->label(__('lecture-session.lecturer'))
-                    ->relationship('lecturer', 'name')
+                    ->relationship(
+                        name: 'lecturer',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                    )
                     ->searchable()
                     ->preload()
                     ->required()
@@ -170,11 +191,21 @@ class LectureSessionResource extends Resource
                         ->select('student_id')
                         ->distinct()
                         ->count('student_id')),
+                Tables\Columns\TextColumn::make('deleted_at')
+                    ->label(__('lecture-session.deleted_at'))
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('subject')
                     ->label(__('lecture-session.subject'))
-                    ->relationship('subject', 'name'),
+                    ->relationship(
+                        name: 'subject',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                    ),
+                Tables\Filters\TrashedFilter::make(),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('lecture-session.status'))
@@ -191,6 +222,12 @@ class LectureSessionResource extends Resource
                     ->icon('heroicon-o-play')
                     ->color('success')
                     ->action(function (LectureSession $record) {
+                        $record->syncLifecycleState();
+
+                        if ($record->status !== 'scheduled') {
+                            return;
+                        }
+
                         $otp = random_int(100000, 999999);
 
                         $record->update([
@@ -203,34 +240,40 @@ class LectureSessionResource extends Resource
                             'qr_expires_at' => null,
                         ]);
                     })
-                    ->visible(fn (LectureSession $record) => $record->status === 'scheduled'),
+                    ->visible(fn (LectureSession $record) => ! $record->trashed() && $record->status === 'scheduled' && ! $record->hasReachedScheduledEnd()),
 
                 \Filament\Actions\Action::make('end')
                     ->label(__('lecture-session.end_session'))
                     ->icon('heroicon-o-stop')
                     ->color('danger')
                     ->action(function (LectureSession $record) {
+                        $record->syncLifecycleState();
+
+                        if ($record->status !== 'active' || $record->qr_expired) {
+                            return;
+                        }
+
                         $record->update([
                             'status' => 'completed',
                             'actual_end' => now(),
                             'qr_expired' => true,
                         ]);
                     })
-                    ->visible(fn (LectureSession $record) => $record->status === 'active' && ! $record->qr_expired),
+                    ->visible(fn (LectureSession $record) => ! $record->trashed() && $record->status === 'active' && ! $record->qr_expired && ! $record->hasReachedScheduledEnd()),
 
                 ActionsAction::make('view_qr')
                     ->label(__('lecture-session.view_qr'))
                     ->icon('heroicon-o-qr-code')
                     ->url(fn (LectureSession $record) => route('teacher.lecture-session.qr', $record))
                     ->openUrlInNewTab()
-                    ->visible(fn (LectureSession $record) => $record->shouldShowQrAction(auth()->user())),
+                    ->visible(fn (LectureSession $record) => ! $record->trashed() && $record->shouldShowQrAction(auth()->user())),
 
                 ActionsAction::make('session_ended')
                     ->label(__('lecture-session.session_ended'))
                     ->icon('heroicon-o-x-circle')
                     ->color('gray')
                     ->disabled()
-                    ->visible(fn (LectureSession $record) => $record->status === 'completed' || $record->qr_expired),
+                    ->visible(fn (LectureSession $record) => ! $record->trashed() && ($record->status === 'completed' || $record->qr_expired || $record->hasReachedScheduledEnd())),
 
                 ActionsAction::make('view_attendance')
                     ->label(__('attendance.view_attendance'))
@@ -241,8 +284,21 @@ class LectureSessionResource extends Resource
                         'activeRelationManager' => 'attendances',
                     ]))
                     ->openUrlInNewTab(),
+                EditAction::make()
+                    ->visible(fn (LectureSession $record): bool => ! $record->trashed()),
+                DeleteAction::make(),
+                RestoreAction::make(),
+                ForceDeleteAction::make()
+                    ->visible(fn (): bool => auth()->user()->hasRole('super-admin')),
             ])->defaultSort('session_date', 'desc')
-            ->bulkActions([]);
+            ->bulkActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
+                    ForceDeleteBulkAction::make()
+                        ->visible(fn (): bool => auth()->user()->hasRole('super-admin')),
+                ]),
+            ]);
     }
 
     public static function getRelations(): array
@@ -265,7 +321,12 @@ class LectureSessionResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        LectureSession::syncExpiredSessions();
+
+        $query = parent::getEloquentQuery()
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
 
         if (auth()->user()->hasRole('course_lecturer')) {
             return $query->where('lecturer_id', auth()->id());

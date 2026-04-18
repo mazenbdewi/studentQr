@@ -6,6 +6,7 @@ namespace App\Models;
 use BezhanSalleh\FilamentShield\Traits\HasPanelShield;
 use Filament\Models\Contracts\FilamentUser;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
@@ -17,9 +18,29 @@ class User extends Authenticatable implements FilamentUser
     use HasPanelShield;
     use HasRoles;
     use Notifiable;
+    use SoftDeletes;
+
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'role',
+        'type',
+        'status',
+        'title',
+        'faculty_id',
+        'department_id',
+        'year',
+        'phone',
+        'student_number',
+        'activation_code',
+        'activation_expires',
+        'avatar',
+        'is_active',
+    ];
 
     protected $hidden = [
-        // 'password',
+        'password',
         'remember_token',
     ];
 
@@ -31,7 +52,7 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessFilament(): bool
     {
         return $this->hasAnyRole([
-            'super_admin',
+            'super-admin',
             'course_lecturer',
             'manager',
         ]);
@@ -39,7 +60,21 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessPanel(\Filament\Panel $panel): bool
     {
-        return $this->email === 'super@admin.com' || $this->hasRole(['super_admin', 'manager', 'course_lecturer']);
+        return $this->email === 'super@admin.com' || $this->hasRole(['super-admin', 'manager', 'course_lecturer']);
+    }
+
+    public function syncSystemRole(string $role): void
+    {
+        $this->syncRoles([$this->mapDatabaseRoleToSpatieRole($role)]);
+    }
+
+    public static function mapDatabaseRoleToSpatieRole(string $role): string
+    {
+        return match ($role) {
+            'super_admin' => 'super-admin',
+            'course_lecturer' => 'course_lecturer',
+            default => $role,
+        };
     }
 
 
@@ -55,12 +90,12 @@ class User extends Authenticatable implements FilamentUser
 
     public function faculty()
     {
-        return $this->belongsTo(Faculty::class);
+        return $this->belongsTo(Faculty::class)->withTrashed();
     }
 
     public function department()
     {
-        return $this->belongsTo(Department::class);
+        return $this->belongsTo(Department::class)->withTrashed();
     }
 
 

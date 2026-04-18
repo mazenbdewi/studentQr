@@ -39,7 +39,7 @@ Route::post(
 Route::get(
     '/lecture-session/{session}/qr',
     [AttendanceController::class, 'showQr']
-)->middleware(['auth', 'role:course_lecturer'])
+)->middleware(['auth', 'role:super-admin|course_lecturer'])
     ->name('teacher.lecture-session.qr');
 
 // Student routes group
@@ -121,6 +121,12 @@ Route::middleware(['auth', 'role:course_lecturer'])
         Route::put('/profile', [App\Http\Controllers\Teacher\ProfileController::class, 'update'])
             ->name('profile.update');
 
+    });
+
+Route::middleware(['auth', 'role:super-admin|course_lecturer'])
+    ->prefix('teacher')
+    ->name('teacher.')
+    ->group(function () {
         // Session status check for QR page
         Route::get('/session/{session}/status', [App\Http\Controllers\Teacher\AttendanceController::class, 'sessionStatus'])
             ->name('session.status');

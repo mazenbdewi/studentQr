@@ -16,6 +16,7 @@ use Illuminate\Support\Str;
 class AttendanceController extends Controller
 {
     private const VERIFICATION_SESSION_KEY = 'attendance_verification';
+    private const COMPLETED_ATTENDANCE_SESSION_KEY = 'attendance_completed';
 
     /**
      * Public attendance entry is intentionally disabled.
@@ -56,25 +57,134 @@ class AttendanceController extends Controller
 
     private function finalizeExpiredSession(LectureSession $session): void
     {
-        $session->refresh();
+        $session->syncLifecycleState();
+    }
 
-        if (! $session->qr_expires_at) {
+    private function storeCompletedAttendanceContext(
+        Request $request,
+        LectureSession $session,
+        Student $student,
+        Attendance $attendance
+    ): void {
+        $context = $request->session()->get(self::COMPLETED_ATTENDANCE_SESSION_KEY, []);
+
+        if (! is_array($context)) {
+            $context = [];
+        }
+
+        $context[(string) $session->id] = [
+            'attendance_id' => $attendance->id,
+            'student_id' => $student->id,
+            'student_number' => $student->student_number,
+        ];
+
+        $request->session()->put(self::COMPLETED_ATTENDANCE_SESSION_KEY, $context);
+    }
+
+    private function forgetCompletedAttendanceContext(Request $request, int $sessionId): void
+    {
+        $context = $request->session()->get(self::COMPLETED_ATTENDANCE_SESSION_KEY, []);
+
+        if (! is_array($context)) {
+            $request->session()->forget(self::COMPLETED_ATTENDANCE_SESSION_KEY);
+
             return;
         }
 
-        $expiresAt = $session->qr_expires_at instanceof Carbon
-            ? $session->qr_expires_at
-            : Carbon::parse($session->qr_expires_at);
+        unset($context[(string) $sessionId]);
 
-        if (now()->greaterThanOrEqualTo($expiresAt) && ! $session->qr_expired) {
-            $session->update([
-                'qr_expired' => true,
-                'status' => 'completed',
-                'actual_end' => $session->actual_end ?? now(),
-            ]);
+        if ($context === []) {
+            $request->session()->forget(self::COMPLETED_ATTENDANCE_SESSION_KEY);
 
-            $session->refresh();
+            return;
         }
+
+        $request->session()->put(self::COMPLETED_ATTENDANCE_SESSION_KEY, $context);
+    }
+
+    private function resolveCompletedAttendance(Request $request, int $sessionId): ?Attendance
+    {
+        $context = $request->session()->get(self::COMPLETED_ATTENDANCE_SESSION_KEY, []);
+
+        if (! is_array($context)) {
+            return null;
+        }
+
+        $sessionContext = $context[(string) $sessionId] ?? null;
+
+        if (! is_array($sessionContext)) {
+            return null;
+        }
+
+        $attendanceId = (int) ($sessionContext['attendance_id'] ?? 0);
+        $studentId = (int) ($sessionContext['student_id'] ?? 0);
+
+        if ($attendanceId <= 0 || $studentId <= 0) {
+            $this->forgetCompletedAttendanceContext($request, $sessionId);
+
+            return null;
+        }
+
+        $attendance = Attendance::with('student')
+            ->whereKey($attendanceId)
+            ->where('lecture_session_id', $sessionId)
+            ->where('student_id', $studentId)
+            ->first();
+
+        if (! $attendance) {
+            $this->forgetCompletedAttendanceContext($request, $sessionId);
+
+            return null;
+        }
+
+        return $attendance;
+    }
+
+    private function formatAttendanceTime(mixed $attendanceTime): ?string
+    {
+        if ($attendanceTime instanceof Carbon) {
+            return $attendanceTime->toIso8601String();
+        }
+
+        if ($attendanceTime instanceof \DateTimeInterface) {
+            return Carbon::instance($attendanceTime)->toIso8601String();
+        }
+
+        if (! is_string($attendanceTime) || trim($attendanceTime) === '') {
+            return null;
+        }
+
+        return Carbon::parse($attendanceTime)->toIso8601String();
+    }
+
+    private function findExistingAttendance(int $sessionId, int $studentId): ?Attendance
+    {
+        return Attendance::with('student')
+            ->where('lecture_session_id', $sessionId)
+            ->where('student_id', $studentId)
+            ->first();
+    }
+
+    private function renderCompletedAttendanceView(
+        Request $request,
+        LectureSession $session,
+        Attendance $attendance,
+        ?string $message = null
+    ) {
+        $this->invalidateVerificationContext($request);
+
+        $sessionDetails = LectureSession::with(['subject', 'lecturer', 'hall'])
+            ->findOrFail($session->id);
+
+        return view('student.attendance', $this->attendanceViewData(
+            session: $sessionDetails,
+            remainingSeconds: 0,
+            submissionToken: null,
+            attendanceCompleted: true,
+            successMessage: $message ?? __('student.attendance_already_submitted'),
+            studentNumber: $attendance->student?->student_number,
+            attendanceTime: $this->formatAttendanceTime($attendance->attendance_time),
+        ));
     }
 
     private function invalidateVerificationContext(Request $request): void
@@ -223,7 +333,9 @@ class AttendanceController extends Controller
         int $remainingSeconds,
         ?string $submissionToken,
         bool $attendanceCompleted = false,
-        ?string $successMessage = null
+        ?string $successMessage = null,
+        ?string $studentNumber = null,
+        ?string $attendanceTime = null
     ): array {
         return [
             'sessionId' => $session->id,
@@ -232,6 +344,8 @@ class AttendanceController extends Controller
             'submissionToken' => $submissionToken,
             'attendanceCompleted' => $attendanceCompleted,
             'successMessage' => $successMessage,
+            'studentNumberValue' => $studentNumber,
+            'attendanceTime' => $attendanceTime,
         ];
     }
 
@@ -258,6 +372,8 @@ class AttendanceController extends Controller
                 submissionToken: null,
                 attendanceCompleted: true,
                 successMessage: $message,
+                studentNumber: $payload['student_number'] ?? null,
+                attendanceTime: $payload['attendance_time'] ?? null,
             ));
         }
 
@@ -285,6 +401,10 @@ class AttendanceController extends Controller
 
         if (! $session) {
             return $this->buildSubmissionResponse($request, false, __('session.not_found'), 404);
+        }
+
+        if ($completedAttendance = $this->resolveCompletedAttendance($request, $sessionId)) {
+            return $this->renderCompletedAttendanceView($request, $session, $completedAttendance);
         }
 
         $verification = $this->resolveVerificationContext(
@@ -334,25 +454,40 @@ class AttendanceController extends Controller
             }
         }
 
-        $existingAttendance = Attendance::where('student_id', $student->id)
-            ->where('lecture_session_id', $sessionId)
-            ->first();
+        $attendance = Attendance::query()->createOrFirst(
+            [
+                'student_id' => $student->id,
+                'lecture_session_id' => $sessionId,
+            ],
+            [
+                'attendance_token_id' => $verification['submission_grant']->id,
+                'attendance_time' => now(),
+                'attendance_method' => 'qr_scan',
+                'attendance_status' => 'present',
+                'ip_address' => $request->ip(),
+                'device_fingerprint' => $this->resolveDeviceFingerprint($request),
+            ]
+        );
 
-        if ($existingAttendance) {
-            return $this->buildSubmissionResponse($request, false, __('student.already_attended'), 409);
+        if (! $attendance->wasRecentlyCreated) {
+            $existingAttendance = $this->findExistingAttendance($sessionId, $student->id) ?? $attendance;
+
+            $this->storeCompletedAttendanceContext($request, $session, $student, $existingAttendance);
+
+            return $this->buildSubmissionResponse(
+                $request,
+                true,
+                __('student.attendance_already_submitted'),
+                200,
+                [
+                    'attendance_time' => $this->formatAttendanceTime($existingAttendance->attendance_time),
+                    'session' => $session,
+                    'student_number' => $student->student_number,
+                ]
+            );
         }
 
-        $attendance = Attendance::create([
-            'student_id' => $student->id,
-            'lecture_session_id' => $sessionId,
-            'attendance_token_id' => $verification['submission_grant']->id,
-            'attendance_time' => now(),
-            'attendance_method' => 'qr_scan',
-            'attendance_status' => 'present',
-            'ip_address' => $request->ip(),
-            'device_fingerprint' => $this->resolveDeviceFingerprint($request),
-        ]);
-
+        $this->storeCompletedAttendanceContext($request, $session, $student, $attendance);
         $this->consumeVerificationContext($request, $verification['submission_grant']);
 
         return $this->buildSubmissionResponse(
@@ -361,8 +496,9 @@ class AttendanceController extends Controller
             __('student.attendance_recorded'),
             200,
             [
-                'attendance_time' => $attendance->attendance_time->toIso8601String(),
+                'attendance_time' => $this->formatAttendanceTime($attendance->attendance_time),
                 'session' => $session,
+                'student_number' => $student->student_number,
             ]
         );
     }
@@ -374,16 +510,7 @@ class AttendanceController extends Controller
     {
         abort_unless($session->canManageQr(auth()->user()), 403);
 
-        $session->refresh();
-
-        if ($session->qr_expires_at && now()->greaterThan($session->qr_expires_at)) {
-            $session->update([
-                'qr_expired' => true,
-                'status' => 'completed',
-                'actual_end' => now(),
-            ]);
-            $session->refresh();
-        }
+        $session->syncLifecycleState();
 
         if ($session->qr_expired) {
             return view('teacher.lecture-session-qr', [
@@ -472,8 +599,7 @@ class AttendanceController extends Controller
     public function verifyToken(Request $request, string $tokenValue)
     {
         $token = AttendanceToken::where('token_value', $tokenValue)
-            ->where('expires_at', '>=', now())
-            ->where('is_used', false)
+            ->where('token_type', 'qr')
             ->first();
 
         if (! $token) {
@@ -487,6 +613,14 @@ class AttendanceController extends Controller
         }
 
         $this->finalizeExpiredSession($session);
+
+        if ($completedAttendance = $this->resolveCompletedAttendance($request, $session->id)) {
+            return $this->renderCompletedAttendanceView($request, $session, $completedAttendance);
+        }
+
+        if ($token->expires_at < now() || $token->is_used) {
+            abort(403, __('session.token_expired'));
+        }
 
         if ($session->qr_expired || $session->status !== 'active') {
             abort(403, __('session.qr_session_expired'));
@@ -517,13 +651,17 @@ class AttendanceController extends Controller
      */
     public function verifySession(Request $request, int $sessionId)
     {
+        $session = LectureSession::with(['subject', 'lecturer', 'hall'])->findOrFail($sessionId);
+
+        if ($completedAttendance = $this->resolveCompletedAttendance($request, $sessionId)) {
+            return $this->renderCompletedAttendanceView($request, $session, $completedAttendance);
+        }
+
         $verification = $this->resolveVerificationContext($request, $sessionId);
 
         if (! $verification) {
             abort(403, __('session.token_expired'));
         }
-
-        $session = LectureSession::with(['subject', 'lecturer', 'hall'])->findOrFail($sessionId);
 
         $this->finalizeExpiredSession($session);
 

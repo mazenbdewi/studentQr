@@ -19,6 +19,7 @@ return [
     'is_active'         => 'نشط',
     'created_at'        => 'تاريخ الإنشاء',
     'updated_at'        => 'تاريخ التحديث',
+    'deleted_at'        => 'تاريخ الحذف',
 
     'view'              => 'عرض',
     'edit'              => 'تعديل',
@@ -34,4 +35,3 @@ return [
     'help_title'        => 'تعليمات استيراد القاعات',
     'import_with_template' => 'استيراد باستخدام القالب',
 ];
-

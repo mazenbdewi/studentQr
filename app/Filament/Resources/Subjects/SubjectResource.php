@@ -7,13 +7,22 @@ use App\Filament\Resources\Students\RelationManagers\SubjectsRelationManager;
 use App\Filament\Resources\Subjects\RelationManagers\StudentsRelationManager;
 use App\Models\Subject;
 use BackedEnum;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ForceDeleteAction;
+use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Forms;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
 
 
 class SubjectResource extends Resource
@@ -74,7 +83,11 @@ class SubjectResource extends Resource
 
                 Forms\Components\Select::make('department_id')
                     ->label(__('subjects.department_id'))
-                    ->relationship('department', 'name')
+                    ->relationship(
+                        name: 'department',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                    )
                     ->searchable()
                     ->preload()
                     ->nullable(),
@@ -107,7 +120,10 @@ class SubjectResource extends Resource
 
                 Forms\Components\Select::make('lecturer_id')
                     ->label(__('subjects.lecturer'))
-                    ->options(fn() => \App\Models\User::whereHas('roles', fn($q) => $q->where('name', 'course_lecturer'))->pluck('name', 'id'))
+                    ->options(fn() => \App\Models\User::query()
+                        ->withoutTrashed()
+                        ->whereHas('roles', fn($q) => $q->where('name', 'course_lecturer'))
+                        ->pluck('name', 'id'))
                     ->searchable()
                     ->required(),
             ]);
@@ -125,12 +141,22 @@ class SubjectResource extends Resource
                     ->label(__('subjects.name'))
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('lecturer.name')
+                    ->label(__('subjects.lecturer'))
+                    ->formatStateUsing(fn (?string $state): string => $state ?: __('subjects.not_assigned'))
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('department.name')
                     ->label(__('subjects.department_id'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('credit_hours')
                     ->label(__('subjects.credit_hours')),
+                Tables\Columns\TextColumn::make('deleted_at')
+                    ->label(__('subjects.deleted_at'))
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\IconColumn::make('is_active')
                     ->label(__('subjects.is_active'))
                     ->boolean(),
@@ -138,15 +164,32 @@ class SubjectResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('department')
                     ->label(__('subjects.department_id'))
-                    ->relationship('department', 'name'),
+                    ->relationship(
+                        name: 'department',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                    ),
+                Tables\Filters\TrashedFilter::make(),
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label(__('subjects.is_active')),
             ])
             ->actions([
-                // Tables\Actions\EditAction::make()->label(__('subjects.edit')),
-                // Tables\Actions\ViewAction::make()->label(__('subjects.view')),
+                EditAction::make()
+                    ->label(__('subjects.edit'))
+                    ->visible(fn (Subject $record): bool => ! $record->trashed()),
+                DeleteAction::make(),
+                RestoreAction::make(),
+                ForceDeleteAction::make()
+                    ->visible(fn (): bool => auth()->user()->hasRole('super-admin')),
             ])
-            ->bulkActions([]);
+            ->bulkActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
+                    ForceDeleteBulkAction::make()
+                        ->visible(fn (): bool => auth()->user()->hasRole('super-admin')),
+                ]),
+            ]);
     }
 
     public static function getRelations(): array
@@ -169,7 +212,10 @@ class SubjectResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        $query = parent::getEloquentQuery()
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
 
         if (auth()->user()->hasRole('course_lecturer')) {
             return $query->where('lecturer_id', auth()->id());

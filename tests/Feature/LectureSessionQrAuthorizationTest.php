@@ -46,7 +46,7 @@ function createLectureSessionForQrTests(User $lecturer): LectureSession
         'subject_id' => $subject->id,
         'lecturer_id' => $lecturer->id,
         'hall_id' => $hall->id,
-        'session_date' => now()->toDateString(),
+        'session_date' => now()->addDay()->toDateString(),
         'start_time' => '09:00:00',
         'end_time' => '10:00:00',
         'status' => 'active',
@@ -58,6 +58,7 @@ function createLectureSessionForQrTests(User $lecturer): LectureSession
 
 beforeEach(function () {
     Role::create(['name' => 'course_lecturer', 'guard_name' => 'web']);
+    Role::create(['name' => 'super-admin', 'guard_name' => 'web']);
 });
 
 it('shows the qr action only for the owning lecturer on active sessions', function () {
@@ -104,6 +105,66 @@ it('allows the owning lecturer to open the qr page', function () {
     $response->assertViewIs('teacher.lecture-session-qr');
     $response->assertViewHas('session', fn (LectureSession $viewSession) => $viewSession->is($session));
     $response->assertViewHas('expired', false);
+});
+
+it('allows the super admin to open the qr page for any lecture session', function () {
+    $lecturer = User::factory()->create([
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'title' => 'lecturer',
+    ]);
+    $lecturer->assignRole('course_lecturer');
+
+    $superAdmin = User::factory()->create([
+        'role' => 'super_admin',
+        'type' => 'admin',
+        'status' => 'active',
+        'title' => 'lecturer',
+        'email' => 'root@example.com',
+    ]);
+    $superAdmin->assignRole('super-admin');
+
+    $session = createLectureSessionForQrTests($lecturer);
+
+    expect($session->shouldShowQrAction($superAdmin))->toBeTrue();
+
+    $response = $this->actingAs($superAdmin)->get(route('teacher.lecture-session.qr', $session));
+
+    $response->assertOk();
+    $response->assertViewIs('teacher.lecture-session-qr');
+    $response->assertViewHas('expired', false);
+});
+
+it('automatically ends a session when the scheduled end time has passed', function () {
+    $lecturer = User::factory()->create([
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'title' => 'lecturer',
+    ]);
+    $lecturer->assignRole('course_lecturer');
+
+    $session = createLectureSessionForQrTests($lecturer);
+    $session->update([
+        'session_date' => now()->toDateString(),
+        'start_time' => now()->subHour()->format('H:i:s'),
+        'end_time' => now()->subMinute()->format('H:i:s'),
+        'qr_expired' => false,
+        'qr_expires_at' => now()->addMinutes(5),
+        'actual_end' => null,
+    ]);
+
+    $response = $this->actingAs($lecturer)->get(route('teacher.lecture-session.qr', $session));
+
+    $response->assertOk();
+    $response->assertViewHas('expired', true);
+
+    $session->refresh();
+
+    expect($session->status)->toBe('completed')
+        ->and($session->qr_expired)->toBeTrue()
+        ->and($session->actual_end)->not->toBeNull();
 });
 
 it('blocks non-lecturer users from accessing the lecturer qr page directly', function () {

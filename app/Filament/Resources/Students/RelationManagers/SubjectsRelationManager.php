@@ -2,133 +2,173 @@
 
 namespace App\Filament\Resources\Students\RelationManagers;
 
-use Filament\Actions\AttachAction;
+use App\Filament\Resources\Subjects\SubjectResource;
+use App\Models\Enrollment;
+use App\Models\Subject;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\DetachAction;
-use Filament\Actions\DetachBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables\Table;
-use Filament\Tables;
 use Filament\Forms;
-use Filament\Schemas\Schema;
+use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Tables;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-
+use Illuminate\Validation\Rule;
 
 class SubjectsRelationManager extends RelationManager
 {
-    protected static string $relationship = 'subjects';
+    protected static string $relationship = 'enrollments';
 
     public static function getTitle(Model $ownerRecord, string $pageClass): string
     {
         return __('enrollments.enrolled_subjects');
     }
 
-    public function table(Table $table): Table
+    public static function getBadge(Model $ownerRecord, string $pageClass): ?string
+    {
+        return (string) $ownerRecord->enrollments()->count();
+    }
+
+    public function table(Tables\Table $table): Tables\Table
     {
         return $table
-            ->recordTitleAttribute('name')
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('subject'))
+            ->defaultSort('subject_id')
+            ->recordTitle(fn (Enrollment $record): string => $record->subject?->name ?? __('subjects.record_title'))
             ->columns([
-                Tables\Columns\TextColumn::make('code')
-                    ->label(__('subjects.code')),
-                Tables\Columns\TextColumn::make('name')
-                    ->label(__('subjects.name')),
-                Tables\Columns\TextColumn::make('pivot.semester')
-                    ->label(__('enrollments.semester')),
-                Tables\Columns\TextColumn::make('pivot.year')
-                    ->label(__('enrollments.year')),
-                Tables\Columns\TextColumn::make('pivot.status')
+                Tables\Columns\TextColumn::make('subject.code')
+                    ->label(__('subjects.code'))
+                    ->searchable()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('subject.name')
+                    ->label(__('subjects.name'))
+                    ->url(fn (Enrollment $record): string => SubjectResource::getUrl('view', ['record' => $record->subject]))
+                    ->searchable()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('semester')
+                    ->label(__('enrollments.semester'))
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('year')
+                    ->label(__('enrollments.year'))
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('status')
                     ->label(__('enrollments.status'))
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'enrolled' => 'success',
-                        'dropped' => 'danger',
-                        'passed' => 'info',
-                        'failed' => 'warning',
+                    ->formatStateUsing(fn (?string $state): string => filled($state) ? __("enrollments.{$state}") : '')
+                    ->color(fn (?string $state): string => match ($state) {
+                        Enrollment::STATUS_ENROLLED => 'success',
+                        Enrollment::STATUS_DROPPED => 'danger',
+                        Enrollment::STATUS_PASSED => 'info',
+                        Enrollment::STATUS_FAILED => 'warning',
+                        default => 'gray',
                     }),
             ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('status')
+                    ->label(__('enrollments.status'))
+                    ->options(Enrollment::statusOptions()),
+            ])
             ->headerActions([
-                AttachAction::make()
+                CreateAction::make()
                     ->label(__('enrollments.add_subject'))
-                    ->form(fn(AttachAction $action): array => [
-                        Forms\Components\Select::make('recordId')
-                            ->label(__('enrollments.subject'))
-                            ->options(
-                                \App\Models\Subject::query()
-                                    ->pluck('name', 'id')
-                                    ->toArray()
-                            )
-                            ->searchable()
-                            ->required(),
-
-                        Forms\Components\TextInput::make('semester')
-                            ->label(__('enrollments.semester'))
-                            ->numeric()
-                            ->required(),
-                        Forms\Components\TextInput::make('year')
-                            ->label(__('enrollments.year'))
-                            ->numeric()
-                            ->required(),
-                        Forms\Components\Select::make('status')
-                            ->label(__('enrollments.status'))
-                            ->options([
-                                'enrolled' => __('enrollments.enrolled'),
-                                'dropped' => __('enrollments.dropped'),
-                                'passed' => __('enrollments.passed'),
-                                'failed' => __('enrollments.failed'),
-                            ])
-                            ->default('enrolled')
-                            ->required(),
-                    ])
-                    ->using(function (array $data): Model {
-                        $this->ownerRecord->subjects()->attach($data['recordId'], [
-                            'semester' => $data['semester'],
-                            'year' => $data['year'],
-                            'status' => $data['status'],
-                        ]);
-                        return $this->ownerRecord;
-                    })
+                    ->schema($this->getEnrollmentFormSchema()),
             ])
             ->actions([
                 EditAction::make()
-                    ->form([
-                        Forms\Components\TextInput::make('semester')
-                            ->label(__('enrollments.semester'))
-                            ->numeric()
-                            ->required(),
-                        Forms\Components\TextInput::make('year')
-                            ->label(__('enrollments.year'))
-                            ->numeric()
-                            ->required(),
-                        Forms\Components\Select::make('status')
-                            ->label(__('enrollments.status'))
-                            ->options([
-                                'enrolled' => __('enrollments.enrolled'),
-                                'dropped' => __('enrollments.dropped'),
-                                'passed' => __('enrollments.passed'),
-                                'failed' => __('enrollments.failed'),
-                            ])
-                            ->required(),
-                    ])
-                    ->using(function (Model $record, array $data): Model {
-                        $record->pivot->update([
-                            'semester' => $data['semester'],
-                            'year' => $data['year'],
-                            'status' => $data['status'],
-                        ]);
-                        return $record;
-                    }),
-                DetachAction::make(),
+                    ->schema($this->getEnrollmentMetadataSchema()),
+
+                DeleteAction::make(),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
-                    DetachBulkAction::make(),
+                    DeleteBulkAction::make(),
                 ]),
             ]);
     }
+
+    /**
+     * @return array<int, Forms\Components\Component>
+     */
+    protected function getEnrollmentFormSchema(): array
+    {
+        return [
+            Forms\Components\Select::make('subject_id')
+                ->label(__('enrollments.subject'))
+                ->relationship(
+                    name: 'subject',
+                    titleAttribute: 'name',
+                    modifyQueryUsing: fn (Builder $query) => $query
+                        ->withoutTrashed()
+                        ->whereDoesntHave(
+                            'enrollments',
+                            fn (Builder $enrollmentsQuery) => $enrollmentsQuery->where('student_id', $this->ownerRecord->getKey()),
+                        ),
+                )
+                ->getOptionLabelFromRecordUsing(
+                    fn (Subject $record): string => filled($record->code)
+                        ? "{$record->code} - {$record->name}"
+                        : $record->name,
+                )
+                ->searchable(['code', 'name'])
+                ->optionsLimit(50)
+                ->required()
+                ->live()
+                ->afterStateUpdated(function (?string $state, callable $set): void {
+                    $subject = Subject::query()
+                        ->select(['id', 'semester', 'level'])
+                        ->find($state);
+
+                    if (! $subject) {
+                        return;
+                    }
+
+                    $set('semester', $subject->semester);
+                    $set('year', $subject->level);
+                })
+                ->rule(
+                    Rule::unique('enrollments', 'subject_id')
+                        ->where(fn ($query) => $query->where('student_id', $this->ownerRecord->getKey())),
+                )
+                ->validationMessages([
+                    'unique' => __('student.already_enrolled'),
+                ]),
+
+            ...$this->getEnrollmentMetadataSchema(),
+        ];
+    }
+
+    /**
+     * @return array<int, Forms\Components\Component>
+     */
+    protected function getEnrollmentMetadataSchema(): array
+    {
+        return [
+            Forms\Components\TextInput::make('semester')
+                ->label(__('enrollments.semester'))
+                ->numeric()
+                ->minValue(1)
+                ->maxValue(2)
+                ->required(),
+
+            Forms\Components\TextInput::make('year')
+                ->label(__('enrollments.year'))
+                ->numeric()
+                ->minValue(1)
+                ->maxValue(6)
+                ->default(fn (): ?int => $this->ownerRecord->year)
+                ->required(),
+
+            Forms\Components\Select::make('status')
+                ->label(__('enrollments.status'))
+                ->options(Enrollment::statusOptions())
+                ->default(Enrollment::STATUS_ENROLLED)
+                ->required(),
+        ];
+    }
 }
-
-

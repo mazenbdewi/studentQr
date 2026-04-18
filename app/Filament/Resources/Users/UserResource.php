@@ -9,9 +9,12 @@ use App\Filament\Resources\Users\Schemas\UserForm;
 use App\Filament\Resources\Users\Tables\UsersTable;
 use App\Models\User;
 use BackedEnum;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Spatie\Permission\Models\Role;
 use Filament\Tables\Table;
 use UnitEnum;
 
@@ -54,10 +57,62 @@ class UserResource extends Resource
         return __('user.create');
     }
 
+    public static function getAssignableRoles(): array
+    {
+        return [
+            'super_admin' => __('user.super_admin'),
+            'course_lecturer' => __('user.course_lecturer'),
+        ];
+    }
+
+    public static function getDetectedSystemRoleNames(): array
+    {
+        return Role::query()
+            ->orderBy('name')
+            ->pluck('name')
+            ->all();
+    }
+
+    public static function getImportableRoles(): array
+    {
+        $detectedRoleNames = collect(static::getDetectedSystemRoleNames());
+
+        return collect(static::getAssignableRoles())
+            ->filter(
+                fn (string $label, string $databaseRole): bool => $detectedRoleNames->contains(
+                    User::mapDatabaseRoleToSpatieRole($databaseRole)
+                )
+            )
+            ->all();
+    }
+
+    public static function getImportableRoleValues(): array
+    {
+        return array_keys(static::getImportableRoles());
+    }
+
+    public static function getImportRoleDescriptions(): array
+    {
+        return collect(static::getImportableRoles())
+            ->map(
+                fn (string $label, string $databaseRole): string => __(
+                    'user.import_role_option',
+                    [
+                        'value' => $databaseRole,
+                        'label' => $label,
+                        'system_role' => User::mapDatabaseRoleToSpatieRole($databaseRole),
+                    ]
+                )
+            )
+            ->values()
+            ->all();
+    }
+
     public static function getRecordTitle($record): ?string
     {
         return $record->name ?? __('user.record_title') . ' #' . $record->id;
     }
+
     public static function form(Schema $schema): Schema
     {
         return UserForm::configure($schema);
@@ -84,9 +139,17 @@ class UserResource extends Resource
         ];
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->whereIn('role', array_keys(static::getAssignableRoles()))
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
+    }
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['super-admin']);
+        return static::canViewAny();
     }
 }

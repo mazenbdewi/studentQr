@@ -16,7 +16,7 @@ return [
     'is_active' => 'Active Status',
     'created_at' => 'Created At',
     'updated_at' => 'Updated At',
+    'deleted_at' => 'Deleted At',
     'template_download' => 'Download Template',
     'import_excel' => 'Import Excel',
 ];
-

@@ -66,6 +66,7 @@ return [
     'is_active' => 'نشط',
     'created_at' => 'تاريخ الإنشاء',
     'updated_at' => 'تاريخ التحديث',
+    'deleted_at' => 'تاريخ الحذف',
     'view' => 'عرض',
     'edit' => 'تعديل',
     'delete_selected' => 'حذف المحدد',
@@ -89,6 +90,7 @@ return [
     'enter_student_number_and_code' => 'أدخل الرقم الجامعي ورمز التحقق لإتمام تأكيد الحضور.',
     'absent_students' => 'الطلاب الغائبون',
     'already_attended' => 'لقد قمت بتسجيل حضورك بالفعل',
+    'attendance_already_submitted' => 'تم إرسال الحضور بنجاح مسبقًا',
     'already_attending' => 'لديك طلب قيد المعالجة، يرجى الانتظار',
     'attendance_processing' => 'جاري معالجة طلب الحضور...',
     'please_fill_all_fields' => 'يرجى ملء جميع الحقول',
@@ -118,6 +120,7 @@ return [
     // Attendance Report
     'attendance_report' => 'تقرير الحضور',
     'attendance_report_for' => 'تقرير الحضور لـ :name',
+    'subject_attendance_report_for' => 'تقرير الحضور لـ :name - :subject',
     'student_info' => 'معلومات الطالب',
     'summary_stats' => 'إحصائيات الملخص',
     'overall_attendance_summary' => 'ملخص الحضور العام',
@@ -126,9 +129,14 @@ return [
     'total_enrolled_subjects' => 'إجمالي المواد المسجلة',
     'total_lectures' => 'إجمالي المحاضرات',
     'total_attended' => 'إجمالي الحضور',
+    'total_present' => 'إجمالي الحضور',
+    'total_absent' => 'إجمالي الغياب',
     'overall_attendance' => 'نسبة الحضور العامة',
 'low_attendance_subjects' => 'المواد ذات الحضور المنخفض (:count)',
     'help_title' => 'تعليمات استيراد الطلاب',
+    'lecture' => 'المحاضرة',
+    'day_date' => 'اليوم / التاريخ',
+    'time' => 'الوقت',
+    'generated_at' => 'تاريخ إنشاء التقرير',
+    'no_attendance_history' => 'لا يوجد سجل حضور لهذا الطالب.',
 ];
-
-

@@ -16,7 +16,12 @@ class SubjectStudentsTemplateExport implements FromCollection, WithColumnWidths,
     public function collection(): Collection
     {
         return collect([
-            ['12345', 'أحمد محمد', '123456789', '1', '1'],
+            [
+                '2024001',
+                (string) ($this->subject?->semester ?? 1),
+                (string) ($this->subject?->level ?? 1),
+                'enrolled',
+            ],
         ]);
     }
 
@@ -24,10 +29,9 @@ class SubjectStudentsTemplateExport implements FromCollection, WithColumnWidths,
     {
         return [
             'student_number',
-            'name',
-            'national_number',
             'semester',
             'year',
+            'status',
         ];
     }
 
@@ -35,10 +39,9 @@ class SubjectStudentsTemplateExport implements FromCollection, WithColumnWidths,
     {
         return [
             'A' => 15,
-            'B' => 20,
-            'C' => 15,
-            'D' => 10,
-            'E' => 10,
+            'B' => 10,
+            'C' => 10,
+            'D' => 15,
         ];
     }
 

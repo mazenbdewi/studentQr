@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Departments\Schemas;
 
+use Illuminate\Database\Eloquent\Builder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
@@ -25,7 +26,11 @@ class DepartmentForm
                     ->default(null),
                 Select::make('faculty_id')
                     ->label(__('department.faculty'))
-                    ->relationship('faculty', 'name')
+                    ->relationship(
+                        name: 'faculty',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                    )
                     ->searchable()
                     ->preload()
                     ->required(),

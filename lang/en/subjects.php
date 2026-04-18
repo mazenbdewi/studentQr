@@ -37,9 +37,10 @@ return [
     'delete_selected' => 'Delete Selected',
 
     'not_available' => '-',
+    'not_assigned' => 'Not assigned',
+    'deleted_at' => 'Deleted At',
     'subject' => 'Subject',
 'not_found_in_row' => 'not found in row :row',
     'help_title' => 'Subjects Import Instructions',
     'import_with_template' => 'Import Using Template',
 ];
-

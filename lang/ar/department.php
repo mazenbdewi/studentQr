@@ -11,6 +11,7 @@ return [
     'is_active'         => 'نشط',
     'created_at'        => 'تاريخ الإنشاء',
     'updated_at'        => 'تاريخ التحديث',
+    'deleted_at'        => 'تاريخ الحذف',
     'view'              => 'عرض',
     'edit'              => 'تعديل',
     'delete_selected'   => 'حذف المحدد',
@@ -32,5 +33,4 @@ return [
     'import_excel' => 'استيراد Excel',
     'excel_file' => 'ملف Excel',
 ];
-
 

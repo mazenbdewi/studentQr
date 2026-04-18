@@ -2,19 +2,17 @@
 
 namespace App\Filament\Resources\Faculties\RelationManagers;
 
+use App\Models\Department;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\CreateAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Resources\RelationManagers\RelationManager\Columns;
-use Filament\Resources\RelationManagers\RelationManager\Form;
-use Filament\Schemas\Components\TextInput;
-use Filament\Schemas\Components\Toggle;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\CreateAction;
-use Filament\Tables\Actions\DeleteAction;
-use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
-use App\Models\Department;
+use Filament\Tables\Table;
 
 class DepartmentsRelationManager extends RelationManager
 {
@@ -63,4 +61,3 @@ class DepartmentsRelationManager extends RelationManager
             ]);
     }
 }
-

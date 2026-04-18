@@ -11,6 +11,7 @@ return [
     'is_active'         => 'Active',
     'created_at'        => 'Created At',
     'updated_at'        => 'Updated At',
+    'deleted_at'        => 'Deleted At',
     'view'              => 'View',
     'edit'              => 'Edit',
     'delete_selected'   => 'Delete Selected',
@@ -32,5 +33,4 @@ return [
     'import_excel' => 'Import Excel',
     'excel_file' => 'Excel File',
 ];
-
 
