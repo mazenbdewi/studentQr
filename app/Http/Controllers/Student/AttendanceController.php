@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceToken;
 use App\Models\LectureSession;
 use App\Models\Student;
+use App\Support\QrUrlGenerator;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -506,7 +507,7 @@ class AttendanceController extends Controller
     /**
      * Generate and display QR code for a session.
      */
-    public function showQr(LectureSession $session)
+    public function showQr(LectureSession $session, QrUrlGenerator $qrUrlGenerator)
     {
         abort_unless($session->canManageQr(auth()->user()), 403);
 
@@ -569,7 +570,7 @@ class AttendanceController extends Controller
             }
         }
 
-        $tokenData = route('student.attendance.verify.token', ['token' => $tokenValue]);
+        $tokenData = $qrUrlGenerator->attendanceVerificationUrl($tokenValue);
 
         $writer = new PngWriter;
         $qrCode = new \Endroid\QrCode\QrCode($tokenData);

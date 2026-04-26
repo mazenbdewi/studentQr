@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use Andreia\FilamentNordTheme\FilamentNordThemePlugin;
+use App\Filament\Pages\PortalSettings;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\Departments\DepartmentResource;
 use App\Filament\Resources\FailedAttempts\FailedAttemptResource;
@@ -69,6 +70,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->pages([
                 Dashboard::class,
+                PortalSettings::class,
             ])
             ->widgets([
                 \App\Filament\Widgets\TodaysLecturesWidget::class,

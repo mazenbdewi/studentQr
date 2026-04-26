@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\AppSetting;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\Hall;
@@ -23,6 +24,8 @@ class RolesAndPermissionsSeeder extends Seeder
     public function run(): void
     {
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        AppSetting::put('qr_base_url', AppSetting::value('qr_base_url', rtrim((string) config('app.url'), '/')));
+
         $cs = Faculty::withTrashed()->updateOrCreate(
             ['name' => 'كلية المعلوماتية'],
             ['name' => 'كلية المعلوماتية']
