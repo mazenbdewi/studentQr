@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Models\AppSetting;
+use App\Services\ActivityLogger;
 use BackedEnum;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -21,8 +22,6 @@ class PortalSettings extends Page implements HasForms
     protected static ?string $slug = 'qr-settings';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::Cog6Tooth;
-
-    protected static ?int $navigationSort = 99;
 
     protected string $view = 'filament.pages.portal-settings';
 
@@ -44,12 +43,17 @@ class PortalSettings extends Page implements HasForms
 
     public static function getNavigationGroup(): ?string
     {
-        return __('settings.navigation_group');
+        return __('filament-dashboard.navigation.settings');
     }
 
     public static function getNavigationLabel(): string
     {
-        return __('settings.navigation_label');
+        return __('filament-dashboard.qr_settings');
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return 50;
     }
 
     public function getTitle(): string
@@ -86,11 +90,18 @@ class PortalSettings extends Page implements HasForms
     public function save(): void
     {
         $data = $this->form->getState();
+        $oldQrBaseUrl = AppSetting::value('qr_base_url');
         $qrBaseUrl = filled($data['qr_base_url'] ?? null)
             ? rtrim((string) $data['qr_base_url'], '/')
             : null;
 
         AppSetting::put('qr_base_url', $qrBaseUrl);
+
+        app(ActivityLogger::class)->logSettingsChange(
+            ['qr_base_url' => $oldQrBaseUrl],
+            ['qr_base_url' => $qrBaseUrl],
+            'portal_settings_saved'
+        );
 
         Notification::make()
             ->title(__('settings.saved'))

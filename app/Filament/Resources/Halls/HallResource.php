@@ -24,17 +24,22 @@ class HallResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::Home;
 
-    protected static ?int $navigationSort = 3;
-
     protected static ?string $recordTitleAttribute = 'name';
 
     public static function getNavigationGroup(): ?string
     {
-        return __('sidebar.academic_structure');
+        return __('filament-dashboard.navigation.academic_data');
     }
 
+    public static function getNavigationLabel(): string
+    {
+        return __('filament-dashboard.halls');
+    }
 
-
+    public static function getNavigationSort(): ?int
+    {
+        return 13;
+    }
 
     public static function getModelLabel(): string
     {

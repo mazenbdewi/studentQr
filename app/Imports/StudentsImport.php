@@ -5,6 +5,7 @@ namespace App\Imports;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\Student;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
@@ -12,24 +13,49 @@ use Illuminate\Validation\Rule;
 
 class StudentsImport implements ToModel, WithHeadingRow, WithValidation
 {
+    private int $importedCount = 0;
 
-    private $faculties;
-    private $departments;
+    private array $faculties = [];
+    private array $departmentsByName = [];
+    private array $departmentsByFacultyAndName = [];
 
     public function __construct()
     {
+        $this->faculties = Faculty::query()
+            ->get(['id', 'name'])
+            ->mapWithKeys(fn (Faculty $faculty): array => [
+                $this->normalizeLookupValue($faculty->name) => $faculty->id,
+            ])
+            ->toArray();
 
-        $this->faculties = Faculty::pluck('id', 'name')->toArray();
+        Department::query()
+            ->get(['id', 'name', 'faculty_id'])
+            ->each(function (Department $department): void {
+                $normalizedDepartmentName = $this->normalizeLookupValue($department->name);
 
-
-        $this->departments = Department::pluck('id', 'name')->toArray();
+                $this->departmentsByName[$normalizedDepartmentName] ??= $department->id;
+                $this->departmentsByFacultyAndName[$department->faculty_id . '|' . $normalizedDepartmentName] = $department->id;
+            });
     }
 
     public function prepareForValidation($data, $index)
     {
+        $facultyName = $this->normalizeLookupValue($data['faculty_name'] ?? null);
+        $departmentName = $this->normalizeLookupValue($data['department_name'] ?? null);
 
-        $data['faculty_id'] = $this->faculties[$data['faculty_name']] ?? null;
-        $data['department_id'] = $this->departments[$data['department_name']] ?? null;
+        $data['faculty_name'] = $facultyName;
+        $data['department_name'] = $departmentName;
+        $data['faculty_id'] = $facultyName !== null ? ($this->faculties[$facultyName] ?? null) : null;
+
+        $data['department_id'] = null;
+
+        if ($departmentName !== null) {
+            if ($data['faculty_id'] !== null) {
+                $data['department_id'] = $this->departmentsByFacultyAndName[$data['faculty_id'] . '|' . $departmentName] ?? null;
+            }
+
+            $data['department_id'] ??= $this->departmentsByName[$departmentName] ?? null;
+        }
 
         return $data;
     }
@@ -41,6 +67,8 @@ class StudentsImport implements ToModel, WithHeadingRow, WithValidation
 
     public function model(array $row)
     {
+        $this->importedCount++;
+
         return new Student([
             'national_number' => $row['national_number'] ?? null,
             'student_number' => $row['student_number'] ?? null,
@@ -60,11 +88,11 @@ class StudentsImport implements ToModel, WithHeadingRow, WithValidation
     {
         return [
             'name' => 'required|string|max:255',
-            'student_number' => 'nullable|unique:students,student_number',
+            'student_number' => 'required|unique:students,student_number',
             'national_number' => 'nullable|unique:students,national_number',
             'year' => 'nullable|integer|min:1|max:6',
-            // 'faculty_id' => 'required|exists:faculties,id',
-            // 'department_id' => 'required|exists:departments,id',
+            'faculty_id' => 'required|exists:faculties,id',
+            'department_id' => 'required|exists:departments,id',
         ];
     }
 
@@ -73,6 +101,7 @@ class StudentsImport implements ToModel, WithHeadingRow, WithValidation
         return [
             'name.required' => __('validation.name_required'),
             'name.max' => __('validation.name_max'),
+            'student_number.required' => __('validation.student_number_required'),
             'student_number.unique' => __('validation.student_number_unique'),
             'national_number.unique' => __('validation.national_number_unique'),
             'year.min' => 'السنة الدراسية يجب أن تكون رقمًا صحيحًا يبدأ من 1.',
@@ -94,5 +123,27 @@ class StudentsImport implements ToModel, WithHeadingRow, WithValidation
             'faculty_id' => __('validation.faculty'),
             'department_id' => __('validation.department'),
         ];
+    }
+
+    public function getImportedCount(): int
+    {
+        return $this->importedCount;
+    }
+
+    private function normalizeLookupValue(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = str_replace("\xc2\xa0", ' ', $value);
+        $value = preg_replace('/\s+/u', ' ', $value ?? '');
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        return Str::lower($value);
     }
 }

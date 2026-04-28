@@ -7,8 +7,14 @@ use App\Filament\Resources\Students\StudentResource;
 use App\Models\Attendance;
 use Filament\Actions\EditAction;
 use Filament\Actions\ExportBulkAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -18,13 +24,67 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
-class ViewStudent extends ViewRecord implements HasTable
+class ViewStudent extends ViewRecord implements HasForms, HasTable
 {
+    use InteractsWithForms;
     use InteractsWithTable;
 
     protected string $view = 'students.pages.view-student';
 
     protected static string $resource = StudentResource::class;
+
+    public ?array $data = [];
+
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+
+        $this->form->fill([
+            'student_number' => $this->record->student_number,
+            'department_name' => $this->record->department?->name,
+            'faculty_name' => $this->record->faculty?->name,
+            'phone' => $this->record->phone,
+        ]);
+    }
+
+    public function getTitle(): string
+    {
+        return $this->record->name;
+    }
+
+    public function form(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                Section::make()
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 2,
+                            'xl' => 4,
+                        ])
+                            ->schema([
+                                TextInput::make('student_number')
+                                    ->label(__('student.student_number'))
+                                    ->disabled()
+                                    ->dehydrated(false),
+                                TextInput::make('faculty_name')
+                                    ->label(__('student.faculty_id'))
+                                    ->disabled()
+                                    ->dehydrated(false),
+                                TextInput::make('department_name')
+                                    ->label(__('student.department_id'))
+                                    ->disabled()
+                                    ->dehydrated(false),
+                                TextInput::make('phone')
+                                    ->label(__('student.phone'))
+                                    ->disabled()
+                                    ->dehydrated(false),
+                            ]),
+                    ]),
+            ])
+            ->statePath('data');
+    }
 
     protected function getHeaderActions(): array
     {

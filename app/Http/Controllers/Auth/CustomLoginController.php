@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\Faculty;
 use App\Models\LectureSession;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -87,6 +88,11 @@ class CustomLoginController extends Controller
         ]);
 
         if (!Auth::attempt($request->only('email', 'password'))) {
+            app(ActivityLogger::class)->logAuth('failed_login', 'login_failed', [
+                'email' => $request->input('email'),
+                'role' => $request->input('role'),
+            ]);
+
             return back()->withErrors([
                 'email' => 'بيانات الدخول غير صحيحة.',
             ]);
@@ -95,6 +101,11 @@ class CustomLoginController extends Controller
         $user = Auth::user();
 
         if (!$user->is_active ?? true) {
+            app(ActivityLogger::class)->logAuth('failed_login', 'inactive_user_login_attempt', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+            ]);
+
             Auth::logout();
             return back()->withErrors([
                 'email' => __('auth.failed'),
@@ -112,6 +123,12 @@ class CustomLoginController extends Controller
             $spatieRole = $map[$request->role] ?? null;
 
             if ($spatieRole && !$user->hasRole($spatieRole)) {
+                app(ActivityLogger::class)->logAuth('failed_login', 'unauthorized_role_login_attempt', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'requested_role' => $request->input('role'),
+                ]);
+
                 Auth::logout();
 
                 return back()->withErrors([
@@ -120,6 +137,12 @@ class CustomLoginController extends Controller
             }
         }
         $request->session()->regenerate();
+
+        app(ActivityLogger::class)->logAuth('login', 'user_logged_in', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'role' => $user->role,
+        ]);
 
         return match (true) {
 
@@ -136,6 +159,15 @@ class CustomLoginController extends Controller
 
     public function logout(Request $request)
     {
+        $user = Auth::user();
+
+        if ($user) {
+            app(ActivityLogger::class)->logAuth('logout', 'user_logged_out', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+            ]);
+        }
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

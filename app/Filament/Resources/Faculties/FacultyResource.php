@@ -22,17 +22,22 @@ class FacultyResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::AcademicCap;
 
-    protected static ?int $navigationSort = 1;
-
     protected static ?string $recordTitleAttribute = 'id';
 
     public static function getNavigationGroup(): ?string
     {
-        return __('sidebar.academic_structure');
+        return __('filament-dashboard.navigation.academic_data');
     }
 
+    public static function getNavigationLabel(): string
+    {
+        return __('filament-dashboard.faculties');
+    }
 
-
+    public static function getNavigationSort(): ?int
+    {
+        return 11;
+    }
 
     public static function getModelLabel(): string
     {

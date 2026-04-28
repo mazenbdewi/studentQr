@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Users\Pages;
 
 use App\Filament\Resources\Users\UserResource;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateUser extends CreateRecord
@@ -27,5 +28,18 @@ class CreateUser extends CreateRecord
         /** @var User $user */
         $user = $this->getRecord();
         $user->syncSystemRole($user->role);
+
+        app(ActivityLogger::class)->logModelCreated(
+            $user,
+            'users',
+            'user_created'
+        );
+
+        app(ActivityLogger::class)->logRoleChange(
+            $user,
+            [],
+            ['role' => $user->role],
+            'user_role_assigned'
+        );
     }
 }

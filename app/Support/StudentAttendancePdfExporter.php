@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Student;
 use App\Models\Subject;
+use App\Services\ActivityLogger;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -66,6 +67,16 @@ class StudentAttendancePdfExporter
             'isRtl' => $isRtl,
             'logoDataUri' => $this->logoDataUri(),
         ])->render());
+
+        app(ActivityLogger::class)->logExport(
+            'reports',
+            'student_attendance_pdf',
+            $this->fileName($student, $selectedSubject),
+            $student,
+            [
+                'subject_id' => $selectedSubject?->id,
+            ],
+        );
 
         return response()->streamDownload(
             fn () => print ($pdf->Output('', Destination::STRING_RETURN)),

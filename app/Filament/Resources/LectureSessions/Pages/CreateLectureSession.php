@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\LectureSessions\Pages;
 
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
+use App\Services\ActivityLogger;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateLectureSession extends CreateRecord
@@ -11,8 +12,11 @@ class CreateLectureSession extends CreateRecord
 
 
     protected function afterCreate(): void
-{
-    // REMOVED: Do not auto-create attendance records
-    // Attendance only after successful QR/OTP validation via ProcessAttendanceJob
-}
+    {
+        app(ActivityLogger::class)->logModelCreated(
+            $this->getRecord(),
+            'lecture_sessions',
+            'lecture_session_created'
+        );
+    }
 }

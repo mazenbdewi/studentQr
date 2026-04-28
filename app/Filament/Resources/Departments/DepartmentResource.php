@@ -24,21 +24,24 @@ class DepartmentResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::BuildingOffice2;
 
-    protected static ?int $navigationSort = 2;
-
     // protected static ?string $recordTitleAttribute = 'Department';
 
     protected static ?string $recordTitleAttribute = 'id';
 
     public static function getNavigationGroup(): ?string
     {
-        return __('sidebar.academic_structure');
+        return __('filament-dashboard.navigation.academic_data');
     }
 
+    public static function getNavigationLabel(): string
+    {
+        return __('filament-dashboard.departments');
+    }
 
-
-
-
+    public static function getNavigationSort(): ?int
+    {
+        return 12;
+    }
 
     public static function getModelLabel(): string
     {

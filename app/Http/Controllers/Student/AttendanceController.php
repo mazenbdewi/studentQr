@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceToken;
 use App\Models\LectureSession;
 use App\Models\Student;
+use App\Services\ActivityLogger;
 use App\Support\QrUrlGenerator;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\JsonResponse;
@@ -383,6 +384,16 @@ class AttendanceController extends Controller
             ->with('error', $message);
     }
 
+    private function logFailedAttendanceAttempt(Request $request, int $sessionId, string $reason, ?int $studentId = null): void
+    {
+        app(ActivityLogger::class)->logAttendance('failed_attendance_attempt', [
+            'lecture_session_id' => $sessionId,
+            'student_id' => $studentId,
+            'status' => 'failed',
+            'reason' => $reason,
+        ]);
+    }
+
     private function resolveDeviceFingerprint(Request $request): ?string
     {
         return $request->header('X-Device-Fingerprint')
@@ -401,6 +412,7 @@ class AttendanceController extends Controller
         $session = LectureSession::with(['subject', 'lecturer', 'hall'])->find($sessionId);
 
         if (! $session) {
+            $this->logFailedAttendanceAttempt($request, $sessionId, 'session_not_found');
             return $this->buildSubmissionResponse($request, false, __('session.not_found'), 404);
         }
 
@@ -415,6 +427,7 @@ class AttendanceController extends Controller
         );
 
         if (! $verification) {
+            $this->logFailedAttendanceAttempt($request, $sessionId, 'verification_expired');
             return $this->buildSubmissionResponse($request, false, __('session.token_expired'), 403);
         }
 
@@ -422,6 +435,7 @@ class AttendanceController extends Controller
 
         if ($session->qr_expired || $session->status !== 'active') {
             $this->invalidateVerificationContext($request);
+            $this->logFailedAttendanceAttempt($request, $sessionId, 'session_inactive');
 
             return $this->buildSubmissionResponse($request, false, __('session.token_expired'), 403);
         }
@@ -430,17 +444,20 @@ class AttendanceController extends Controller
 
         if ($remainingSeconds <= 0) {
             $this->invalidateVerificationContext($request);
+            $this->logFailedAttendanceAttempt($request, $sessionId, 'session_expired');
 
             return $this->buildSubmissionResponse($request, false, __('session.token_expired'), 403);
         }
 
         if ((string) $session->session_otp !== (string) $request->input('otp')) {
+            $this->logFailedAttendanceAttempt($request, $sessionId, 'invalid_otp');
             return $this->buildSubmissionResponse($request, false, __('student.invalid_otp'), 422);
         }
 
         $student = Student::where('student_number', $request->input('student_number'))->first();
 
         if (! $student) {
+            $this->logFailedAttendanceAttempt($request, $sessionId, 'student_not_found');
             return $this->buildSubmissionResponse($request, false, __('student.not_found'), 422);
         }
 
@@ -451,6 +468,7 @@ class AttendanceController extends Controller
                 ->exists();
 
             if (! $isEnrolled) {
+                $this->logFailedAttendanceAttempt($request, $sessionId, 'student_not_enrolled', $student->id);
                 return $this->buildSubmissionResponse($request, false, __('student.not_enrolled_in_subject'), 422);
             }
         }
@@ -490,6 +508,12 @@ class AttendanceController extends Controller
 
         $this->storeCompletedAttendanceContext($request, $session, $student, $attendance);
         $this->consumeVerificationContext($request, $verification['submission_grant']);
+
+        app(ActivityLogger::class)->logAttendance('attendance_registered', [
+            'student_id' => $student->id,
+            'lecture_session_id' => $sessionId,
+            'status' => 'present',
+        ]);
 
         return $this->buildSubmissionResponse(
             $request,
@@ -536,7 +560,10 @@ class AttendanceController extends Controller
             ->where('is_used', false)
             ->first();
 
+        $generatedNewToken = false;
+
         if (! $existingToken) {
+            $generatedNewToken = true;
             $tokenValue = Str::random(32);
             $expiresAt = now()->addSeconds($session->qr_refresh_rate);
 
@@ -576,6 +603,17 @@ class AttendanceController extends Controller
         $qrCode = new \Endroid\QrCode\QrCode($tokenData);
         $result = $writer->write($qrCode);
         $qr = $result->getDataUri();
+
+        app(ActivityLogger::class)->log([
+            'category' => 'lecture_sessions',
+            'action' => $generatedNewToken ? 'qr_regenerated' : 'qr_shown',
+            'model_type' => $session::class,
+            'model_id' => $session->id,
+            'description' => 'lecture_session_qr_viewed',
+            'context' => [
+                'lecture_session_id' => $session->id,
+            ],
+        ]);
 
         return view('teacher.lecture-session-qr', [
             'session' => $session,

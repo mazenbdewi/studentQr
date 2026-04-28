@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use Andreia\FilamentNordTheme\FilamentNordThemePlugin;
 use App\Filament\Pages\PortalSettings;
+use App\Filament\Resources\AuditLogs\AuditLogResource;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\Departments\DepartmentResource;
 use App\Filament\Resources\FailedAttempts\FailedAttemptResource;
@@ -54,14 +55,14 @@ class AdminPanelProvider extends PanelProvider
             ->favicon(asset('images/favicon.ico'))
             // Only show specific resources - hide: Attendances, FailedAttempts, StudentDevices
             ->resources([
-                config('filament-logger.activity_resource'),
+                LectureSessionResource::class,
                 StudentResource::class,
                 SubjectResource::class,
-                LectureSessionResource::class,
-                HallResource::class,
-                DepartmentResource::class,
                 FacultyResource::class,
+                DepartmentResource::class,
+                HallResource::class,
                 UserResource::class,
+                AuditLogResource::class,
                 // Hidden resources (can be accessed programmatically if needed):
                 //  AttendanceResource::class,
                 // FailedAttemptResource::class,

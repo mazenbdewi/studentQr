@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Users\Pages;
 use App\Exports\Templates\UsersTemplateExport;
 use App\Filament\Resources\Users\UserResource;
 use App\Imports\UsersImport;
+use App\Services\ActivityLogger;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\FileUpload;
@@ -25,7 +26,15 @@ class ListUsers extends ListRecords
                 ->label(__('user.template_download'))
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
-                ->action(fn () => Excel::download(new UsersTemplateExport(), 'users_template.xlsx')),
+                ->action(function () {
+                    app(ActivityLogger::class)->logExport(
+                        'users',
+                        'users_template_download',
+                        'users_template.xlsx'
+                    );
+
+                    return Excel::download(new UsersTemplateExport(), 'users_template.xlsx');
+                }),
 
             Action::make('import')
                 ->label(__('user.import_excel'))
@@ -44,10 +53,23 @@ class ListUsers extends ListRecords
                         ->required(),
                 ])
                 ->action(function (array $data): void {
+                    $startedAt = now();
+                    $fileName = basename((string) $data['file']);
                     $import = new UsersImport();
 
                     try {
                         Excel::import($import, $data['file']);
+
+                        app(ActivityLogger::class)->logImportSummary(
+                            'users',
+                            'users_import',
+                            $fileName,
+                            $import->getImportedCount(),
+                            $import->getImportedCount(),
+                            0,
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String()
+                        );
 
                         Notification::make()
                             ->title(__('user.import_success'))
@@ -57,12 +79,36 @@ class ListUsers extends ListRecords
                     } catch (ValidationException $e) {
                         $messages = $this->formatValidationMessages($e);
 
+                        app(ActivityLogger::class)->logImportSummary(
+                            'users',
+                            'users_import',
+                            $fileName,
+                            $import->getImportedCount() + count($e->failures()),
+                            $import->getImportedCount(),
+                            count($e->failures()),
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String(),
+                            ['status' => 'failed']
+                        );
+
                         Notification::make()
                             ->title(__('user.import_failed'))
                             ->body(implode('<br>', array_slice($messages, 0, 5)))
                             ->danger()
                             ->send();
                     } catch (\Throwable $e) {
+                        app(ActivityLogger::class)->logImportSummary(
+                            'users',
+                            'users_import',
+                            $fileName,
+                            $import->getImportedCount(),
+                            $import->getImportedCount(),
+                            1,
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String(),
+                            ['status' => 'failed', 'error' => $e->getMessage()]
+                        );
+
                         Notification::make()
                             ->title(__('user.import_failed'))
                             ->body(__('user.import_unexpected_error'))

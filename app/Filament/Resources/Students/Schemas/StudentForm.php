@@ -47,24 +47,12 @@ class StudentForm
                     ->label(__('student.phone'))
                     ->tel()
                     ->default(null),
-                Select::make('status')
-                    ->label(__('student.status'))
-                    ->options([
-                        'pending' => __('student.status_pending'),
-                        'active' => __('student.status_active'),
-                        'blocked' => __('student.status_blocked'),
-                        'suspended' => __('student.status_suspended'),
-                    ])
-                    ->default('pending')
-                    ->required(),
                 TextInput::make('student_number')
                     ->label(__('student.student_number'))
+                    ->required()
                     ->default(null),
                 TextInput::make('national_number')
                     ->label(__('student.national_number'))
-                    ->default(null),
-                TextInput::make('avatar')
-                    ->label(__('student.avatar'))
                     ->default(null),
                 Toggle::make('is_active')
                     ->label(__('student.is_active'))

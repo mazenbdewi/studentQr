@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Subjects\Pages;
 
 use App\Filament\Resources\Subjects\SubjectResource;
+use App\Services\ActivityLogger;
 use Filament\Actions\CreateAction;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
@@ -23,7 +24,15 @@ class ListSubjects extends ListRecords
                 ->label(__('subjects.template_download'))
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
-                ->action(fn() => Excel::download(new \App\Exports\Templates\SubjectsTemplateExport(), 'subjects_template.xlsx')),
+                ->action(function () {
+                    app(ActivityLogger::class)->logExport(
+                        'subjects',
+                        'subjects_template_download',
+                        'subjects_template.xlsx'
+                    );
+
+                    return Excel::download(new \App\Exports\Templates\SubjectsTemplateExport(), 'subjects_template.xlsx');
+                }),
 
             Action::make('import')
                 ->label(__('subjects.import_excel'))
@@ -41,8 +50,23 @@ class ListSubjects extends ListRecords
                         ->required(),
                 ])
                 ->action(function (array $data) {
+                    $startedAt = now();
+                    $fileName = basename((string) $data['file']);
+                    $import = new \App\Imports\SubjectsImport();
+
                     try {
-                        Excel::import(new \App\Imports\SubjectsImport(), $data['file']);
+                        Excel::import($import, $data['file']);
+
+                        app(ActivityLogger::class)->logImportSummary(
+                            'subjects',
+                            'subjects_import',
+                            $fileName,
+                            $import->getImportedCount(),
+                            $import->getImportedCount(),
+                            0,
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String()
+                        );
 
                         Notification::make()
                             ->title(__('subjects.import_success'))
@@ -66,6 +90,20 @@ class ListSubjects extends ListRecords
                                 $messages[] = $errorMessage;
                             }
                         }
+
+                        $failedCount = count($e->failures());
+
+                        app(ActivityLogger::class)->logImportSummary(
+                            'subjects',
+                            'subjects_import',
+                            $fileName,
+                            $import->getImportedCount() + $failedCount,
+                            $import->getImportedCount(),
+                            $failedCount,
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String(),
+                            ['status' => 'failed']
+                        );
 
                         Notification::make()
                             ->title(__('subjects.import_failed'))

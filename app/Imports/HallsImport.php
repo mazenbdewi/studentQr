@@ -10,6 +10,8 @@ use Maatwebsite\Excel\Concerns\WithValidation;
 
 class HallsImport implements ToModel, WithHeadingRow, WithValidation
 {
+    private int $importedCount = 0;
+
     public function prepareForValidation($data, $index)
     {
         if (isset($data['code']) && $data['code'] !== null) {
@@ -46,6 +48,8 @@ class HallsImport implements ToModel, WithHeadingRow, WithValidation
 
     public function model(array $row)
     {
+        $this->importedCount++;
+
         return new Hall([
             'code'      => $row['code'],
             'name'      => $row['name'],
@@ -90,5 +94,10 @@ class HallsImport implements ToModel, WithHeadingRow, WithValidation
             'floor'     => 'الدور',
             'is_active' => 'الحالة',
         ];
+    }
+
+    public function getImportedCount(): int
+    {
+        return $this->importedCount;
     }
 }

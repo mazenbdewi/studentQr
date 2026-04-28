@@ -8,7 +8,7 @@ return [
 	'navigation_sort' => null,
 
     'resources' => [
-        'enabled' => true,
+        'enabled' => false,
         'log_name' => 'Resource',
         'logger' => \UnknowSk\FilamentLogger\Loggers\ResourceLogger::class,
         'color' => 'success',
@@ -21,21 +21,21 @@ return [
     ],
 
     'access' => [
-        'enabled' => true,
+        'enabled' => false,
         'logger' => \UnknowSk\FilamentLogger\Loggers\AccessLogger::class,
         'color' => 'danger',
         'log_name' => 'Access',
     ],
 
     'notifications' => [
-        'enabled' => true,
+        'enabled' => false,
         'logger' => \UnknowSk\FilamentLogger\Loggers\NotificationLogger::class,
         'color' => null,
         'log_name' => 'Notification',
     ],
 
     'models' => [
-        'enabled' => true,
+        'enabled' => false,
         'log_name' => 'Model',
         'color' => 'warning',
         'logger' => \UnknowSk\FilamentLogger\Loggers\ModelLogger::class,

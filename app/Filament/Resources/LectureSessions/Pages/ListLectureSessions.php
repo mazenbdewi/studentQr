@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\LectureSessions\Pages;
 
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
+use App\Services\ActivityLogger;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\FileUpload;
@@ -28,7 +29,15 @@ class ListLectureSessions extends ListRecords
                 ->label(__('lecture-session.template_download'))
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
-                ->action(fn() => Excel::download(new \App\Exports\Templates\LectureSessionsTemplateExport(), 'lecture_sessions_template.xlsx')),
+                ->action(function () {
+                    app(ActivityLogger::class)->logExport(
+                        'lecture_sessions',
+                        'lecture_sessions_template_download',
+                        'lecture_sessions_template.xlsx'
+                    );
+
+                    return Excel::download(new \App\Exports\Templates\LectureSessionsTemplateExport(), 'lecture_sessions_template.xlsx');
+                }),
 
             Action::make('import')
                 ->label(__('lecture-session.import_excel'))
@@ -43,8 +52,23 @@ class ListLectureSessions extends ListRecords
                         ->required(),
                 ])
               ->action(function (array $data) {
+    $startedAt = now();
+    $fileName = basename((string) $data['file']);
+    $import = new \App\Imports\LectureSessionsImport();
+
     try {
-        Excel::import(new \App\Imports\LectureSessionsImport(), $data['file']);
+        Excel::import($import, $data['file']);
+
+        app(ActivityLogger::class)->logImportSummary(
+            'lecture_sessions',
+            'lecture_sessions_import',
+            $fileName,
+            $import->getImportedCount(),
+            $import->getImportedCount(),
+            0,
+            $startedAt->toIso8601String(),
+            now()->toIso8601String()
+        );
 
         \Filament\Notifications\Notification::make()
             ->title(__('lecture-session.import_success'))
@@ -70,6 +94,20 @@ class ListLectureSessions extends ListRecords
             }
         }
 
+        $failedCount = count($e->failures());
+
+        app(ActivityLogger::class)->logImportSummary(
+            'lecture_sessions',
+            'lecture_sessions_import',
+            $fileName,
+            $import->getImportedCount() + $failedCount,
+            $import->getImportedCount(),
+            $failedCount,
+            $startedAt->toIso8601String(),
+            now()->toIso8601String(),
+            ['status' => 'failed']
+        );
+
         \Filament\Notifications\Notification::make()
             ->title(__('lecture-session.import_failed'))
             ->body(implode('<br>', array_slice($messages, 0, 5)))
@@ -85,6 +123,18 @@ class ListLectureSessions extends ListRecords
             }
         }
 
+        app(ActivityLogger::class)->logImportSummary(
+            'lecture_sessions',
+            'lecture_sessions_import',
+            $fileName,
+            $import->getImportedCount(),
+            $import->getImportedCount(),
+            count($messages),
+            $startedAt->toIso8601String(),
+            now()->toIso8601String(),
+            ['status' => 'failed']
+        );
+
         \Filament\Notifications\Notification::make()
             ->title(__('lecture-session.import_failed'))
             ->body(implode('<br>', array_slice($messages, 0, 5)))
@@ -92,6 +142,18 @@ class ListLectureSessions extends ListRecords
             ->send();
 
     } catch (\Throwable $e) {
+        app(ActivityLogger::class)->logImportSummary(
+            'lecture_sessions',
+            'lecture_sessions_import',
+            $fileName,
+            $import->getImportedCount(),
+            $import->getImportedCount(),
+            1,
+            $startedAt->toIso8601String(),
+            now()->toIso8601String(),
+            ['status' => 'failed', 'error' => $e->getMessage()]
+        );
+
         \Filament\Notifications\Notification::make()
             ->title(__('lecture-session.import_failed'))
             ->body($e->getMessage())

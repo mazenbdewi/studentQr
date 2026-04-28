@@ -4,6 +4,7 @@ namespace App\Filament\Resources\LectureSessions\RelationManagers;
 
 use App\Exports\AttendanceExport;
 use App\Exports\AttendanceWithStatusExport;
+use App\Services\ActivityLogger;
 use Filament\Actions\Action;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
@@ -84,6 +85,13 @@ class AttendancesRelationManager extends RelationManager
                             ->get()
                             ->unique('student_id');
 
+                        app(ActivityLogger::class)->logExport(
+                            'reports',
+                            'lecture_session_attendance_export',
+                            'attendance.xlsx',
+                            $livewire->getOwnerRecord()
+                        );
+
                         return Excel::download(
                             new AttendanceExport($records),
                             'attendance.xlsx'
@@ -94,6 +102,13 @@ class AttendancesRelationManager extends RelationManager
                     ->icon('heroicon-o-document-arrow-down')
                     ->action(function ($livewire) {
                         $session = $livewire->getOwnerRecord();
+
+                        app(ActivityLogger::class)->logExport(
+                            'reports',
+                            'lecture_session_full_attendance_export',
+                            'full_attendance.xlsx',
+                            $session
+                        );
 
                         return Excel::download(
                             new AttendanceWithStatusExport($session),

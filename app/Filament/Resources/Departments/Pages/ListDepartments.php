@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Departments\Pages;
 
 use App\Filament\Resources\Departments\DepartmentResource;
 use App\Imports\DepartmentsImport;
+use App\Services\ActivityLogger;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\FileUpload;
@@ -24,7 +25,15 @@ class ListDepartments extends ListRecords
                 ->label(__('department.template_download'))
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
-                ->action(fn() => Excel::download(new \App\Exports\Templates\DepartmentsTemplateExport(), 'departments_template.xlsx')),
+                ->action(function () {
+                    app(ActivityLogger::class)->logExport(
+                        'departments',
+                        'departments_template_download',
+                        'departments_template.xlsx'
+                    );
+
+                    return Excel::download(new \App\Exports\Templates\DepartmentsTemplateExport(), 'departments_template.xlsx');
+                }),
 
             Action::make('import')
                 ->label(__('department.import_excel'))
@@ -39,11 +48,26 @@ class ListDepartments extends ListRecords
                         ->required(),
                 ])
                 ->action(function (array $data) {
+                    $startedAt = now();
+                    $fileName = basename((string) $data['file']);
+                    $import = new \App\Imports\DepartmentsImport();
+
                     try {
-                        Excel::import(new \App\Imports\DepartmentsImport(), $data['file']);
+                        Excel::import($import, $data['file']);
+
+                        app(ActivityLogger::class)->logImportSummary(
+                            'departments',
+                            'departments_import',
+                            $fileName,
+                            $import->getImportedCount(),
+                            $import->getImportedCount(),
+                            0,
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String()
+                        );
                         Notification::make()
                             ->title(__('department.import_success'))
-                            ->body(__('department.stats_imported', ['count' => 10]))
+                            ->body(__('department.stats_imported', ['count' => $import->getImportedCount()]))
                             ->success()
                             ->send();
                     } catch (ValidationException $e) {
@@ -62,8 +86,23 @@ class ListDepartments extends ListRecords
                                 $messages[] = $errorMessage;
                             }
                         }
+
+                        $failedCount = count($failures);
+
+                        app(ActivityLogger::class)->logImportSummary(
+                            'departments',
+                            'departments_import',
+                            $fileName,
+                            $import->getImportedCount() + $failedCount,
+                            $import->getImportedCount(),
+                            $failedCount,
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String(),
+                            ['status' => 'failed']
+                        );
+
                         Notification::make()
-                            ->title(__('department.import_stats', ['imported' => 5, 'errors' => count($failures)]))
+                            ->title(__('department.import_stats', ['imported' => $import->getImportedCount(), 'errors' => count($failures)]))
                             ->body(implode('<br>', array_slice($messages, 0, 5)))
                             ->danger()
                             ->send();
@@ -74,4 +113,3 @@ class ListDepartments extends ListRecords
         ];
     }
 }
-

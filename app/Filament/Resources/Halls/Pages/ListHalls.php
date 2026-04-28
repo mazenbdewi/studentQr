@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Halls\Pages;
 
 use App\Filament\Resources\Halls\HallResource;
 use App\Imports\HallsImport;
+use App\Services\ActivityLogger;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\FileUpload;
@@ -24,7 +25,15 @@ class ListHalls extends ListRecords
                 ->label(__('hall.template_download'))
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
-                ->action(fn() => Excel::download(new \App\Exports\Templates\HallsTemplateExport(), 'halls_template.xlsx')),
+                ->action(function () {
+                    app(ActivityLogger::class)->logExport(
+                        'halls',
+                        'halls_template_download',
+                        'halls_template.xlsx'
+                    );
+
+                    return Excel::download(new \App\Exports\Templates\HallsTemplateExport(), 'halls_template.xlsx');
+                }),
 
             Action::make('import')
                 ->label(__('hall.import_excel'))
@@ -39,8 +48,23 @@ class ListHalls extends ListRecords
                         ->required(),
                 ])
                 ->action(function (array $data) {
+                    $startedAt = now();
+                    $fileName = basename((string) $data['file']);
+                    $import = new HallsImport;
+
                     try {
-                        Excel::import(new HallsImport, $data['file']);
+                        Excel::import($import, $data['file']);
+
+                        app(ActivityLogger::class)->logImportSummary(
+                            'halls',
+                            'halls_import',
+                            $fileName,
+                            $import->getImportedCount(),
+                            $import->getImportedCount(),
+                            0,
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String()
+                        );
 
                         Notification::make()
                             ->title(__('hall.import_success'))
@@ -72,6 +96,18 @@ class ListHalls extends ListRecords
                             }
                         }
 
+                        app(ActivityLogger::class)->logImportSummary(
+                            'halls',
+                            'halls_import',
+                            $fileName,
+                            $import->getImportedCount() + count($e->failures()),
+                            $import->getImportedCount(),
+                            count($e->failures()),
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String(),
+                            ['status' => 'failed']
+                        );
+
                         Notification::make()
                             ->title(__('hall.import_failed'))
                             ->body(implode("<br>", $messages))
@@ -84,4 +120,3 @@ class ListHalls extends ListRecords
         ];
     }
 }
-

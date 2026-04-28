@@ -7,13 +7,15 @@ use App\Models\LectureSession;
 use App\Models\Subject;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
-class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
+class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, SkipsEmptyRows
 {
+    private int $importedCount = 0;
     private array $subjects = [];
     private array $halls = [];
 
@@ -185,6 +187,8 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
 
     public function model(array $row)
     {
+        $this->importedCount++;
+
         $lectureSession = LectureSession::withTrashed()->updateOrCreate(
             [
                 'subject_id' => $row['subject_id'],
@@ -263,5 +267,10 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
             'qr_refresh_rate' => __('validation.qr_refresh_rate'),
             'notes' => __('validation.notes'),
         ];
+    }
+
+    public function getImportedCount(): int
+    {
+        return $this->importedCount;
     }
 }

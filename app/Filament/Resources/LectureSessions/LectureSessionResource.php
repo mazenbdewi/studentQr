@@ -6,6 +6,7 @@ use App\Filament\Resources\LectureSessions\RelationManagers\AbsentStudentsRelati
 use App\Filament\Resources\LectureSessions\RelationManagers\AttendancesRelationManager;
 use App\Models\LectureSession;
 use App\Models\Subject;
+use App\Services\ActivityLogger;
 use BackedEnum;
 use Filament\Actions\Action as ActionsAction;
 use Filament\Actions\BulkActionGroup;
@@ -31,11 +32,24 @@ class LectureSessionResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::RectangleStack;
 
-    protected static ?int $navigationSort = 6;
-
     public static function getModelLabel(): string
     {
         return __('lecture-session.singular');
+    }
+
+    public static function getNavigationGroup(): ?string
+    {
+        return __('filament-dashboard.navigation.daily_operations');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('filament-dashboard.lecture_sessions');
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return 1;
     }
 
     public static function getPluralModelLabel(): string
@@ -222,6 +236,7 @@ class LectureSessionResource extends Resource
                     ->icon('heroicon-o-play')
                     ->color('success')
                     ->action(function (LectureSession $record) {
+                        $original = $record->getOriginal();
                         $record->syncLifecycleState();
 
                         if ($record->status !== 'scheduled') {
@@ -239,6 +254,13 @@ class LectureSessionResource extends Resource
                             'qr_started_at' => null,
                             'qr_expires_at' => null,
                         ]);
+
+                        app(ActivityLogger::class)->logModelUpdated(
+                            $record->fresh(),
+                            $original,
+                            'lecture_sessions',
+                            'lecture_session_started'
+                        );
                     })
                     ->visible(fn (LectureSession $record) => ! $record->trashed() && $record->status === 'scheduled' && ! $record->hasReachedScheduledEnd()),
 
@@ -247,6 +269,7 @@ class LectureSessionResource extends Resource
                     ->icon('heroicon-o-stop')
                     ->color('danger')
                     ->action(function (LectureSession $record) {
+                        $original = $record->getOriginal();
                         $record->syncLifecycleState();
 
                         if ($record->status !== 'active' || $record->qr_expired) {
@@ -257,6 +280,25 @@ class LectureSessionResource extends Resource
                             'status' => 'completed',
                             'actual_end' => now(),
                             'qr_expired' => true,
+                        ]);
+
+                        app(ActivityLogger::class)->log([
+                            'category' => 'lecture_sessions',
+                            'action' => 'qr_expired',
+                            'model_type' => $record::class,
+                            'model_id' => $record->id,
+                            'description' => 'lecture_session_ended',
+                            'old_values' => [
+                                'status' => $original['status'] ?? null,
+                                'qr_expired' => $original['qr_expired'] ?? null,
+                            ],
+                            'new_values' => [
+                                'status' => 'completed',
+                                'qr_expired' => true,
+                            ],
+                            'context' => [
+                                'lecture_session_id' => $record->id,
+                            ],
                         ]);
                     })
                     ->visible(fn (LectureSession $record) => ! $record->trashed() && $record->status === 'active' && ! $record->qr_expired && ! $record->hasReachedScheduledEnd()),

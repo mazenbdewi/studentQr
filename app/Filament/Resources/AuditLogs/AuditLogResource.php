@@ -2,11 +2,8 @@
 
 namespace App\Filament\Resources\AuditLogs;
 
-use App\Filament\Resources\AuditLogs\Pages\CreateAuditLog;
-use App\Filament\Resources\AuditLogs\Pages\EditAuditLog;
 use App\Filament\Resources\AuditLogs\Pages\ListAuditLogs;
 use App\Filament\Resources\AuditLogs\Pages\ViewAuditLog;
-use App\Filament\Resources\AuditLogs\Schemas\AuditLogForm;
 use App\Filament\Resources\AuditLogs\Schemas\AuditLogInfolist;
 use App\Filament\Resources\AuditLogs\Tables\AuditLogsTable;
 use App\Models\AuditLog;
@@ -24,6 +21,21 @@ class AuditLogResource extends Resource
 
     protected static ?string $recordTitleAttribute =  "id";
 
+    public static function getNavigationGroup(): ?string
+    {
+        return __('filament-dashboard.navigation.administration');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('filament-dashboard.activity_logs');
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return 40;
+    }
+
     public static function getRecordTitle($record): ?string
     {
         return __('audit_logs.record_title') . ' #' . $record->id;
@@ -37,11 +49,6 @@ class AuditLogResource extends Resource
     {
         return __('audit_logs.plural');
     }
-    public static function form(Schema $schema): Schema
-    {
-        return AuditLogForm::configure($schema);
-    }
-
     public static function infolist(Schema $schema): Schema
     {
         return AuditLogInfolist::configure($schema);
@@ -57,6 +64,21 @@ class AuditLogResource extends Resource
         return auth()->user()->hasRole('super-admin');
     }
 
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function canEdit($record): bool
+    {
+        return false;
+    }
+
+    public static function canDelete($record): bool
+    {
+        return false;
+    }
+
     public static function getRelations(): array
     {
         return [
@@ -68,9 +90,7 @@ class AuditLogResource extends Resource
     {
         return [
             'index' => ListAuditLogs::route('/'),
-            'create' => CreateAuditLog::route('/create'),
             'view' => ViewAuditLog::route('/{record}'),
-            'edit' => EditAuditLog::route('/{record}/edit'),
         ];
     }
 }

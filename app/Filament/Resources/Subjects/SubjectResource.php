@@ -33,11 +33,19 @@ class SubjectResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    protected static ?int $navigationSort = 5;
-
     public static function getNavigationLabel(): string
     {
-        return __('subjects.plural');
+        return __('filament-dashboard.subjects');
+    }
+
+    public static function getNavigationGroup(): ?string
+    {
+        return __('filament-dashboard.navigation.academic_data');
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return 10;
     }
     public static function getModelLabel(): string
     {

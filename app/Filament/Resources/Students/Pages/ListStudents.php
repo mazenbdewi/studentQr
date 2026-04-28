@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Students\Pages;
 
 use App\Filament\Resources\Students\StudentResource;
+use App\Services\ActivityLogger;
 use Filament\Actions\CreateAction;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
@@ -24,6 +25,12 @@ class ListStudents extends ListRecords
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
                 ->action(function () {
+                    app(ActivityLogger::class)->logExport(
+                        'students',
+                        'students_template_download',
+                        'students_template.xlsx'
+                    );
+
                     return Excel::download(new \App\Exports\Templates\StudentsTemplateExport(), 'students_template.xlsx');
                 }),
 
@@ -44,12 +51,29 @@ class ListStudents extends ListRecords
                         ->required(),
                 ])
                 ->action(function (array $data) {
+                    $startedAt = now();
+                    $file = $data['file'];
+                    $fileName = basename((string) $file);
+                    $import = new \App\Imports\StudentsImport();
+
                     $file = $data['file'];
                     try {
-                        Excel::import(new \App\Imports\StudentsImport(), $file);
+                        Excel::import($import, $file);
+
+                        app(ActivityLogger::class)->logImportSummary(
+                            'students',
+                            'students_import',
+                            $fileName,
+                            $import->getImportedCount(),
+                            $import->getImportedCount(),
+                            0,
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String()
+                        );
+
                         Notification::make()
                             ->title(__('student.import_success'))
-                            ->body(__('import-help.stats.imported', ['count' => 50]))
+                            ->body(__('import-help.stats.imported', ['count' => $import->getImportedCount()]))
                             ->success()
                             ->send();
                     } catch (ValidationException $e) {
@@ -67,6 +91,21 @@ class ListStudents extends ListRecords
                                 $messages[] = $errorMessage;
                             }
                         }
+
+                        $failedCount = count($failures);
+
+                        app(ActivityLogger::class)->logImportSummary(
+                            'students',
+                            'students_import',
+                            $fileName,
+                            $import->getImportedCount() + $failedCount,
+                            $import->getImportedCount(),
+                            $failedCount,
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String(),
+                            ['status' => 'failed']
+                        );
+
                         Notification::make()
                             ->title(__('import-help.stats.imported', ['count' => 0]) . ' | ' . __('import-help.stats.errors', ['count' => count($failures)]))
                             ->body(implode('<br>', array_slice($messages, 0, 5)))

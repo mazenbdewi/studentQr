@@ -16,8 +16,6 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Spatie\Permission\Models\Role;
 use Filament\Tables\Table;
-use UnitEnum;
-
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
@@ -26,15 +24,19 @@ class UserResource extends Resource
 
     // protected static ?string $recordTitleAttribute = 'name';
 
-    // protected static string|UnitEnum|null $navigationGroup = 'Administration';
     public static function getNavigationGroup(): ?string
     {
-        return __('user.administration');
+        return __('filament-dashboard.navigation.administration');
     }
 
     public static function getNavigationLabel(): string
     {
-        return __('user.users');
+        return __('filament-dashboard.users');
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return 30;
     }
 
     public static function getModelLabel(): string

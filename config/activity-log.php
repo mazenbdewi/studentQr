@@ -1,0 +1,37 @@
+<?php
+
+return [
+    'enabled' => env('ACTIVITY_LOG_ENABLED', true),
+    'retention_days' => env('ACTIVITY_LOG_RETENTION_DAYS', 180),
+    'log_to_database' => env('ACTIVITY_LOG_TO_DATABASE', true),
+    'log_to_file' => env('ACTIVITY_LOG_TO_FILE', false),
+    'use_queue_for_heavy_logs' => env('ACTIVITY_LOG_USE_QUEUE_FOR_HEAVY_LOGS', true),
+    'queue' => env('ACTIVITY_LOG_QUEUE', 'audit'),
+    'max_value_length' => 255,
+    'max_depth' => 2,
+    'excluded_fields' => [
+        'password',
+        'remember_token',
+        'token',
+        'tokens',
+        'cookie',
+        'cookies',
+        'avatar',
+        'avatar_binary',
+        'file_contents',
+    ],
+    'categories' => [
+        'auth' => true,
+        'students' => true,
+        'subjects' => true,
+        'lecture_sessions' => true,
+        'attendance' => true,
+        'reports' => true,
+        'settings' => true,
+        'permissions' => true,
+        'departments' => true,
+        'faculties' => true,
+        'halls' => true,
+        'users' => true,
+    ],
+];

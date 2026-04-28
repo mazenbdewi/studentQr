@@ -33,14 +33,7 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
 
     public function getTitle(): string
     {
-        if ($selectedSubject = $this->getSelectedSubject()) {
-            return __('student.subject_attendance_report_for', [
-                'name' => $this->record->name,
-                'subject' => $selectedSubject->name,
-            ]);
-        }
-
-        return __('student.attendance_report_for', ['name' => $this->record->name]);
+        return __('student.attendance_report');
     }
 
     public function getHeaderActions(): array

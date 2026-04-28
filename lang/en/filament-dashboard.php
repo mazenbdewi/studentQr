@@ -1,5 +1,27 @@
 <?php
 return [
+    'navigation' => [
+        'daily_operations' => 'Daily Operations',
+        'academic_data' => 'Academic Data',
+        'imports_exports' => 'Imports & Exports',
+        'administration' => 'Administration',
+        'settings' => 'Settings',
+    ],
+    'lecture_sessions' => 'Lecture Sessions',
+    'students' => 'Students',
+    'attendance_reports' => 'Attendance Reports',
+    'student_attendance_reports' => 'Student Attendance Reports',
+    'subjects' => 'Subjects',
+    'faculties' => 'Faculties',
+    'departments' => 'Departments',
+    'halls' => 'Halls',
+    'lecturers' => 'Lecturers',
+    'subject_students' => 'Subject Students',
+    'users' => 'Users',
+    'roles' => 'Roles',
+    'permissions' => 'Permissions',
+    'activity_logs' => 'Activity Logs',
+    'qr_settings' => 'QR Settings',
     'import_help' => [
         'template_download' => 'Download Ready Template',
         'import_with_template' => 'Import Using Template',

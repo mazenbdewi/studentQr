@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Subjects\Pages;
 
 use App\Filament\Resources\Subjects\SubjectResource;
 use App\Imports\SubjectStudentsImport;
+use App\Services\ActivityLogger;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\FileUpload;
@@ -25,6 +26,13 @@ class ViewSubject extends ViewRecord
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
                 ->action(function () {
+                    app(ActivityLogger::class)->logExport(
+                        'subjects',
+                        'subject_students_template_download',
+                        $this->record->name . '_students_template.xlsx',
+                        $this->record
+                    );
+
                     return Excel::download(new \App\Exports\Templates\SubjectStudentsTemplateExport($this->record), $this->record->name . '_students_template.xlsx');
                 }),
             Action::make('import_students')
@@ -43,14 +51,27 @@ class ViewSubject extends ViewRecord
                         ->required(),
                 ])
                 ->action(function (array $data) {
+                    $startedAt = now();
+                    $fileName = basename((string) $data['file']);
+                    $import = new SubjectStudentsImport(
+                        $this->record->id,
+                        null,
+                        null
+                    );
+
                     try {
-                        Excel::import(
-                            new SubjectStudentsImport(
-                                $this->record->id,
-                                null,
-                                null
-                            ),
-                            $data['file']
+                        Excel::import($import, $data['file']);
+
+                        app(ActivityLogger::class)->logImportSummary(
+                            'subjects',
+                            'subject_students_import',
+                            $fileName,
+                            $import->getImportedCount(),
+                            $import->getImportedCount(),
+                            0,
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String(),
+                            ['subject_id' => $this->record->id]
                         );
 
                         Notification::make()
@@ -63,6 +84,18 @@ class ViewSubject extends ViewRecord
                         ]));
 
                     } catch (\Exception $e) {
+                        app(ActivityLogger::class)->logImportSummary(
+                            'subjects',
+                            'subject_students_import',
+                            $fileName,
+                            $import->getImportedCount(),
+                            $import->getImportedCount(),
+                            1,
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String(),
+                            ['subject_id' => $this->record->id, 'status' => 'failed', 'error' => $e->getMessage()]
+                        );
+
                         Notification::make()
                             ->title(__('subjects.import_failed'))
                             ->body($e->getMessage())
@@ -73,4 +106,3 @@ class ViewSubject extends ViewRecord
         ];
     }
 }
-

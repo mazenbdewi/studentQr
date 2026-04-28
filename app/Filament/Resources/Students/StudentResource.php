@@ -25,10 +25,22 @@ class StudentResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::AcademicCap;
 
-    protected static ?int $navigationSort = 4;
-
     protected static ?string $recordTitleAttribute = 'name';
 
+    public static function getNavigationGroup(): ?string
+    {
+        return __('filament-dashboard.navigation.daily_operations');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('filament-dashboard.students');
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return 2;
+    }
 
     public static function getModelLabel(): string
     {

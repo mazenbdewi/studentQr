@@ -8,6 +8,7 @@ use App\Imports\SubjectStudentsImport;
 use App\Models\Enrollment;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Services\ActivityLogger;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -101,10 +102,19 @@ class StudentsRelationManager extends RelationManager
                     ->label(__('subjects.download_subject_students_template'))
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
-                    ->action(fn () => Excel::download(
-                        new SubjectStudentsTemplateExport($this->ownerRecord),
-                        $this->ownerRecord->name . '_students_template.xlsx',
-                    )),
+                    ->action(function () {
+                        app(ActivityLogger::class)->logExport(
+                            'subjects',
+                            'subject_students_template_download',
+                            $this->ownerRecord->name . '_students_template.xlsx',
+                            $this->ownerRecord
+                        );
+
+                        return Excel::download(
+                            new SubjectStudentsTemplateExport($this->ownerRecord),
+                            $this->ownerRecord->name . '_students_template.xlsx',
+                        );
+                    }),
 
                 Action::make('import_students')
                     ->label(__('subjects.import_students'))
@@ -120,14 +130,42 @@ class StudentsRelationManager extends RelationManager
                             ->required(),
                     ])
                     ->action(function (array $data): void {
+                        $startedAt = now();
+                        $fileName = basename((string) $data['file']);
+                        $import = new SubjectStudentsImport($this->ownerRecord->id);
+
                         try {
-                            Excel::import(new SubjectStudentsImport($this->ownerRecord->id), $data['file']);
+                            Excel::import($import, $data['file']);
+
+                            app(ActivityLogger::class)->logImportSummary(
+                                'subjects',
+                                'subject_students_import',
+                                $fileName,
+                                $import->getImportedCount(),
+                                $import->getImportedCount(),
+                                0,
+                                $startedAt->toIso8601String(),
+                                now()->toIso8601String(),
+                                ['subject_id' => $this->ownerRecord->id]
+                            );
 
                             Notification::make()
                                 ->title(__('subjects.import_success'))
                                 ->success()
                                 ->send();
                         } catch (\Throwable $exception) {
+                            app(ActivityLogger::class)->logImportSummary(
+                                'subjects',
+                                'subject_students_import',
+                                $fileName,
+                                $import->getImportedCount(),
+                                $import->getImportedCount(),
+                                1,
+                                $startedAt->toIso8601String(),
+                                now()->toIso8601String(),
+                                ['subject_id' => $this->ownerRecord->id, 'status' => 'failed', 'error' => $exception->getMessage()]
+                            );
+
                             Notification::make()
                                 ->title(__('subjects.import_failed'))
                                 ->body($exception->getMessage())

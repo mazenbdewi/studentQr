@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
 use App\Models\LectureSession;
+use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 
 class AttendanceController extends Controller
@@ -49,6 +50,17 @@ class AttendanceController extends Controller
             'qr_expired' => true,
             'status' => 'completed',
             'actual_end' => $session->actual_end ?? now(),
+        ]);
+
+        app(ActivityLogger::class)->log([
+            'category' => 'lecture_sessions',
+            'action' => 'qr_expired',
+            'model_type' => $session::class,
+            'model_id' => $session->id,
+            'description' => 'lecture_session_qr_expired',
+            'context' => [
+                'lecture_session_id' => $session->id,
+            ],
         ]);
 
         return response()->json([

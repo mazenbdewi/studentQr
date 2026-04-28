@@ -14,6 +14,8 @@ use Maatwebsite\Excel\Concerns\WithValidation;
 
 class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidation, SkipsEmptyRows
 {
+    private int $importedCount = 0;
+
     public function __construct(
         private readonly int $subjectId,
         private readonly ?string $semester = null,
@@ -69,6 +71,8 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
             ['student_id', 'subject_id'],
             ['semester', 'year', 'status', 'updated_at'],
         );
+
+        $this->importedCount += count($upsertRows);
     }
 
     public function rules(): array
@@ -130,5 +134,10 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
         }
 
         return $row;
+    }
+
+    public function getImportedCount(): int
+    {
+        return $this->importedCount;
     }
 }

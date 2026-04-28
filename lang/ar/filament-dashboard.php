@@ -1,5 +1,27 @@
 <?php
 return [
+    'navigation' => [
+        'daily_operations' => 'العمليات اليومية',
+        'academic_data' => 'البيانات الأكاديمية',
+        'imports_exports' => 'الاستيراد والتصدير',
+        'administration' => 'الإدارة',
+        'settings' => 'الإعدادات',
+    ],
+    'lecture_sessions' => 'جلسات المحاضرات',
+    'students' => 'الطلاب',
+    'attendance_reports' => 'تقارير الحضور',
+    'student_attendance_reports' => 'تقارير حضور الطلاب',
+    'subjects' => 'المواد',
+    'faculties' => 'الكليات',
+    'departments' => 'الأقسام',
+    'halls' => 'القاعات',
+    'lecturers' => 'المحاضرون',
+    'subject_students' => 'ربط الطلاب بالمواد',
+    'users' => 'المستخدمون',
+    'roles' => 'الأدوار',
+    'permissions' => 'الصلاحيات',
+    'activity_logs' => 'سجلات النشاط',
+    'qr_settings' => 'إعدادات رمز QR',
     'import_help' => [
         'template_download' => 'تحميل القالب الجاهز',
         'import_with_template' => 'استيراد باستخدام القالب الجاهز',

@@ -13,6 +13,7 @@ use Maatwebsite\Excel\Validators\ValidationException;
 
 class SubjectsImport implements ToModel, WithHeadingRow, WithValidation
 {
+    private int $importedCount = 0;
 
     private $lecturers;
     private $departments;
@@ -59,6 +60,8 @@ class SubjectsImport implements ToModel, WithHeadingRow, WithValidation
     }
     public function model(array $row)
     {
+        $this->importedCount++;
+
         return new Subject([
             'code' => $row['code'] ?? null,
             'name' => $row['name'] ?? null,
@@ -101,5 +104,10 @@ class SubjectsImport implements ToModel, WithHeadingRow, WithValidation
             'semester' => __('subjects.semester'),
             'year' => __('subjects.academic_year'),
         ];
+    }
+
+    public function getImportedCount(): int
+    {
+        return $this->importedCount;
     }
 }
