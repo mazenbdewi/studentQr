@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Subjects\Schemas;
 
+use App\Models\Subject;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
@@ -24,15 +25,9 @@ class SubjectInfolist
                 ->label(__('subjects.department_id'))
                 ->numeric()
                 ->placeholder(__('subjects.not_available')),
-            TextEntry::make('credit_hours')
-                ->label(__('subjects.credit_hours'))
-                ->numeric(),
-            TextEntry::make('level')
-                ->label(__('subjects.level'))
-                ->numeric(),
             TextEntry::make('semester')
                 ->label(__('subjects.semester'))
-                ->numeric(),
+                ->formatStateUsing(fn (Subject $record): string => $record->semester_label),
             IconEntry::make('is_active')
                 ->label(__('subjects.is_active'))
                 ->boolean(),

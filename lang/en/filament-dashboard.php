@@ -15,10 +15,10 @@ return [
         ],
         'departments' => [
             'help_title' => 'Academic Departments Import Guide',
-            'help_paragraph' => 'Prepare Excel file to add new departments. Each department needs unique code linked to existing faculty.',
+            'help_paragraph' => 'Prepare an Excel file to add new departments linked to an existing faculty.',
             'required_columns_title' => 'Required Columns',
-            'required_columns' => 'Code (unique), Arabic Name, Faculty Name (exact match in system)',
-            'warning_notes' => 'Faculty name must exactly match registered faculties. English name and status optional (yes/no/1/0).',
+            'required_columns' => 'Department Name, Faculty Name (exact match in system)',
+            'warning_notes' => 'Faculty name must exactly match registered faculties. Status optional (yes/no/1/0).',
             'success_message' => ':count departments imported successfully!',
             'failure_summary' => ':imported success | :errors errors. Verify faculty name matching.',
         ],
@@ -26,8 +26,8 @@ return [
             'help_title' => 'Course Subjects Import Guide',
             'help_paragraph' => 'Import courses with lecturer and department linking. Lecturer must have course_lecturer role.',
             'required_columns_title' => 'Required Columns',
-            'required_columns' => 'Course Code (unique), Course Name, Lecturer Name, Department Name, Credit Hours',
-            'warning_notes' => 'Lecturer must be registered with "course_lecturer" role. Level 1-5, Semester 1-2. Status optional.',
+            'required_columns' => 'Course Code (unique), Course Name, Lecturer Name, Department Name, Semester',
+            'warning_notes' => 'Lecturer must be registered with "course_lecturer" role. Semester accepts only: first, second, summer. Academic year and status optional.',
             'success_message' => ':count subjects imported successfully!',
             'failure_summary' => ':imported success | :errors errors. Check lecturer/department names.',
         ],
@@ -44,8 +44,8 @@ return [
             'help_title' => 'Lecture Sessions Scheduling Import',
             'help_paragraph' => 'Quickly schedule sessions linking subjects and halls. Use correct date/time format.',
             'required_columns_title' => 'Key Columns',
-            'required_columns' => 'Subject Name, Hall Name, Session Date (15-10-2024), Start Time (09:00), End Time',
-            'warning_notes' => 'Date: day-month-year. Time: HH:MM or Excel time. End after Start. Status: scheduled/active.',
+            'required_columns' => 'Subject Name, Hall Name, Session Date (2026-04-28), Start Time (08:30), End Time (10:00)',
+            'warning_notes' => 'Date must use YYYY-MM-DD and time must use HH:MM in 24-hour format. End Time must be after Start Time. Status: scheduled/active.',
             'success_message' => ':count sessions scheduled successfully!',
             'failure_summary' => ':imported success | :errors errors. Check date/time format.',
         ],
@@ -63,7 +63,7 @@ return [
         'tips_title' => 'Guaranteed Success Tips',
         'tips' => [
             'exact_match' => 'Faculty/Department/Subject/Hall names must exactly match system records',
-            'date_format' => 'Date: 15-10-2024 (day-month-year)',
+            'date_format' => 'Date: YYYY-MM-DD, example 2026-04-28',
             'time_format' => 'Time: 09:00 (hour:minute) or Excel time directly',
             'boolean_format' => 'yes/1/true = enabled | no/0/false = disabled',
             'unique_required' => 'Code, Student Number, National ID must be unique',
@@ -81,4 +81,3 @@ return [
     ],
 ];
 ?>
-

@@ -4,7 +4,6 @@ namespace App\Imports;
 
 use App\Models\Department;
 use App\Models\Faculty;
-use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
@@ -13,16 +12,8 @@ class DepartmentsImport implements ToModel, WithHeadingRow, WithValidation
 {
  public function prepareForValidation($data, $index)
 {
-    if (isset($data['code']) && $data['code'] !== null) {
-        $data['code'] = trim((string) $data['code']);
-    }
-
     if (isset($data['name']) && $data['name'] !== null) {
         $data['name'] = trim((string) $data['name']);
-    }
-
-    if (isset($data['name_en']) && $data['name_en'] !== null) {
-        $data['name_en'] = trim((string) $data['name_en']);
     }
 
     if (isset($data['faculty_name']) && $data['faculty_name'] !== null) {
@@ -61,9 +52,7 @@ class DepartmentsImport implements ToModel, WithHeadingRow, WithValidation
   public function model(array $row)
 {
     return new Department([
-        'code'        => $row['code'],
         'name'        => $row['name'],
-        'name_en'     => $row['name_en'] ?? null,
         'faculty_id'  => $row['faculty_id'],
         'is_active'   => $row['is_active'] ?? true,
     ]);
@@ -72,9 +61,7 @@ class DepartmentsImport implements ToModel, WithHeadingRow, WithValidation
     public function rules(): array
     {
         return [
-            'code'       => ['required', 'string', 'max:255', Rule::unique('departments', 'code')],
             'name'       => ['required', 'string', 'max:255'],
-            'name_en'    => ['nullable', 'string', 'max:255'],
             'faculty_id' => ['required', 'exists:faculties,id'],
             'is_active'  => ['nullable', 'boolean'],
         ];
@@ -83,9 +70,6 @@ class DepartmentsImport implements ToModel, WithHeadingRow, WithValidation
     public function customValidationMessages(): array
     {
         return [
-            'code.required'       => __('validation.code_required'),
-            'code.unique'         => __('validation.code_unique'),
-            'code.max'            => __('validation.code_max'),
             'name.required'       => __('validation.name_required'),
             'name.max'            => __('validation.name_max'),
             'faculty_id.required' => 'حقل الكلية مطلوب في الصف :row. تأكد أن faculty_name يطابق اسم كلية موجودة في النظام.',
@@ -97,7 +81,6 @@ class DepartmentsImport implements ToModel, WithHeadingRow, WithValidation
     public function customValidationAttributes(): array
     {
         return [
-            'code'       => 'الكود',
             'name'       => 'الاسم',
             'faculty_id' => 'الكلية',
             'is_active'  => 'الحالة',

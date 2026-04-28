@@ -30,9 +30,17 @@ class StudentForm
                     ->searchable()
                     ->preload()
                     ->default(null),
-                TextInput::make('year')
+                Select::make('year')
                     ->label(__('student.year'))
-                    ->numeric()
+                    ->options([
+                        1 => __('student.year_options.1'),
+                        2 => __('student.year_options.2'),
+                        3 => __('student.year_options.3'),
+                        4 => __('student.year_options.4'),
+                        5 => __('student.year_options.5'),
+                        6 => __('student.year_options.6'),
+                    ])
+                    ->native(false)
                     ->default(null),
        
                 TextInput::make('phone')

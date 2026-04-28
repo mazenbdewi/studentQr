@@ -7,6 +7,7 @@ use App\Filament\Resources\Students\StudentResource;
 use App\Imports\SubjectStudentsImport;
 use App\Models\Enrollment;
 use App\Models\Student;
+use App\Models\Subject;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -39,6 +40,8 @@ class StudentsRelationManager extends RelationManager
     public function table(Tables\Table $table): Tables\Table
     {
         return $table
+            ->modelLabel(__('enrollments.singular'))
+            ->pluralModelLabel(__('enrollments.plural'))
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('student'))
             ->defaultSort('student_id')
             ->recordTitle(fn (Enrollment $record): string => $record->student?->name ?? __('student.record_title'))
@@ -56,6 +59,7 @@ class StudentsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('semester')
                     ->label(__('enrollments.semester'))
+                    ->formatStateUsing(fn (mixed $state): string => Subject::semesterOptions()[Subject::normalizeSemester($state)] ?? __('subjects.not_available'))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('year')
@@ -82,6 +86,8 @@ class StudentsRelationManager extends RelationManager
             ->headerActions([
                 CreateAction::make()
                     ->label(__('enrollments.attach_student'))
+                    ->modalHeading(__('enrollments.create_student_enrollment'))
+                    ->modalSubmitActionLabel(__('enrollments.save_enrollment'))
                     ->icon('heroicon-o-plus')
                     ->color('success')
                     ->schema($this->getEnrollmentFormSchema())
@@ -132,13 +138,18 @@ class StudentsRelationManager extends RelationManager
             ])
             ->actions([
                 EditAction::make()
+                    ->label(__('enrollments.edit'))
+                    ->modalHeading(__('enrollments.edit_student_enrollment'))
+                    ->modalSubmitActionLabel(__('enrollments.save_enrollment'))
                     ->schema($this->getEnrollmentMetadataSchema()),
 
-                DeleteAction::make(),
+                DeleteAction::make()
+                    ->label(__('enrollments.delete')),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->label(__('enrollments.delete_selected')),
                 ]),
             ]);
     }
@@ -187,12 +198,11 @@ class StudentsRelationManager extends RelationManager
     protected function getEnrollmentMetadataSchema(): array
     {
         return [
-            Forms\Components\TextInput::make('semester')
+            Forms\Components\Select::make('semester')
                 ->label(__('enrollments.semester'))
-                ->numeric()
-                ->minValue(1)
-                ->maxValue(2)
-                ->default(fn (): ?int => $this->ownerRecord->semester)
+                ->options(fn (): array => Subject::semesterOptions())
+                ->native(false)
+                ->default(fn (): ?string => Subject::normalizeSemester($this->ownerRecord->semester))
                 ->required(),
 
             Forms\Components\TextInput::make('year')

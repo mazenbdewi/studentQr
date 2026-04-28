@@ -13,7 +13,7 @@ return new class extends Migration
             $table->id();
              $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
             $table->foreignId('subject_id')->constrained()->onDelete('cascade');
-            $table->tinyInteger('semester')->nullable();
+            $table->string('semester', 20)->nullable();
             $table->tinyInteger('year')->nullable();
             $table->enum('status', ['enrolled', 'dropped', 'passed', 'failed'])->default('enrolled');
             $table->timestamps();

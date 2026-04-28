@@ -26,10 +26,6 @@ class FacultiesTable
                     ->label(__('faculty.name_ar'))
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('name_en')
-                    ->label(__('faculty.name_en'))
-                    ->searchable()
-                    ->sortable(),
                 IconColumn::make('is_active')
                     ->label(__('faculty.is_active'))
                     ->boolean(),

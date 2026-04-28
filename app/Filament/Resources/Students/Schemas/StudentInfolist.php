@@ -22,7 +22,7 @@ class StudentInfolist
                     ->placeholder('-'),
                 TextEntry::make('year')
                     ->label(__('student.year'))
-                    ->numeric()
+                    ->formatStateUsing(fn (?int $state): string => filled($state) ? __("student.year_options.{$state}") : '')
                     ->placeholder('-'),
            
                 TextEntry::make('phone')

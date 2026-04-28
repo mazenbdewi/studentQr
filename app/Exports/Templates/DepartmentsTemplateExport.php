@@ -13,23 +13,21 @@ class DepartmentsTemplateExport implements FromCollection, WithHeadings, WithTit
     public function collection(): Collection
     {
         return collect([
-            ['CS', 'علوم الحاسب', 'Computer Science', 'Faculty of Engineering', 'true'],
+            ['علوم الحاسب', 'كلية الهندسة', 'true'],
         ]);
     }
 
     public function headings(): array
     {
-        return ['code', 'name', 'name_en', 'faculty_name', 'is_active'];
+        return ['name', 'faculty_name', 'is_active'];
     }
 
     public function columnWidths(): array
     {
         return [
-            'A' => 12,
-            'B' => 25,
-            'C' => 22,
-            'D' => 28,
-            'E' => 12,
+            'A' => 25,
+            'B' => 28,
+            'C' => 12,
         ];
     }
 

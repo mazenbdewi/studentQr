@@ -34,6 +34,8 @@ class SubjectsRelationManager extends RelationManager
     public function table(Tables\Table $table): Tables\Table
     {
         return $table
+            ->modelLabel(__('enrollments.singular'))
+            ->pluralModelLabel(__('enrollments.plural'))
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('subject'))
             ->defaultSort('subject_id')
             ->recordTitle(fn (Enrollment $record): string => $record->subject?->name ?? __('subjects.record_title'))
@@ -51,6 +53,7 @@ class SubjectsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('semester')
                     ->label(__('enrollments.semester'))
+                    ->formatStateUsing(fn (mixed $state): string => Subject::semesterOptions()[Subject::normalizeSemester($state)] ?? __('subjects.not_available'))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('year')
@@ -77,17 +80,24 @@ class SubjectsRelationManager extends RelationManager
             ->headerActions([
                 CreateAction::make()
                     ->label(__('enrollments.add_subject'))
+                    ->modalHeading(__('enrollments.create_subject_enrollment'))
+                    ->modalSubmitActionLabel(__('enrollments.save_enrollment'))
                     ->schema($this->getEnrollmentFormSchema()),
             ])
             ->actions([
                 EditAction::make()
+                    ->label(__('enrollments.edit'))
+                    ->modalHeading(__('enrollments.edit_subject_enrollment'))
+                    ->modalSubmitActionLabel(__('enrollments.save_enrollment'))
                     ->schema($this->getEnrollmentMetadataSchema()),
 
-                DeleteAction::make(),
+                DeleteAction::make()
+                    ->label(__('enrollments.delete')),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->label(__('enrollments.delete_selected')),
                 ]),
             ]);
     }
@@ -128,7 +138,7 @@ class SubjectsRelationManager extends RelationManager
                         return;
                     }
 
-                    $set('semester', $subject->semester);
+                    $set('semester', Subject::normalizeSemester($subject->semester));
                     $set('year', $subject->level);
                 })
                 ->rule(
@@ -149,11 +159,10 @@ class SubjectsRelationManager extends RelationManager
     protected function getEnrollmentMetadataSchema(): array
     {
         return [
-            Forms\Components\TextInput::make('semester')
+            Forms\Components\Select::make('semester')
                 ->label(__('enrollments.semester'))
-                ->numeric()
-                ->minValue(1)
-                ->maxValue(2)
+                ->options(fn (): array => Subject::semesterOptions())
+                ->native(false)
                 ->required(),
 
             Forms\Components\TextInput::make('year')

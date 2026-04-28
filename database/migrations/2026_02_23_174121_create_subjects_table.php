@@ -15,9 +15,9 @@ return new class extends Migration
             $table->string('name');
             $table->foreignId('lecturer_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('department_id')->nullable()->constrained()->nullOnDelete();
-            $table->tinyInteger('credit_hours');
-            $table->tinyInteger('level');
-            $table->tinyInteger('semester');
+            $table->tinyInteger('credit_hours')->nullable();
+            $table->tinyInteger('level')->nullable();
+            $table->string('semester', 20)->default('first');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

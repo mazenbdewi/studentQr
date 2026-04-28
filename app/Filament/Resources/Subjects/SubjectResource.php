@@ -92,26 +92,12 @@ class SubjectResource extends Resource
                     ->preload()
                     ->nullable(),
 
-                Forms\Components\TextInput::make('credit_hours')
-                    ->label(__('subjects.credit_hours'))
-                    ->required()
-                    ->numeric()
-                    ->minValue(1)
-                    ->maxValue(6),
-
-                Forms\Components\TextInput::make('level')
-                    ->label(__('subjects.level'))
-                    ->required()
-                    ->numeric()
-                    ->minValue(1)
-                    ->maxValue(5),
-
-                Forms\Components\TextInput::make('semester')
+                Forms\Components\Select::make('semester')
                     ->label(__('subjects.semester'))
-                    ->required()
-                    ->numeric()
-                    ->minValue(1)
-                    ->maxValue(2),
+                    ->options(fn (): array => Subject::semesterOptions())
+                    ->native(false)
+                    ->afterStateHydrated(fn ($component, mixed $state): mixed => $component->state(Subject::normalizeSemester($state)))
+                    ->required(),
 
                 Forms\Components\Toggle::make('is_active')
                     ->label(__('subjects.is_active'))
@@ -150,8 +136,10 @@ class SubjectResource extends Resource
                     ->label(__('subjects.department_id'))
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('credit_hours')
-                    ->label(__('subjects.credit_hours')),
+                Tables\Columns\TextColumn::make('semester')
+                    ->label(__('subjects.semester'))
+                    ->formatStateUsing(fn (Subject $record): string => $record->semester_label)
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('deleted_at')
                     ->label(__('subjects.deleted_at'))
                     ->dateTime()

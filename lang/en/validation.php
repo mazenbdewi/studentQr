@@ -35,6 +35,7 @@ return [
     'session_date' => 'Session Date',
     'session_date_required' => 'The session date field is required in row :row.',
     'session_date_invalid' => 'The session date is invalid in row :row.',
+    'session_date_format' => 'The session date must be in YYYY-MM-DD format in row :row.',
 
     'start_time' => 'Start Time',
     'start_time_required' => 'The start time field is required in row :row.',

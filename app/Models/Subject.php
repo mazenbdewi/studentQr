@@ -12,6 +12,10 @@ class Subject extends Model
 {
     use SoftDeletes;
 
+    public const SEMESTER_FIRST = 'first';
+    public const SEMESTER_SECOND = 'second';
+    public const SEMESTER_SUMMER = 'summer';
+
     protected $fillable = [
         'code',
         'name',
@@ -22,6 +26,41 @@ class Subject extends Model
         'semester',
         'is_active',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    public static function semesterOptions(): array
+    {
+        return [
+            self::SEMESTER_FIRST => __('subjects.semester_first'),
+            self::SEMESTER_SECOND => __('subjects.semester_second'),
+            self::SEMESTER_SUMMER => __('subjects.semester_summer'),
+        ];
+    }
+
+    public static function normalizeSemester(mixed $semester): ?string
+    {
+        if (blank($semester)) {
+            return null;
+        }
+
+        return match ((string) $semester) {
+            '1', self::SEMESTER_FIRST => self::SEMESTER_FIRST,
+            '2', self::SEMESTER_SECOND => self::SEMESTER_SECOND,
+            '3', self::SEMESTER_SUMMER => self::SEMESTER_SUMMER,
+            default => (string) $semester,
+        };
+    }
+
+    public function getSemesterLabelAttribute(): string
+    {
+        $semester = self::normalizeSemester($this->semester);
+
+        return $semester && array_key_exists($semester, self::semesterOptions())
+            ? self::semesterOptions()[$semester]
+            : __('subjects.not_available');
+    }
 
     public function lecturer(): BelongsTo
     {

@@ -22,14 +22,8 @@ class DepartmentsTable
     {
         return $table
             ->columns([
-                TextColumn::make('code')
-                    ->label(__('department.code'))
-                    ->searchable(),
                 TextColumn::make('name')
-                    ->label(__('department.name_ar'))
-                    ->searchable(),
-                TextColumn::make('name_en')
-                    ->label(__('department.name_en'))
+                    ->label(__('department.name'))
                     ->searchable(),
                 // TextColumn::make('faculty_id')
                 //     ->label(__('department.faculty'))

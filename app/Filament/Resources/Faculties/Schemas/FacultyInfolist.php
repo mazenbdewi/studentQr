@@ -15,10 +15,6 @@ class FacultyInfolist
                 TextEntry::make('name')
                     ->label(__('faculty.name')),
 
-                TextEntry::make('name_en')
-                    ->label(__('faculty.name_en'))
-                    ->placeholder('-'),
-
                 TextEntry::make('description')
                     ->label(__('faculty.description'))
                     ->placeholder('-')

@@ -2,6 +2,7 @@
 
 return [
     'code'              => 'Department Code',
+    'name'              => 'Name',
     'name_ar'           => 'Name (Arabic)',
     'name_en'           => 'Name (English)',
     'faculty'           => 'Faculty',
@@ -33,4 +34,3 @@ return [
     'import_excel' => 'Import Excel',
     'excel_file' => 'Excel File',
 ];
-

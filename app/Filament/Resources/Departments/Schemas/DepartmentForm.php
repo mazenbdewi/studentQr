@@ -15,15 +15,9 @@ class DepartmentForm
     {
         return $schema
             ->components([
-                TextInput::make('code')
-                    ->label(__('department.code'))
-                    ->required(),
                 TextInput::make('name')
-                    ->label(__('department.name_ar'))
+                    ->label(__('department.name'))
                     ->required(),
-                TextInput::make('name_en')
-                    ->label(__('department.name_en'))
-                    ->default(null),
                 Select::make('faculty_id')
                     ->label(__('department.faculty'))
                     ->relationship(

@@ -76,12 +76,12 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
 
         $value = trim((string) $value);
 
-        if (preg_match('/^\d{1,2}:\d{2}$/', $value)) {
-            return $value;
+        if (preg_match('/^(?<hour>\d{1,2}):(?<minute>\d{2})$/', $value, $matches)) {
+            return sprintf('%02d:%02d', (int) $matches['hour'], (int) $matches['minute']);
         }
 
-        if (preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $value)) {
-            return substr($value, 0, 5);
+        if (preg_match('/^(?<hour>\d{1,2}):(?<minute>\d{2}):\d{2}$/', $value, $matches)) {
+            return sprintf('%02d:%02d', (int) $matches['hour'], (int) $matches['minute']);
         }
 
         return $value;
@@ -99,7 +99,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
 
         $value = trim((string) $value);
 
-        foreach (['d-m-Y', 'Y-m-d', 'd/m/Y', 'Y/m/d'] as $format) {
+        foreach (['Y-m-d'] as $format) {
             try {
                 return \Carbon\Carbon::createFromFormat($format, $value)->format('Y-m-d');
             } catch (\Throwable $e) {
@@ -235,7 +235,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation
             'hall_id.required' => __('validation.hall_required'),
             'hall_id.exists' => __('validation.hall_not_found'),
             'session_date.required' => __('validation.session_date_required'),
-            'session_date.date_format' => 'صيغة تاريخ الجلسة يجب أن تكون مثل 2024-10-15 أو 15-10-2024.',
+            'session_date.date_format' => __('validation.session_date_format'),
             'start_time.required' => __('validation.start_time_required'),
             'start_time.date_format' => __('validation.start_time_format'),
             'end_time.required' => __('validation.end_time_required'),

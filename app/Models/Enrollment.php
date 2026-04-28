@@ -18,7 +18,6 @@ class Enrollment extends Model
     protected $casts = [
         'student_id' => 'integer',
         'subject_id' => 'integer',
-        'semester' => 'integer',
         'year' => 'integer',
     ];
 

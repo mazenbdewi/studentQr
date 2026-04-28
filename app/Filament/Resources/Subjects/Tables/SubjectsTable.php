@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Subjects\Tables;
 
+use App\Models\Subject;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -30,17 +31,9 @@ class SubjectsTable
                 ->label(__('subjects.department_id'))
                 ->numeric()
                 ->sortable(),
-            TextColumn::make('credit_hours')
-                ->label(__('subjects.credit_hours'))
-                ->numeric()
-                ->sortable(),
-            TextColumn::make('level')
-                ->label(__('subjects.level'))
-                ->numeric()
-                ->sortable(),
             TextColumn::make('semester')
                 ->label(__('subjects.semester'))
-                ->numeric()
+                ->formatStateUsing(fn (Subject $record): string => $record->semester_label)
                 ->sortable(),
             IconColumn::make('is_active')
                 ->label(__('subjects.is_active'))

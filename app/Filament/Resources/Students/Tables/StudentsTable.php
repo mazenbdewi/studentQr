@@ -41,7 +41,7 @@ class StudentsTable
                     ->sortable(),
                 Tables\Columns\TextColumn::make('year')
                     ->label(__('student.year'))
-                    ->numeric()
+                    ->formatStateUsing(fn (?int $state): string => filled($state) ? __("student.year_options.{$state}") : '')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('phone')
                     ->label(__('student.phone'))

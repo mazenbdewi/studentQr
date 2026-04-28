@@ -56,6 +56,14 @@ return [
     'help_title' => 'تعليمات استيراد جلسات المحاضرات',
 'import_with_template' => 'استيراد باستخدام القالب',
     'template_download' => 'تحميل النموذج',
+    'template_date_prompt_title' => 'تنسيق التاريخ',
+    'template_date_prompt' => 'أدخل التاريخ بالصيغة YYYY-MM-DD مثال: 2026-04-28',
+    'template_date_error_title' => 'تاريخ غير صالح',
+    'template_date_error' => 'يجب إدخال تاريخ صالح بالصيغة YYYY-MM-DD.',
+    'template_time_prompt_title' => 'تنسيق الوقت',
+    'template_time_prompt' => 'أدخل الوقت بنظام 24 ساعة HH:MM مثال: 08:30',
+    'template_time_error_title' => 'وقت غير صالح',
+    'template_time_error' => 'يجب إدخال وقت صالح بنظام 24 ساعة HH:MM.',
     'import_excel' => 'استيراد Excel',
     'excel_file' => 'ملف Excel',
     'import_success' => 'تم الاستيراد بنجاح',
@@ -64,5 +72,4 @@ return [
     'todays_lectures' => 'محاضرات اليوم',
 
 ];
-
 

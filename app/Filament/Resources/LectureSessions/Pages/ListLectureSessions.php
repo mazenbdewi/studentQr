@@ -55,8 +55,18 @@ class ListLectureSessions extends ListRecords
         $messages = [];
 
         foreach ($e->failures() as $failure) {
+            $row = $failure->row();
+            $values = $failure->values();
+
             foreach ($failure->errors() as $error) {
-                $messages[] = $error;
+                $errorMessage = str_replace(':row', $row, $error);
+
+                if (str_contains($errorMessage, ':input')) {
+                    $attribute = $failure->attribute();
+                    $errorMessage = str_replace(':input', $values[$attribute] ?? $attribute, $errorMessage);
+                }
+
+                $messages[] = $errorMessage;
             }
         }
 

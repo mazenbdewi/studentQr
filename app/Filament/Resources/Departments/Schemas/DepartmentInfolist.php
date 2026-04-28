@@ -12,20 +12,10 @@ class DepartmentInfolist
     {
         return $schema
         ->components([
-            TextEntry::make('code')
-                ->label(__('department.code')),
             TextEntry::make('name')
-                ->label(__('department.name_ar')),
-            TextEntry::make('name_en')
-                ->label(__('department.name_en'))
-                ->placeholder(__('department.not_available')),
-            TextEntry::make('faculty_id')
+                ->label(__('department.name')),
+            TextEntry::make('faculty.name')
                 ->label(__('department.faculty'))
-                ->numeric()
-                ->placeholder(__('department.not_available')),
-            TextEntry::make('head_of_department')
-                ->label(__('department.head'))
-                ->numeric()
                 ->placeholder(__('department.not_available')),
             TextEntry::make('description')
                 ->label(__('department.description'))

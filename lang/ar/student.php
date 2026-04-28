@@ -60,6 +60,14 @@ return [
     'faculty_id' => 'الكلية',
     'department_id' => 'القسم',
     'year' => 'السنة الدراسية',
+    'year_options' => [
+        1 => 'السنة الأولى',
+        2 => 'السنة الثانية',
+        3 => 'السنة الثالثة',
+        4 => 'السنة الرابعة',
+        5 => 'السنة الخامسة',
+        6 => 'السنة السادسة',
+    ],
     'type' => 'النوع',
     'status' => 'الحالة',
     'avatar' => 'الصورة الشخصية',
@@ -119,6 +127,7 @@ return [
 
     // Attendance Report
     'attendance_report' => 'تقرير الحضور',
+    'attendance_history' => 'سجل الحضور',
     'attendance_report_for' => 'تقرير الحضور لـ :name',
     'subject_attendance_report_for' => 'تقرير الحضور لـ :name - :subject',
     'student_info' => 'معلومات الطالب',

@@ -59,6 +59,14 @@ return [
     'faculty_id' => 'Faculty',
     'department_id' => 'Department',
     'year' => 'Academic Year',
+    'year_options' => [
+        1 => 'First Year',
+        2 => 'Second Year',
+        3 => 'Third Year',
+        4 => 'Fourth Year',
+        5 => 'Fifth Year',
+        6 => 'Sixth Year',
+    ],
     'type' => 'Type',
     'status' => 'Status',
     'avatar' => 'Avatar',
@@ -109,6 +117,7 @@ return [
 
     // Attendance Report
     'attendance_report' => 'Attendance Report',
+    'attendance_history' => 'Attendance History',
     'attendance_report_for' => 'Attendance Report for :name',
     'subject_attendance_report_for' => 'Attendance Report for :name - :subject',
     'student_info' => 'Student Information',

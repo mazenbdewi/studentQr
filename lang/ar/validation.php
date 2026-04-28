@@ -47,6 +47,7 @@ return [
     'session_date' => 'تاريخ المحاضرة',
     'session_date_required' => 'حقل تاريخ المحاضرة مطلوب في الصف :row.',
     'session_date_invalid' => 'حقل تاريخ المحاضرة غير صالح في الصف :row.',
+    'session_date_format' => 'حقل تاريخ المحاضرة يجب أن يكون بالتنسيق YYYY-MM-DD في الصف :row.',
 
     'start_time' => 'وقت البداية',
     'start_time_required' => 'حقل وقت البداية مطلوب في الصف :row.',

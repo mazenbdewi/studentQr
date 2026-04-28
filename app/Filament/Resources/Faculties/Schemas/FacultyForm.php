@@ -17,9 +17,6 @@ class FacultyForm
                     ->label(__('faculty.name_ar'))
                     ->required()
                     ->maxLength(255),
-                TextInput::make('name_en')
-                    ->label(__('faculty.name_en'))
-                    ->maxLength(255),
                 Textarea::make('description')
                     ->label(__('faculty.description'))
                     ->columnSpanFull(),
@@ -30,4 +27,3 @@ class FacultyForm
             ]);
     }
 }
-

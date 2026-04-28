@@ -47,6 +47,14 @@ return [
     'help_title' => 'Lecture Sessions Import Instructions',
 'import_with_template' => 'Import Using Template',
     'template_download' => 'Download Template',
+    'template_date_prompt_title' => 'Date Format',
+    'template_date_prompt' => 'Enter date in format YYYY-MM-DD, example: 2026-04-28',
+    'template_date_error_title' => 'Invalid Date',
+    'template_date_error' => 'Enter a valid date in format YYYY-MM-DD.',
+    'template_time_prompt_title' => 'Time Format',
+    'template_time_prompt' => 'Enter time in 24-hour format HH:MM, example: 08:30',
+    'template_time_error_title' => 'Invalid Time',
+    'template_time_error' => 'Enter a valid time in 24-hour format HH:MM.',
     'import_excel' => 'Import Excel',
     'excel_file' => 'Excel File',
     'import_success' => 'Import Successful',
@@ -54,5 +62,4 @@ return [
 'no_lectures_today' => 'No lectures scheduled for today.',
     'todays_lectures' => 'Today\'s Lectures',
 ];
-
 

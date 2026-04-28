@@ -14,7 +14,6 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -40,40 +39,47 @@ class ViewStudent extends ViewRecord implements HasTable
             ->query($this->getAttendanceHistoryQuery())
             ->columns([
                 Tables\Columns\TextColumn::make('lectureSession.subject.name')
-                    ->label('Subject')
+                    ->label(__('attendance.subject'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('lectureSession.session_date')
-                    ->label('Attendance Date')
+                    ->label(__('attendance.attendance_date'))
                     ->date()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('Attendance Time')
+                    ->label(__('attendance.recorded_at'))
                     ->dateTime('H:i')
-                    ->sortable(),
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query
+                        ->orderBy('attendances.created_at', $direction)
+                        ->orderBy('attendances.id', $direction)),
                 Tables\Columns\TextColumn::make('lectureSession.hall.name')
-                    ->label('Hall')
+                    ->label(__('attendance.hall'))
                     ->sortable(),
                 Tables\Columns\TextColumn::make('lectureSession.lecturer.name')
-                    ->label('Lecturer')
+                    ->label(__('attendance.lecturer'))
                     ->sortable(),
-                Tables\Columns\BadgeColumn::make('status')
-                    ->label('Status')
+                Tables\Columns\BadgeColumn::make('attendance_status')
+                    ->label(__('attendance.status'))
+                    ->formatStateUsing(fn (?string $state): string => filled($state) ? __("attendance.status_{$state}") : '')
                     ->colors([
                         'success' => 'present',
                         'warning' => 'late',
                         'danger' => 'absent',
+                        'info' => 'excused',
+                        'gray' => 'pending',
                     ]),
             ])
             ->filters([
                 SelectFilter::make('subject')
-                    ->label('Subject')
+                    ->label(__('attendance.subject'))
                     ->relationship('lectureSession.subject', 'name'),
                 Tables\Filters\Filter::make('date_range')
-                    ->label('Date Range')
+                    ->label(__('attendance.date_range'))
                     ->form([
-                       DatePicker::make('date_from'),
-                      DatePicker::make('date_to'),
+                       DatePicker::make('date_from')
+                           ->label(__('attendance.date_from')),
+                       DatePicker::make('date_to')
+                           ->label(__('attendance.date_to')),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
@@ -86,21 +92,33 @@ class ViewStudent extends ViewRecord implements HasTable
                                 fn (Builder $q): Builder => $q->whereDate('lecture_sessions.session_date', '<=', $data['date_to']),
                             );
                     }),
-                TernaryFilter::make('status')
-                    ->label('Status'),
+                SelectFilter::make('attendance_status')
+                    ->label(__('attendance.status'))
+                    ->options([
+                        'present' => __('attendance.status_present'),
+                        'absent' => __('attendance.status_absent'),
+                        'late' => __('attendance.status_late'),
+                        'excused' => __('attendance.status_excused'),
+                        'pending' => __('attendance.status_pending'),
+                    ]),
             ])
             ->filtersLayout(FiltersLayout::AboveContentCollapsible)
-            ->defaultSort('recorded_at', 'desc')
+            ->emptyStateHeading(__('student.no_attendance_history'))
+            ->defaultSort(fn (Builder $query): Builder => $query
+                ->orderBy('attendances.created_at', 'desc')
+                ->orderBy('attendances.id', 'desc'))
             ->headerActions([
-                ExportBulkAction::make(),
+                ExportBulkAction::make()
+                    ->label(__('attendance.export_excel')),
             ]);
     }
 
     protected function getAttendanceHistoryQuery(): Builder
     {
         return Attendance::query()
+            ->select('attendances.*')
             ->with(['lectureSession' => fn (Relation $query) => $query->with(['subject', 'lecturer', 'hall'])])
-            ->where('student_id', $this->record->id)
+            ->where('attendances.student_id', $this->record->id)
             ->leftJoin('lecture_sessions', 'attendances.lecture_session_id', '=', 'lecture_sessions.id');
     }
 
@@ -111,4 +129,3 @@ class ViewStudent extends ViewRecord implements HasTable
         ];
     }
 }
-

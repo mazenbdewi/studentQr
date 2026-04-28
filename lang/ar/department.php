@@ -2,6 +2,7 @@
 
 return [
     'code'              => 'رمز القسم',
+    'name'              => 'الاسم',
     'name_ar'           => 'الاسم (عربي)',
     'name_en'           => 'الاسم (إنجليزي)',
     'faculty'           => 'الكلية',
@@ -33,4 +34,3 @@ return [
     'import_excel' => 'استيراد Excel',
     'excel_file' => 'ملف Excel',
 ];
-

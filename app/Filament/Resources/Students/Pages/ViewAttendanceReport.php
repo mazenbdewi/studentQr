@@ -109,9 +109,12 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
                         return $query->where('lecture_sessions.subject_id', $subjectId);
                     }),
                 Tables\Filters\Filter::make('date_range')
+                    ->label(__('attendance.date_range'))
                     ->form([
-                        DatePicker::make('date_from'),
-                        DatePicker::make('date_to'),
+                        DatePicker::make('date_from')
+                            ->label(__('attendance.date_from')),
+                        DatePicker::make('date_to')
+                            ->label(__('attendance.date_to')),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query

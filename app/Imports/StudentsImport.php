@@ -62,6 +62,7 @@ class StudentsImport implements ToModel, WithHeadingRow, WithValidation
             'name' => 'required|string|max:255',
             'student_number' => 'nullable|unique:students,student_number',
             'national_number' => 'nullable|unique:students,national_number',
+            'year' => 'nullable|integer|min:1|max:6',
             // 'faculty_id' => 'required|exists:faculties,id',
             // 'department_id' => 'required|exists:departments,id',
         ];
@@ -74,6 +75,8 @@ class StudentsImport implements ToModel, WithHeadingRow, WithValidation
             'name.max' => __('validation.name_max'),
             'student_number.unique' => __('validation.student_number_unique'),
             'national_number.unique' => __('validation.national_number_unique'),
+            'year.min' => 'السنة الدراسية يجب أن تكون رقمًا صحيحًا يبدأ من 1.',
+            'year.max' => 'السنة الدراسية أكبر من المسموح.',
             'faculty_id.required' => __('validation.faculty_required'),
             'faculty_id.exists' => __('validation.faculty_not_found_in_row', ['row' => ':row']),
             'department_id.required' => __('validation.department_required'),
@@ -87,6 +90,7 @@ class StudentsImport implements ToModel, WithHeadingRow, WithValidation
             'name' => __('validation.name'),
             'student_number' => __('validation.student_number'),
             'national_number' => __('validation.national_number'),
+            'year' => __('student.year'),
             'faculty_id' => __('validation.faculty'),
             'department_id' => __('validation.department'),
         ];

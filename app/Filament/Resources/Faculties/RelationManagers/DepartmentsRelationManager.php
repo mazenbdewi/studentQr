@@ -33,15 +33,15 @@ class DepartmentsRelationManager extends RelationManager
         return $table
             ->recordTitle(fn (Department $record) => $record->name)
             ->columns([
-                TextColumn::make('code')
-                    ->searchable()
-                    ->sortable(),
                 TextColumn::make('name')
+                    ->label(__('department.name_ar'))
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('faculty.name')
+                    ->label(__('department.faculty'))
                     ->badge(),
                 IconColumn::make('is_active')
+                    ->label(__('department.is_active'))
                     ->boolean(),
             ])
             ->filters([

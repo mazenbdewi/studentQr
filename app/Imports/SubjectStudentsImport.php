@@ -16,7 +16,7 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
 {
     public function __construct(
         private readonly int $subjectId,
-        private readonly ?int $semester = null,
+        private readonly ?string $semester = null,
         private readonly ?int $year = null,
     ) {}
 
@@ -56,7 +56,7 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
             $upsertRows[] = [
                 'student_id' => $student->id,
                 'subject_id' => $subject->id,
-                'semester' => $row['semester'] ?? $this->semester ?? $subject->semester,
+                'semester' => Subject::normalizeSemester($row['semester'] ?? $this->semester ?? $subject->semester),
                 'year' => $row['year'] ?? $this->year ?? $subject->level,
                 'status' => $row['status'] ?? Enrollment::STATUS_ENROLLED,
                 'created_at' => now(),
@@ -75,7 +75,7 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
     {
         return [
             'student_number' => ['required', 'max:20'],
-            'semester' => ['nullable', 'integer', Rule::in([1, 2])],
+            'semester' => ['nullable', Rule::in(array_keys(Subject::semesterOptions()))],
             'year' => ['nullable', 'integer', 'min:1', 'max:6'],
             'status' => ['nullable', Rule::in(array_keys(Enrollment::statusOptions()))],
         ];
@@ -90,7 +90,7 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
     {
         return [
             'student_number.required' => __('validation.student_number_required'),
-            'semester.in' => 'الفصل الدراسي يجب أن يكون 1 أو 2.',
+            'semester.in' => __('subjects.semester_invalid'),
             'year.min' => 'السنة الدراسية يجب أن تكون رقمًا صحيحًا يبدأ من 1.',
             'year.max' => 'السنة الدراسية أكبر من المسموح.',
             'status.in' => __('validation.in', ['attribute' => __('enrollments.status')]),
@@ -118,7 +118,7 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
         }
 
         if (isset($row['semester']) && filled($row['semester'])) {
-            $row['semester'] = (int) $row['semester'];
+            $row['semester'] = Subject::normalizeSemester($row['semester']);
         }
 
         if (isset($row['year']) && filled($row['year'])) {
