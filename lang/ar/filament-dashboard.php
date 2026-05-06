@@ -1,4 +1,5 @@
 <?php
+
 return [
     'navigation' => [
         'daily_operations' => 'العمليات اليومية',
@@ -22,10 +23,11 @@ return [
     'permissions' => 'الصلاحيات',
     'activity_logs' => 'سجلات النشاط',
     'qr_settings' => 'إعدادات رمز QR',
+    'database_backups' => 'نسخ قاعدة البيانات الاحتياطية',
     'import_help' => [
         'template_download' => 'تحميل القالب الجاهز',
         'import_with_template' => 'استيراد باستخدام القالب الجاهز',
-        
+
         'students' => [
             'help_title' => 'تعليمات استيراد الطلاب الجدد',
             'help_paragraph' => 'اتبع هذه الخطوات لاستيراد الطلاب بنجاح من ملف Excel. استخدم القالب المرفق لتجنب الأخطاء.',
@@ -80,7 +82,7 @@ return [
             'success_message' => 'تم ربط :count طالب بهذه المادة!',
             'failure_summary' => ':imported ناجح | :errors خطأ. تحقق من أرقام الطلاب.',
         ],
-        
+
         'preview_title' => 'مثال على محتوى القالب',
         'tips_title' => 'نصائح النجاح المضمون',
         'tips' => [
@@ -91,15 +93,14 @@ return [
             'unique_required' => 'الكود، رقم الطالب، الرقم الوطني مطلوب فريداً',
             'file_limit' => 'الحجم الأقصى 50 ميجابايت، CSV أو XLSX',
         ],
-        
+
         'stats' => [
             'imported' => ':count ناجح',
             'errors' => ':count خطأ',
             'download_errors' => '📥 تحميل ملف الأخطاء الكامل',
         ],
-        
+
         'import_students' => 'استيراد طلاب المادة',
         'import_students_template' => 'قالب طلاب :subject',
     ],
 ];
-?>

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\DatabaseBackupDownloadController;
 use App\Exports\Templates\StudentsTemplateExport;
 use App\Exports\Templates\DepartmentsTemplateExport;
 use App\Exports\Templates\SubjectsTemplateExport;
@@ -32,3 +33,7 @@ Route::get('/download-template/subject-students', function () {
     return Excel::download(new \App\Exports\Templates\SubjectStudentsTemplateExport(), 'subject_students_template.xlsx');
 })->name('admin.download-template.subject-students');
 
+Route::middleware('auth')
+    ->get('/admin/database-backups/download/{fileName}', DatabaseBackupDownloadController::class)
+    ->where('fileName', '[A-Za-z0-9._-]+')
+    ->name('admin.database-backups.download');

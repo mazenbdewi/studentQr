@@ -1,4 +1,5 @@
 <?php
+
 return [
     'navigation' => [
         'daily_operations' => 'Daily Operations',
@@ -22,10 +23,11 @@ return [
     'permissions' => 'Permissions',
     'activity_logs' => 'Activity Logs',
     'qr_settings' => 'QR Settings',
+    'database_backups' => 'Database Backups',
     'import_help' => [
         'template_download' => 'Download Ready Template',
         'import_with_template' => 'Import Using Template',
-        
+
         'students' => [
             'help_title' => 'New Students Import Guide',
             'help_paragraph' => 'Follow these steps to successfully import students from Excel file. Use the provided template to avoid errors.',
@@ -80,7 +82,7 @@ return [
             'success_message' => ':count students linked to this subject!',
             'failure_summary' => ':imported success | :errors errors. Verify student numbers.',
         ],
-        
+
         'preview_title' => 'Template Content Preview',
         'tips_title' => 'Guaranteed Success Tips',
         'tips' => [
@@ -91,15 +93,14 @@ return [
             'unique_required' => 'Code, Student Number, National ID must be unique',
             'file_limit' => 'Max file size 50 MB, CSV or XLSX',
         ],
-        
+
         'stats' => [
             'imported' => ':count success',
             'errors' => ':count errors',
             'download_errors' => '📥 Download Full Errors File',
         ],
-        
+
         'import_students' => 'Import Subject Students',
         'import_students_template' => ':subject Students Template',
     ],
 ];
-?>

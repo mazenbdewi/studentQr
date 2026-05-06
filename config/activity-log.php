@@ -33,5 +33,6 @@ return [
         'faculties' => true,
         'halls' => true,
         'users' => true,
+        'backups' => true,
     ],
 ];

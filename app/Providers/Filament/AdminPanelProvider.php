@@ -3,10 +3,12 @@
 namespace App\Providers\Filament;
 
 use Andreia\FilamentNordTheme\FilamentNordThemePlugin;
+use App\Filament\Pages\DatabaseBackups;
 use App\Filament\Pages\PortalSettings;
-use App\Filament\Resources\AuditLogs\AuditLogResource;
 use App\Filament\Resources\Attendances\AttendanceResource;
+use App\Filament\Resources\AuditLogs\AuditLogResource;
 use App\Filament\Resources\Departments\DepartmentResource;
+use App\Filament\Resources\Faculties\FacultyResource;
 use App\Filament\Resources\FailedAttempts\FailedAttemptResource;
 use App\Filament\Resources\Halls\HallResource;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
@@ -14,7 +16,6 @@ use App\Filament\Resources\StudentDevices\StudentDeviceResource;
 use App\Filament\Resources\Students\StudentResource;
 use App\Filament\Resources\Subjects\SubjectResource;
 use App\Filament\Resources\Users\UserResource;
-use App\Filament\Resources\Faculties\FacultyResource;
 use App\Http\Middleware\SetAdminLocale;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Actions\Action;
@@ -26,9 +27,6 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets\AccountWidget;
-use Filament\Widgets\FilamentInfoWidget;
-use Filament\Widgets\StatsOverviewWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -72,6 +70,7 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
                 PortalSettings::class,
+                DatabaseBackups::class,
             ])
             ->widgets([
                 \App\Filament\Widgets\TodaysLecturesWidget::class,

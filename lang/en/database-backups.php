@@ -1,0 +1,24 @@
+<?php
+
+return [
+    'title' => 'Database Backups',
+    'create_now' => 'Create Backup Now',
+    'latest_backup' => 'Latest Backup',
+    'previous_backups' => 'Previous Backups',
+    'file_name' => 'File name',
+    'created_date' => 'Created date',
+    'file_size' => 'File size',
+    'actions' => 'Actions',
+    'download' => 'Download',
+    'download_now' => 'Download now',
+    'delete' => 'Delete',
+    'no_backups' => 'No database backups have been created yet.',
+    'created_success_title' => 'Backup created',
+    'created_success_body' => 'The database backup was created successfully. You can download it now.',
+    'created_failed_title' => 'Backup could not be created',
+    'created_failed_body' => 'The database backup could not be created. Please try again or contact support.',
+    'deleted_success' => 'The database backup was deleted.',
+    'deleted_failed_title' => 'Backup could not be deleted',
+    'deleted_failed_body' => 'The database backup could not be deleted. Please try again.',
+    'delete_confirmation' => 'Are you sure you want to delete this database backup?',
+];
