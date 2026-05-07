@@ -56,6 +56,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandLogo(asset('images/logo.png'))
             ->brandLogoHeight('3rem')
             ->favicon(asset('images/favicon.ico'))
+            ->viteTheme('resources/css/filament/admin/theme.css')
             // Only show specific resources - hide: Attendances, FailedAttempts, StudentDevices
             ->resources([
                 LectureSessionResource::class,

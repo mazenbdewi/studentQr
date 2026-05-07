@@ -1,5 +1,13 @@
 @import '../../../../vendor/filament/filament/resources/css/theme.css';
 
+@source '../../../../app/Filament/**/*.php';
+@source '../../../../app/Livewire/**/*.php';
+@source '../../../../app/View/**/*.php';
+@source '../../../../resources/views/**/*.blade.php';
+@source '../../../../resources/js/**/*.js';
+@source '../../../../vendor/filament/**/*.blade.php';
+@source '../../../../vendor/filament/**/*.php';
+
 
 
 :root {
@@ -118,10 +126,50 @@ textarea:focus {
 
 
 
-.fi-dropdown-panel {
+html.dark .fi-dropdown-panel {
     background: #0b1120 !important;
+    color: #f9fafb !important;
     border: 1px solid rgba(255,255,255,0.04);
     border-radius: 16px !important;
+}
+
+html.dark .fi-dropdown-panel[role="listbox"],
+html.dark .fi-select-input .fi-dropdown-panel {
+    background: #0b1120 !important;
+    background-color: #0b1120 !important;
+    color: #f9fafb !important;
+}
+
+html.dark .fi-select-input .fi-select-input-search-ctn,
+html.dark .fi-select-input .fi-dropdown-panel .fi-input {
+    background: #0b1120 !important;
+    background-color: #0b1120 !important;
+    color: #f9fafb !important;
+    -webkit-text-fill-color: #f9fafb !important;
+}
+
+html.dark .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item,
+html.dark .fi-dropdown-panel[role="listbox"] .fi-select-input-option,
+html.dark .fi-dropdown-panel[role="listbox"] [role="option"],
+html.dark .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item > span,
+html.dark .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item-label {
+    color: #f9fafb !important;
+}
+
+html.dark .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item:not(.fi-disabled):not([disabled]):hover,
+html.dark .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item:not(.fi-disabled):not([disabled]):focus,
+html.dark .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item:not(.fi-disabled):not([disabled]):focus-visible,
+html.dark .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item.fi-selected,
+html.dark .fi-dropdown-panel[role="listbox"] .fi-selected,
+html.dark .fi-dropdown-panel[role="listbox"] [role="option"][aria-selected="true"] {
+    background: #1e293b !important;
+    background-color: #1e293b !important;
+    color: #ffffff !important;
+}
+
+html.dark .fi-dropdown-panel[role="listbox"] .fi-selected > span,
+html.dark .fi-dropdown-panel[role="listbox"] [role="option"][aria-selected="true"] > span {
+    color: #ffffff !important;
 }
 
 
@@ -205,4 +253,88 @@ html:not(.dark) select:focus,
 html:not(.dark) textarea:focus {
     border-color: #1e40af !important;
     box-shadow: 0 0 0 3px rgba(30,64,175,0.15) !important;
+}
+
+html:not(.dark) .fi-dropdown-panel,
+html:not(.dark) .fi-select-input .fi-dropdown-panel,
+html:not(.dark) .fi-dropdown-panel[role="listbox"],
+html:not(.dark) .choices__list--dropdown,
+html:not(.dark) .choices__list[aria-expanded] {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: 0 12px 24px rgba(15,23,42,0.12) !important;
+}
+
+html:not(.dark) .fi-select-input .fi-select-input-search-ctn,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-select-input-search-ctn,
+html:not(.dark) .choices__list--dropdown .choices__input,
+html:not(.dark) .choices__list[aria-expanded] .choices__input {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #111827 !important;
+}
+
+html:not(.dark) .fi-select-input .fi-dropdown-panel .fi-input,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-input,
+html:not(.dark) .choices__input {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    -webkit-text-fill-color: #111827 !important;
+}
+
+html:not(.dark) .fi-select-input .fi-dropdown-header,
+html:not(.dark) .fi-select-input .fi-select-input-message,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-dropdown-header,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-select-input-message,
+html:not(.dark) .choices__group {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #4b5563 !important;
+}
+
+html:not(.dark) .fi-select-input .fi-dropdown-list-item,
+html:not(.dark) .fi-select-input .fi-select-input-option,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-select-input-option,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] [role="option"],
+html:not(.dark) .choices__item--choice.choices__item--selectable {
+    color: #111827 !important;
+}
+
+html:not(.dark) .fi-select-input .fi-dropdown-list-item > span,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item > span,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item-label,
+html:not(.dark) .choices__item--choice.choices__item--selectable {
+    color: inherit !important;
+}
+
+html:not(.dark) .fi-select-input .fi-dropdown-list-item:not(.fi-disabled):not([disabled]):hover,
+html:not(.dark) .fi-select-input .fi-dropdown-list-item:not(.fi-disabled):not([disabled]):focus,
+html:not(.dark) .fi-select-input .fi-dropdown-list-item:not(.fi-disabled):not([disabled]):focus-visible,
+html:not(.dark) .fi-select-input .fi-dropdown-list-item.fi-selected,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item:not(.fi-disabled):not([disabled]):hover,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item:not(.fi-disabled):not([disabled]):focus,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item:not(.fi-disabled):not([disabled]):focus-visible,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-dropdown-list-item.fi-selected,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-selected,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] [role="option"][aria-selected="true"],
+html:not(.dark) .choices__list--dropdown .choices__item--selectable.is-highlighted,
+html:not(.dark) .choices__list[aria-expanded] .choices__item--selectable.is-highlighted {
+    background: #eff6ff !important;
+    background-color: #eff6ff !important;
+    color: #1e3a8a !important;
+}
+
+html:not(.dark) .fi-dropdown-panel[role="listbox"] .fi-selected > span,
+html:not(.dark) .fi-dropdown-panel[role="listbox"] [role="option"][aria-selected="true"] > span {
+    color: #1e3a8a !important;
+}
+
+html:not(.dark) select.fi-select-input option,
+html:not(.dark) select.fi-select-input optgroup {
+    background: #ffffff !important;
+    color: #111827 !important;
 }

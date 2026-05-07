@@ -6,7 +6,6 @@ use App\Filament\Resources\Students\StudentResource;
 use App\Models\Subject;
 use App\Support\StudentAttendancePdfExporter;
 use App\Support\StudentAttendanceReport;
-use Filament\Actions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Tables;
@@ -17,6 +16,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ViewAttendanceReport extends ViewRecord implements HasTable
 {
@@ -29,6 +29,8 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
     public function mount($record): void
     {
         parent::mount($record);
+
+        $this->record->loadMissing(['department', 'faculty']);
     }
 
     public function getTitle(): string
@@ -38,16 +40,7 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
 
     public function getHeaderActions(): array
     {
-        return [
-            Actions\Action::make('export_pdf')
-                ->label(__('student.export_pdf'))
-                ->icon('heroicon-o-document-arrow-down')
-                ->color('danger')
-                ->action(fn () => app(StudentAttendancePdfExporter::class)->download(
-                    $this->record,
-                    $this->getSelectedSubject()?->id,
-                )),
-        ];
+        return [];
     }
 
     public function table(Table $table): Table
@@ -78,6 +71,7 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
                 Tables\Columns\TextColumn::make('attendance_recorded_at')
                     ->label(__('attendance.recorded_at'))
                     ->dateTime()
+                    ->placeholder(__('lecture-session.not_available'))
                     ->sortable()
                     ->toggleable(),
             ])
@@ -141,8 +135,17 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
                     }),
             ])
             ->filtersLayout(FiltersLayout::AboveContentCollapsible)
-            ->emptyStateHeading(__('student.no_attendance_history'))
+            ->emptyStateHeading(__('student.no_attendance_records'))
+            ->emptyStateIcon('heroicon-o-calendar-days')
             ->defaultSort('session_date', 'desc');
+    }
+
+    public function exportPdf(): StreamedResponse
+    {
+        return app(StudentAttendancePdfExporter::class)->download(
+            $this->record,
+            $this->getSelectedSubject()?->id,
+        );
     }
 
     public function getSummary(): array
@@ -161,6 +164,15 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
     public function getSelectedSubjectLabel(): string
     {
         return $this->getSelectedSubject()?->name ?? __('enrollments.enrolled_subjects');
+    }
+
+    public function getReportSubjectLabels(): array
+    {
+        if ($selectedSubject = $this->getSelectedSubject()) {
+            return [$selectedSubject->name];
+        }
+
+        return array_values($this->getAttendanceReport()->subjectOptions($this->record));
     }
 
     private function getAttendanceReport(): StudentAttendanceReport

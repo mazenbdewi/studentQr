@@ -63,6 +63,9 @@ class StudentAttendancePdfExporter
             'selectedSubject' => $selectedSubject,
             'rows' => $rows,
             'summary' => $summary,
+            'subjectLabels' => $selectedSubject
+                ? [$selectedSubject->name]
+                : array_values($this->report->subjectOptions($student)),
             'generatedAt' => $generatedAt,
             'isRtl' => $isRtl,
             'logoDataUri' => $this->logoDataUri(),

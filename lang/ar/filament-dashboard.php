@@ -6,7 +6,7 @@ return [
         'academic_data' => 'البيانات الأكاديمية',
         'imports_exports' => 'الاستيراد والتصدير',
         'administration' => 'الإدارة',
-        'settings' => 'الإعدادات',
+        'settings' => 'البرنامج',
     ],
     'lecture_sessions' => 'جلسات المحاضرات',
     'students' => 'الطلاب',

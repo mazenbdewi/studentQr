@@ -6,7 +6,7 @@ return [
         'academic_data' => 'Academic Data',
         'imports_exports' => 'Imports & Exports',
         'administration' => 'Administration',
-        'settings' => 'Settings',
+        'settings' => 'Program',
     ],
     'lecture_sessions' => 'Lecture Sessions',
     'students' => 'Students',

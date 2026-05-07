@@ -78,6 +78,7 @@ it('renders the attendance pdf template with rtl layout and the uploaded univers
         'selectedSubject' => $subjects['primary'],
         'rows' => $rows,
         'summary' => app(StudentAttendanceReport::class)->summaryFromRows($rows),
+        'subjectLabels' => [$subjects['primary']->name],
         'generatedAt' => Carbon::parse('2026-04-17 10:00:00'),
         'isRtl' => true,
         'logoDataUri' => 'data:image/png;base64,'.base64_encode(file_get_contents($logoPath)),

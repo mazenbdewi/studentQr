@@ -1,8 +1,12 @@
-module.exports = {
+export default {
     content: [
-        "./resources/**/*.blade.php",
-        "./resources/**/*.js",
-        "./vendor/filament/**/*.blade.php",
+        './app/Filament/**/*.php',
+        './app/Livewire/**/*.php',
+        './app/View/**/*.php',
+        './resources/**/*.blade.php',
+        './resources/**/*.js',
+        './vendor/filament/**/*.blade.php',
+        './vendor/filament/**/*.php',
     ],
     theme: {
         extend: {
@@ -11,7 +15,5 @@ module.exports = {
             },
         },
     },
-    plugins: [
-        require('@tailwindcss/forms'),
-    ],
-}
+    plugins: [],
+};
