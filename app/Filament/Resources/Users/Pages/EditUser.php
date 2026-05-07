@@ -58,7 +58,7 @@ class EditUser extends EditRecord
 
         unset($data['pin_code_plain'], $data['pin_code_plain_confirmation']);
 
-        $data['type'] = $data['role'] === 'super_admin' ? 'admin' : 'lecturer';
+        $data['type'] = in_array($data['role'], ['super_admin', 'admin'], true) ? 'admin' : 'lecturer';
 
         if ($data['role'] !== 'course_lecturer') {
             $data['title'] = null;

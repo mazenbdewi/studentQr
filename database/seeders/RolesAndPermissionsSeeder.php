@@ -149,6 +149,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'force_delete_any_user',
             'replicate_user',
             'reorder_user',
+            'view_database_backup',
+            'create_database_backup',
+            'download_database_backup',
+            'delete_database_backup',
+            'view_activity_log',
         ]);
 
         collect([
@@ -182,11 +187,56 @@ class RolesAndPermissionsSeeder extends Seeder
 
 
         $superAdminRole = Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
+        $adminRole = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
         $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $lecturerRole = Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
 
 
         $superAdminRole->syncPermissions(Permission::all());
+
+        $adminRole->syncPermissions(
+            Permission::query()
+                ->whereNotIn('name', [
+                    'view_users',
+                    'create_users',
+                    'edit_users',
+                    'delete_users',
+                    'import_users',
+                    'export_users',
+                    'activate_users',
+                    'block_users',
+                    'view_system_users',
+                    'create_system_users',
+                    'edit_system_users',
+                    'delete_system_users',
+                    'view_roles',
+                    'create_roles',
+                    'edit_roles',
+                    'delete_roles',
+                    'view_permissions',
+                    'assign_permissions',
+                    'view_any_user',
+                    'view_user',
+                    'create_user',
+                    'update_user',
+                    'delete_user',
+                    'delete_any_user',
+                    'restore_user',
+                    'restore_any_user',
+                    'force_delete_user',
+                    'force_delete_any_user',
+                    'replicate_user',
+                    'reorder_user',
+                    'view_audit_logs',
+                    'view_activity_log',
+                    'view_database_backup',
+                    'create_database_backup',
+                    'download_database_backup',
+                    'delete_database_backup',
+                ])
+                ->pluck('name')
+                ->all()
+        );
 
 
         $managerRole->syncPermissions([
@@ -239,7 +289,25 @@ class RolesAndPermissionsSeeder extends Seeder
             $superAdmin->restore();
         }
 
-        $superAdmin->assignRole('super-admin');
+        $superAdmin->syncRoles(['super-admin']);
+
+        $admin = User::withTrashed()->updateOrCreate(
+            ['email' => 'admin@uni.edu'],
+            [
+                'name' => 'Admin',
+                'password' => Hash::make('123'),
+                'role' => 'admin',
+                'type' => 'admin',
+                'status' => 'active',
+                'is_active' => true,
+            ]
+        );
+
+        if ($admin->trashed()) {
+            $admin->restore();
+        }
+
+        $admin->syncRoles(['admin']);
 
 
         $lecturer = User::withTrashed()->updateOrCreate(
@@ -259,7 +327,7 @@ class RolesAndPermissionsSeeder extends Seeder
             $lecturer->restore();
         }
 
-        $lecturer->assignRole('course_lecturer');
+        $lecturer->syncRoles(['course_lecturer']);
 
 
         $manager = User::withTrashed()->updateOrCreate(
@@ -279,7 +347,7 @@ class RolesAndPermissionsSeeder extends Seeder
             $manager->restore();
         }
 
-        $manager->assignRole('manager');
+        $manager->syncRoles(['manager']);
 
         collect([
             [

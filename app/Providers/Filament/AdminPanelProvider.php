@@ -6,6 +6,7 @@ use Andreia\FilamentNordTheme\FilamentNordThemePlugin;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\DatabaseBackups;
 use App\Filament\Pages\PortalSettings;
+use App\Filament\Pages\UserGuide;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\AuditLogs\AuditLogResource;
 use App\Filament\Resources\Departments\DepartmentResource;
@@ -74,6 +75,7 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
                 PortalSettings::class,
+                UserGuide::class,
                 DatabaseBackups::class,
             ])
             ->widgets([

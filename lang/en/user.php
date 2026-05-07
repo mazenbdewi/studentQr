@@ -26,6 +26,7 @@ return [
     'role' => 'Role',
     'role_permissions_help' => 'Permissions are inherited from the selected role via the existing roles system.',
     'super_admin' => 'Super Admin',
+    'admin' => 'Admin',
     'course_lecturer' => 'Course Lecturer',
     'deleted_at' => 'Deleted At',
 

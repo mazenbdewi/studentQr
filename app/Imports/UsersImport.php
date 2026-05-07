@@ -34,7 +34,7 @@ class UsersImport implements OnEachRow, WithHeadingRow, WithValidation
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
             'role' => $data['role'],
-            'type' => $data['role'] === 'super_admin' ? 'admin' : 'lecturer',
+            'type' => in_array($data['role'], ['super_admin', 'admin'], true) ? 'admin' : 'lecturer',
             'status' => 'active',
         ]);
 

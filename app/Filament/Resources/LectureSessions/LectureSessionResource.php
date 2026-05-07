@@ -387,7 +387,7 @@ class LectureSessionResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['super-admin', 'manager', 'course_lecturer']);
+        return auth()->user()->hasAnyRole(['super-admin', 'admin', 'manager', 'course_lecturer']);
     }
 
     public static function scopeSubjectQueryForCurrentUser(Builder $query): Builder

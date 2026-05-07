@@ -60,10 +60,39 @@ class User extends Authenticatable implements FilamentUser
         return filled($this->getRawOriginal('pin_code'));
     }
 
+    public function isSuperAdmin(): bool
+    {
+        return $this->email === 'super@admin.com'
+            || $this->role === 'super_admin'
+            || $this->hasRole(['super-admin', 'super_admin']);
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin'
+            || $this->hasRole('admin');
+    }
+
+    public function canManageUsers(): bool
+    {
+        return $this->isSuperAdmin();
+    }
+
+    public function canManageBackups(): bool
+    {
+        return $this->isSuperAdmin();
+    }
+
+    public function canViewActivityLogs(): bool
+    {
+        return $this->isSuperAdmin();
+    }
+
     public function canAccessFilament(): bool
     {
         return $this->hasAnyRole([
             'super-admin',
+            'admin',
             'course_lecturer',
             'manager',
         ]);
@@ -71,7 +100,7 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessPanel(\Filament\Panel $panel): bool
     {
-        return $this->email === 'super@admin.com' || $this->hasRole(['super-admin', 'manager', 'course_lecturer']);
+        return $this->isSuperAdmin() || $this->hasRole(['admin', 'manager', 'course_lecturer']);
     }
 
     public function syncSystemRole(string $role): void
@@ -83,6 +112,8 @@ class User extends Authenticatable implements FilamentUser
     {
         return match ($role) {
             'super_admin' => 'super-admin',
+            'attendance_monitor' => 'manager',
+            'admin' => 'admin',
             'course_lecturer' => 'course_lecturer',
             default => $role,
         };

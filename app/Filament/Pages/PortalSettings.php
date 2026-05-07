@@ -34,14 +34,7 @@ class PortalSettings extends Page implements HasForms
     {
         $user = Filament::auth()->user();
 
-        if (! $user) {
-            return false;
-        }
-
-        return $user->email === 'super@admin.com'
-            || $user->role === 'super_admin'
-            || $user->hasRole('super-admin')
-            || $user->hasRole('super_admin');
+        return (bool) $user?->isSuperAdmin();
     }
 
     public static function getNavigationGroup(): ?string

@@ -106,6 +106,6 @@ class StudentResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['super-admin', 'manager']);
+        return auth()->user()->hasAnyRole(['super-admin', 'admin', 'manager']);
     }
 }

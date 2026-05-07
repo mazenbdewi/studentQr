@@ -1,9 +1,12 @@
 <?php
 
 use App\Http\Middleware\ForceJsonResponseMiddleware;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -37,5 +40,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (AuthorizationException|AccessDeniedHttpException $exception, Request $request) {
+            if ($request->expectsJson()) {
+                return null;
+            }
+
+            return response(__('auth.access_denied_page'), 403);
+        });
     })->create();

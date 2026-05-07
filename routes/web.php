@@ -182,7 +182,7 @@ Route::get('/', function () {
         $user = auth()->user();
 
         return match (true) {
-            $user->hasRole('super-admin') => redirect('/admin'),
+            $user->hasAnyRole(['super-admin', 'admin']) => redirect('/admin'),
             $user->hasRole('course_lecturer') => redirect('/teacher'),
             $user->hasRole('manager') => redirect('/manager'),
             default => redirect('/login')

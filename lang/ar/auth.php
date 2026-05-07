@@ -29,6 +29,7 @@ return [
     'pin_verify_title' => 'تأكيد رمز PIN',
     'pin_verify_help' => 'أدخل رمز PIN الخاص بحسابك لإكمال الدخول إلى لوحة التحكم.',
     'pin_verify_action' => 'تحقق',
+    'access_denied_page' => 'ليس لديك صلاحية للوصول إلى هذه الصفحة.',
     'logout' => 'تسجيل الخروج',
 
     'login_as_optional'=>'الدخول بصفة (اختياري)',

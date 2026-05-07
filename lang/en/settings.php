@@ -2,8 +2,8 @@
 
 return [
     'navigation_group' => 'Settings',
-    'navigation_label' => 'QR Settings',
-    'title' => 'QR Settings',
+    'navigation_label' => 'Settings',
+    'title' => 'Settings',
     'qr_section_title' => 'QR Settings',
     'qr_section_description' => 'Manage the base URL used when QR attendance links are generated.',
     'qr_base_url' => 'QR base URL',

@@ -117,7 +117,7 @@ class PinVerificationController extends Controller
     private function dashboardPath($user): string
     {
         return match (true) {
-            $user?->hasRole('super-admin') => '/admin',
+            $user?->hasAnyRole(['super-admin', 'admin']) => '/admin',
             $user?->hasRole('course_lecturer') => '/teacher',
             $user?->hasRole('manager') => '/manager',
             $user?->hasRole('student') => '/student',

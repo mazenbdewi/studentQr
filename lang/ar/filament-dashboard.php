@@ -22,7 +22,8 @@ return [
     'roles' => 'الأدوار',
     'permissions' => 'الصلاحيات',
     'activity_logs' => 'سجلات النشاط',
-    'qr_settings' => 'إعدادات رمز QR',
+    'qr_settings' => 'إعدادات',
+    'user_guide' => 'دليل الاستخدام',
     'database_backups' => 'نسخ قاعدة البيانات الاحتياطية',
     'import_help' => [
         'template_download' => 'تحميل القالب الجاهز',

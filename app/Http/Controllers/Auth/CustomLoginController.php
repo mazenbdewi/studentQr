@@ -99,7 +99,7 @@ class CustomLoginController extends Controller
         $request->validate([
             'login' => 'required|string',
             'password' => 'required|string',
-            'role' => 'nullable|in:super-admin,lecturer,manager',
+            'role' => 'nullable|in:super-admin,admin,lecturer,manager',
         ]);
 
         $throttleKey = $this->throttleKey($request);
@@ -152,6 +152,7 @@ class CustomLoginController extends Controller
 
             $map = [
                 'super-admin' => 'super-admin',
+                'admin' => 'admin',
                 'lecturer' => 'course_lecturer',
                 'manager' => 'manager',
             ];
@@ -218,7 +219,7 @@ class CustomLoginController extends Controller
     private function dashboardPath(User $user): string
     {
         return match (true) {
-            $user->hasRole('super-admin') => '/admin',
+            $user->hasAnyRole(['super-admin', 'admin']) => '/admin',
             $user->hasRole('course_lecturer') => '/teacher',
             $user->hasRole('manager') => '/manager',
             $user->hasRole('student') => '/student',

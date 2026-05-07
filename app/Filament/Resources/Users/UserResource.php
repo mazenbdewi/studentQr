@@ -64,6 +64,7 @@ class UserResource extends Resource
     {
         return [
             'super_admin' => __('user.super_admin'),
+            'admin' => __('user.admin'),
             'course_lecturer' => __('user.course_lecturer'),
         ];
     }
@@ -72,9 +73,7 @@ class UserResource extends Resource
     {
         $user ??= Filament::auth()->user();
 
-        return (bool) ($user?->email === 'super@admin.com'
-            || $user?->role === 'super_admin'
-            || $user?->hasRole('super-admin'));
+        return (bool) $user?->isSuperAdmin();
     }
 
     public static function getDetectedSystemRoleNames(): array
@@ -163,5 +162,50 @@ class UserResource extends Resource
     public static function canAccess(): bool
     {
         return static::canViewAny();
+    }
+
+    public static function canViewAny(): bool
+    {
+        return Filament::auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canCreate(): bool
+    {
+        return Filament::auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canEdit($record): bool
+    {
+        return Filament::auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canDelete($record): bool
+    {
+        return Filament::auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return Filament::auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canForceDelete($record): bool
+    {
+        return Filament::auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canForceDeleteAny(): bool
+    {
+        return Filament::auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canRestore($record): bool
+    {
+        return Filament::auth()->user()?->canManageUsers() ?? false;
+    }
+
+    public static function canRestoreAny(): bool
+    {
+        return Filament::auth()->user()?->canManageUsers() ?? false;
     }
 }

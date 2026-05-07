@@ -61,7 +61,17 @@ class AuditLogResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasRole('super-admin');
+        return auth()->user()?->canViewActivityLogs() ?? false;
+    }
+
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->canViewActivityLogs() ?? false;
+    }
+
+    public static function canView($record): bool
+    {
+        return auth()->user()?->canViewActivityLogs() ?? false;
     }
 
     public static function canCreate(): bool

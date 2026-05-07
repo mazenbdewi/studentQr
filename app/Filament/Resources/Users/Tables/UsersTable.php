@@ -31,6 +31,7 @@ class UsersTable
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => match ($state) {
                         'super_admin' => __('user.super_admin'),
+                        'admin' => __('user.admin'),
                         'course_lecturer' => __('user.course_lecturer'),
                         default => (string) $state,
                     }),

@@ -17,6 +17,7 @@ return [
     'pin_verify_title' => 'PIN verification',
     'pin_verify_help' => 'Enter your account PIN code to continue to the dashboard.',
     'pin_verify_action' => 'Verify PIN',
+    'access_denied_page' => 'You do not have permission to access this page.',
     'remember_me' => 'Remember Me',
     'login' => 'Login',
     'role_optional' => 'Login as (optional)',

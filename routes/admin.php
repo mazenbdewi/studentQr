@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\UserGuideDownloadController;
 use App\Http\Controllers\Admin\DatabaseBackupDownloadController;
 use App\Exports\Templates\StudentsTemplateExport;
 use App\Exports\Templates\DepartmentsTemplateExport;
@@ -37,3 +38,7 @@ Route::middleware('auth')
     ->get('/admin/database-backups/download/{fileName}', DatabaseBackupDownloadController::class)
     ->where('fileName', '[A-Za-z0-9._-]+')
     ->name('admin.database-backups.download');
+
+Route::middleware(['auth', 'pin.verified'])
+    ->get('/admin/user-guide/download', UserGuideDownloadController::class)
+    ->name('admin.user-guide.download');

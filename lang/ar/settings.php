@@ -2,8 +2,8 @@
 
 return [
     'navigation_group' => 'الإعدادات',
-    'navigation_label' => 'إعدادات QR',
-    'title' => 'إعدادات QR',
+    'navigation_label' => 'إعدادات',
+    'title' => 'إعدادات',
     'qr_section_title' => 'إعدادات رمز QR',
     'qr_section_description' => 'إدارة الرابط الأساسي المستخدم عند إنشاء روابط الحضور عبر رمز QR.',
     'qr_base_url' => 'الرابط الأساسي لرمز QR',

@@ -111,6 +111,6 @@ class DepartmentResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasRole('super-admin');
+        return auth()->user()?->isSuperAdmin() || auth()->user()?->isAdmin();
     }
 }

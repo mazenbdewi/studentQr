@@ -20,14 +20,7 @@ class DatabaseBackupService
 
     public function canManageBackups(?User $user): bool
     {
-        if (! $user) {
-            return false;
-        }
-
-        return $user->email === 'super@admin.com'
-            || $user->role === 'super_admin'
-            || $user->hasRole('super-admin')
-            || $user->hasRole('super_admin');
+        return (bool) $user?->canManageBackups();
     }
 
     public function create(User $user): array

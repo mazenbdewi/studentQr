@@ -23,6 +23,7 @@ return [
     'permissions' => 'Permissions',
     'activity_logs' => 'Activity Logs',
     'qr_settings' => 'QR Settings',
+    'user_guide' => 'دليل الاستخدام',
     'database_backups' => 'Database Backups',
     'import_help' => [
         'template_download' => 'Download Ready Template',
