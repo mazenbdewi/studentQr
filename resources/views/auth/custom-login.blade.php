@@ -134,6 +134,12 @@
         border-color: var(--danger-border);
     }
 
+    .alert-info {
+        background: #eff6ff;
+        color: #1e3a8a;
+        border-color: #bfdbfe;
+    }
+
     .alert ul {
         margin: 0;
         padding: 0 18px 0 0;
@@ -183,6 +189,13 @@
         margin-top: 8px;
         color: var(--danger);
         font-size: 0.88rem;
+        line-height: 1.6;
+    }
+
+    .helper-text {
+        margin-top: 6px;
+        color: #64748b;
+        font-size: 0.84rem;
         line-height: 1.6;
     }
 
@@ -356,16 +369,26 @@
             </div>
             @endif
 
+            @unless($pinLoginEnabled ?? false)
+            <div class="alert alert-info">
+                {{ __('settings.pin_login_disabled') }}
+            </div>
+            @endunless
+
             <form method="POST" action="{{ route('login') }}">
                 @csrf
 
                 <div class="form-group">
-                    <label for="email" class="label">
-                        {{ __('auth.email') }}
+                    <label for="login" class="label">
+                        {{ __('auth.login_identifier') }}
                     </label>
 
-                    <input id="email" type="email" name="email" value="{{ old('email') }}" required autocomplete="email"
-                        class="input {{ $errors->has('email') ? 'is-invalid' : '' }}" placeholder="example@uni.edu">
+                    <input id="login" type="text" name="login" value="{{ old('login', old('email')) }}" required autocomplete="username"
+                        class="input {{ $errors->has('login') || $errors->has('email') ? 'is-invalid' : '' }}" placeholder="example@uni.edu">
+
+                    @error('login')
+                    <div class="field-error">{{ $message }}</div>
+                    @enderror
 
                     @error('email')
                     <div class="field-error">{{ $message }}</div>

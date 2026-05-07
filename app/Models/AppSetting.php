@@ -25,4 +25,20 @@ class AppSetting extends Model
             ['value' => $value],
         );
     }
+
+    public static function boolean(string $key, bool $default = false): bool
+    {
+        $value = static::value($key);
+
+        if ($value === null) {
+            return $default;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public static function putBoolean(string $key, bool $value): self
+    {
+        return static::put($key, $value ? '1' : '0');
+    }
 }

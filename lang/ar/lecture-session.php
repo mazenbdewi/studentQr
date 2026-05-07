@@ -70,6 +70,6 @@ return [
     'import_failed' => 'فشل الاستيراد',
 'no_lectures_today' => 'لا توجد محاضرات مجدولة لليوم.',
     'todays_lectures' => 'محاضرات اليوم',
+    'subject_not_assigned_to_lecturer' => 'لا يمكنك إنشاء جلسة لهذه المادة لأنها غير مرتبطة بحسابك.',
 
 ];
-

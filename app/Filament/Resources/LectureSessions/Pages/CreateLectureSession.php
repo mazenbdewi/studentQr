@@ -10,6 +10,10 @@ class CreateLectureSession extends CreateRecord
 {
     protected static string $resource = LectureSessionResource::class;
 
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        return LectureSessionResource::ensureSubjectCanBeUsedByCurrentUser($data);
+    }
 
     protected function afterCreate(): void
     {

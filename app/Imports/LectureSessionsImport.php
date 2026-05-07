@@ -22,6 +22,10 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
     public function __construct()
     {
         $this->subjects = Subject::query()
+            ->when(
+                auth()->user()?->hasRole('course_lecturer'),
+                fn ($query) => $query->where('lecturer_id', auth()->id()),
+            )
             ->get(['id', 'name', 'code', 'lecturer_id'])
             ->flatMap(function ($subject) {
                 $map = [];
@@ -150,7 +154,9 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
         if (! empty($data['subject_name'])) {
             if (! isset($this->subjects[$data['subject_name']])) {
                 throw ValidationException::withMessages([
-                    'subject_name' => "المادة '{$data['subject_name']}' غير موجودة في الصف {$rowNumber}.",
+                    'subject_name' => auth()->user()?->hasRole('course_lecturer')
+                        ? __('lecture-session.subject_not_assigned_to_lecturer')
+                        : "المادة '{$data['subject_name']}' غير موجودة في الصف {$rowNumber}.",
                 ]);
             }
 

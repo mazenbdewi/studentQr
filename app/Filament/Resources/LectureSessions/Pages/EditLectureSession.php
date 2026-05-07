@@ -33,6 +33,11 @@ class EditLectureSession extends EditRecord
         $this->originalAuditAttributes = $this->getRecord()->getOriginal();
     }
 
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        return LectureSessionResource::ensureSubjectCanBeUsedByCurrentUser($data);
+    }
+
     protected function afterSave(): void
     {
         app(ActivityLogger::class)->logModelUpdated(

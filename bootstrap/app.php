@@ -25,8 +25,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             //    'student' => \App\Http\Middleware\StudentMiddleware::class,
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'pin.verified' => \App\Http\Middleware\EnsurePinIsVerified::class,
         ])->web(append: [
             \App\Http\Middleware\SetAdminLocale::class,
+            \App\Http\Middleware\EnsurePinIsVerified::class,
         ])
             ->throttleApi()
             ->api(

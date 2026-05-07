@@ -2,17 +2,23 @@
 
 namespace App\Http\Controllers\Student;
 
+use App\Http\Controllers\Concerns\ManagesOwnAccountSecurity;
 use App\Http\Controllers\Controller;
+use App\Models\AppSetting;
+use App\Services\PinLoginService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 
 class ProfileController extends Controller
 {
+    use ManagesOwnAccountSecurity;
+
     public function edit()
     {
-        // $user = Auth::user();
-        return view('student.profile');
+        $user = Auth::user();
+        $pinLoginRequired = AppSetting::boolean(PinLoginService::SETTING_KEY);
+
+        return view('student.profile', compact('user', 'pinLoginRequired'));
     }
 
     public function update(Request $request)
@@ -22,20 +28,11 @@ class ProfileController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $user->id,
             'phone' => 'nullable|string|max:20',
-            'current_password' => 'nullable|required_with:new_password',
-            'new_password' => 'nullable|min:8|confirmed',
         ]);
 
         $user->name = $request->name;
         $user->email = $request->email;
         $user->phone = $request->phone;
-
-        if ($request->filled('current_password')) {
-            if (!Hash::check($request->current_password, $user->password)) {
-                return back()->withErrors(['current_password' => __('profile.current_password_incorrect')]);
-            }
-            $user->password = Hash::make($request->new_password);
-        }
 
         $user->save();
 

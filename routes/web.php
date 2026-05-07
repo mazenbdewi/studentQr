@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\CustomLoginController;
+use App\Http\Controllers\Auth\PinVerificationController;
 use App\Http\Controllers\Student\AttendanceController;
 use App\Http\Controllers\Student\DashboardController;
 use Illuminate\Support\Facades\Route;
@@ -16,7 +17,9 @@ Route::get('/lang/{locale}', function ($locale) {
     return back();
 })->name('lang.switch');
 
-Route::redirect('/admin/login', '/login');
+Route::redirect('/admin/dashboard', '/admin')
+    ->middleware(['auth', 'pin.verified'])
+    ->name('admin.dashboard.redirect');
 
 Route::get('/login', [CustomLoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [CustomLoginController::class, 'login']);
@@ -24,6 +27,20 @@ Route::post('/login', [CustomLoginController::class, 'login']);
 Route::post('/logout', [CustomLoginController::class, 'logout'])
     // ->middleware('auth')
     ->name('logout');
+
+Route::middleware('auth')->group(function () {
+    Route::get('/pin/set', [PinVerificationController::class, 'showSet'])
+        ->name('pin.set.form');
+
+    Route::post('/pin/set', [PinVerificationController::class, 'set'])
+        ->name('pin.set');
+
+    Route::get('/pin/verify', [PinVerificationController::class, 'show'])
+        ->name('pin.verify.form');
+
+    Route::post('/pin/verify', [PinVerificationController::class, 'verify'])
+        ->name('pin.verify');
+});
 
 // Public attendance page
 Route::get('/attendance', [AttendanceController::class, 'index'])
@@ -43,7 +60,8 @@ Route::get(
     ->name('teacher.lecture-session.qr');
 
 // Student routes group
-Route::prefix('student')
+Route::middleware(['auth', 'role:student', 'pin.verified'])
+    ->prefix('student')
     ->name('student.')
     ->group(function () {
 
@@ -90,7 +108,7 @@ Route::get('/student/attendance/verify/{token}', [AttendanceController::class, '
     ->name('student.attendance.verify.token');
 
 // Routes for manager
-Route::middleware(['auth', 'role:manager'])
+Route::middleware(['auth', 'role:manager', 'pin.verified'])
     ->prefix('manager')
     ->name('manager.')
     ->group(function () {
@@ -104,10 +122,16 @@ Route::middleware(['auth', 'role:manager'])
         Route::put('/profile', [App\Http\Controllers\Manager\ProfileController::class, 'update'])
             ->name('profile.update');
 
+        Route::put('/profile/password', [App\Http\Controllers\Manager\ProfileController::class, 'updatePassword'])
+            ->name('profile.password.update');
+
+        Route::put('/profile/pin', [App\Http\Controllers\Manager\ProfileController::class, 'updatePin'])
+            ->name('profile.pin.update');
+
     });
 
 // Routes for teachers
-Route::middleware(['auth', 'role:course_lecturer'])
+Route::middleware(['auth', 'role:course_lecturer', 'pin.verified'])
     ->prefix('teacher')
     ->name('teacher.')
     ->group(function () {
@@ -121,9 +145,15 @@ Route::middleware(['auth', 'role:course_lecturer'])
         Route::put('/profile', [App\Http\Controllers\Teacher\ProfileController::class, 'update'])
             ->name('profile.update');
 
+        Route::put('/profile/password', [App\Http\Controllers\Teacher\ProfileController::class, 'updatePassword'])
+            ->name('profile.password.update');
+
+        Route::put('/profile/pin', [App\Http\Controllers\Teacher\ProfileController::class, 'updatePin'])
+            ->name('profile.pin.update');
+
     });
 
-Route::middleware(['auth', 'role:super-admin|course_lecturer'])
+Route::middleware(['auth', 'role:super-admin|course_lecturer', 'pin.verified'])
     ->prefix('teacher')
     ->name('teacher.')
     ->group(function () {

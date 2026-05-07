@@ -34,6 +34,11 @@ class UsersTable
                         'course_lecturer' => __('user.course_lecturer'),
                         default => (string) $state,
                     }),
+                TextColumn::make('has_pin')
+                    ->label(__('user.has_pin'))
+                    ->state(fn ($record): string => $record->hasPinCode() ? __('user.yes') : __('user.no'))
+                    ->badge()
+                    ->color(fn ($record): string => $record->hasPinCode() ? 'success' : 'gray'),
                 TextColumn::make('created_at')
                     ->label(__('user.created_at'))
                     ->dateTime()

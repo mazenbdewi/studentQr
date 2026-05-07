@@ -10,6 +10,11 @@ class CreateSubject extends CreateRecord
 {
     protected static string $resource = SubjectResource::class;
 
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        return SubjectResource::validateSubjectFacultyDepartment($data);
+    }
+
     protected function afterCreate(): void
     {
         app(ActivityLogger::class)->logModelCreated(

@@ -24,6 +24,9 @@ class User extends Authenticatable implements FilamentUser
         'name',
         'email',
         'password',
+        'pin_code',
+        'pin_enabled',
+        'pin_changed_at',
         'role',
         'type',
         'status',
@@ -41,13 +44,21 @@ class User extends Authenticatable implements FilamentUser
 
     protected $hidden = [
         'password',
+        'pin_code',
         'remember_token',
     ];
 
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'pin_enabled' => 'boolean',
+        'pin_changed_at' => 'datetime',
     ];
+
+    public function hasPinCode(): bool
+    {
+        return filled($this->getRawOriginal('pin_code'));
+    }
 
     public function canAccessFilament(): bool
     {

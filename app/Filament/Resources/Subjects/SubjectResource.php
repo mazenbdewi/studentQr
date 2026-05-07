@@ -5,6 +5,8 @@ namespace App\Filament\Resources\Subjects;
 
 use App\Filament\Resources\Students\RelationManagers\SubjectsRelationManager;
 use App\Filament\Resources\Subjects\RelationManagers\StudentsRelationManager;
+use App\Models\Department;
+use App\Models\Faculty;
 use App\Models\Subject;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -15,12 +17,15 @@ use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Forms;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Validation\ValidationException;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 
@@ -78,6 +83,42 @@ class SubjectResource extends Resource
     {
         return $schema
             ->schema([
+                Forms\Components\Select::make('faculty_id')
+                    ->label(__('subjects.faculty'))
+                    ->options(fn (): array => static::getFacultyOptions())
+                    ->required()
+                    ->searchable()
+                    ->preload()
+                    ->live()
+                    ->dehydrated(false)
+                    ->afterStateHydrated(function (Forms\Components\Select $component, mixed $state): void {
+                        if (filled($state)) {
+                            return;
+                        }
+
+                        /** @var Subject|null $record */
+                        $record = $component->getRecord();
+
+                        $component->state($record?->department?->faculty_id);
+                    })
+                    ->afterStateUpdated(function (Set $set, ?string $state, ?string $old): void {
+                        if ($state !== $old) {
+                            $set('department_id', null);
+                        }
+                    }),
+
+                Forms\Components\Select::make('department_id')
+                    ->label(__('subjects.department_id'))
+                    ->options(fn (Get $get): array => static::getDepartmentOptionsForFaculty($get('faculty_id')))
+                    ->required()
+                    ->searchable()
+                    ->preload()
+                    ->live()
+                    ->disabled(fn (Get $get): bool => blank($get('faculty_id')))
+                    ->placeholder(__('subjects.select_faculty_first'))
+                    ->helperText(__('subjects.department_helper_text'))
+                    ->noSearchResultsMessage(__('subjects.no_departments_for_selected_faculty')),
+
                 Forms\Components\TextInput::make('code')
                     ->label(__('subjects.code'))
                     ->required()
@@ -88,17 +129,6 @@ class SubjectResource extends Resource
                     ->label(__('subjects.name'))
                     ->required()
                     ->maxLength(255),
-
-                Forms\Components\Select::make('department_id')
-                    ->label(__('subjects.department_id'))
-                    ->relationship(
-                        name: 'department',
-                        titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
-                    )
-                    ->searchable()
-                    ->preload()
-                    ->nullable(),
 
                 Forms\Components\Select::make('semester')
                     ->label(__('subjects.semester'))
@@ -223,5 +253,61 @@ class SubjectResource extends Resource
     public static function canAccess(): bool
     {
         return auth()->user()->hasAnyRole(['super-admin', 'manager']);
+    }
+
+    public static function getFacultyOptions(): array
+    {
+        return Faculty::query()
+            ->withoutTrashed()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    public static function getDepartmentOptionsForFaculty(int | string | null $facultyId): array
+    {
+        if (blank($facultyId)) {
+            return [];
+        }
+
+        return Department::query()
+            ->withoutTrashed()
+            ->where('is_active', true)
+            ->where('faculty_id', $facultyId)
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    public static function validateSubjectFacultyDepartment(array $data): array
+    {
+        $facultyId = $data['faculty_id'] ?? null;
+        $departmentId = $data['department_id'] ?? null;
+
+        if (blank($facultyId) || blank($departmentId)) {
+            return static::stripTransientSubjectFormState($data);
+        }
+
+        $belongsToFaculty = Department::query()
+            ->withoutTrashed()
+            ->whereKey($departmentId)
+            ->where('faculty_id', $facultyId)
+            ->exists();
+
+        if (! $belongsToFaculty) {
+            throw ValidationException::withMessages([
+                'department_id' => __('subjects.department_not_in_selected_faculty'),
+            ]);
+        }
+
+        return static::stripTransientSubjectFormState($data);
+    }
+
+    public static function stripTransientSubjectFormState(array $data): array
+    {
+        unset($data['faculty_id']);
+
+        return $data;
     }
 }

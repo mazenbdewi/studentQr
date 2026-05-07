@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Users\Schemas;
 use App\Filament\Resources\Users\UserResource;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 class UserForm
@@ -45,6 +46,25 @@ class UserForm
                     ->required()
                     ->helperText(__('user.role_permissions_help'))
                     ->native(false),
+                Section::make(__('user.pin_section'))
+                    ->description(__('user.pin_section_help'))
+                    ->schema([
+                        TextInput::make('pin_code_plain')
+                            ->label(__('user.new_pin_code'))
+                            ->password()
+                            ->autocomplete('new-password')
+                            ->nullable()
+                            ->rule('digits:6')
+                            ->confirmed()
+                            ->dehydrated(fn ($state) => filled($state))
+                            ->helperText(__('user.pin_code_help')),
+                        TextInput::make('pin_code_plain_confirmation')
+                            ->label(__('user.new_pin_code_confirmation'))
+                            ->password()
+                            ->autocomplete('new-password')
+                            ->dehydrated(false),
+                    ])
+                    ->visible(fn (): bool => UserResource::canManagePins()),
             ]);
     }
 }

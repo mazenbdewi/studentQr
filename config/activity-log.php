@@ -11,6 +11,12 @@ return [
     'max_depth' => 2,
     'excluded_fields' => [
         'password',
+        'pin_code',
+        'pin_changed_at',
+        'pin',
+        'pin_code_plain',
+        'old_pin',
+        'new_pin',
         'remember_token',
         'token',
         'tokens',

@@ -25,6 +25,8 @@ use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class LectureSessionResource extends Resource
 {
@@ -81,14 +83,18 @@ class LectureSessionResource extends Resource
                     ->relationship(
                         name: 'subject',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                        modifyQueryUsing: fn (Builder $query) => static::scopeSubjectQueryForCurrentUser($query),
                     )
                     ->searchable()
                     ->preload()
                     ->required()
+                    ->rule(static::subjectBelongsToCurrentLecturerRule())
+                    ->validationMessages([
+                        'exists' => __('lecture-session.subject_not_assigned_to_lecturer'),
+                    ])
                     ->reactive()
                     ->afterStateUpdated(function (callable $set, $state) {
-                        $subject = Subject::find($state);
+                        $subject = static::scopeSubjectQueryForCurrentUser(Subject::query())->find($state);
                         $set('lecturer_id', $subject?->lecturer_id ?? auth()->id());
                     }),
 
@@ -152,7 +158,9 @@ class LectureSessionResource extends Resource
                     ->relationship(
                         name: 'lecturer',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                        modifyQueryUsing: fn (Builder $query) => auth()->user()?->hasRole('course_lecturer')
+                            ? $query->withoutTrashed()->whereKey(auth()->id())
+                            : $query->withoutTrashed(),
                     )
                     ->searchable()
                     ->preload()
@@ -217,7 +225,7 @@ class LectureSessionResource extends Resource
                     ->relationship(
                         name: 'subject',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                        modifyQueryUsing: fn (Builder $query) => static::scopeSubjectQueryForCurrentUser($query),
                     ),
                 Tables\Filters\TrashedFilter::make(),
 
@@ -380,5 +388,61 @@ class LectureSessionResource extends Resource
     public static function canAccess(): bool
     {
         return auth()->user()->hasAnyRole(['super-admin', 'manager', 'course_lecturer']);
+    }
+
+    public static function scopeSubjectQueryForCurrentUser(Builder $query): Builder
+    {
+        $query->withoutTrashed();
+
+        $user = auth()->user();
+
+        if ($user?->hasRole('course_lecturer')) {
+            $query->where('lecturer_id', $user->id);
+        }
+
+        return $query;
+    }
+
+    public static function subjectBelongsToCurrentLecturerRule(): mixed
+    {
+        $user = auth()->user();
+
+        return Rule::exists('subjects', 'id')
+            ->where(function ($query) use ($user): void {
+                $query->whereNull('deleted_at');
+
+                if ($user?->hasRole('course_lecturer')) {
+                    $query->where('lecturer_id', $user->id);
+                }
+            });
+    }
+
+    public static function ensureSubjectCanBeUsedByCurrentUser(array $data): array
+    {
+        $subjectId = $data['subject_id'] ?? null;
+
+        if (blank($subjectId)) {
+            return $data;
+        }
+
+        $subject = Subject::query()
+            ->withoutTrashed()
+            ->find($subjectId);
+
+        if (! $subject) {
+            return $data;
+        }
+
+        $user = auth()->user();
+
+        if ($user?->hasRole('course_lecturer') && (int) $subject->lecturer_id !== (int) $user->id) {
+            throw ValidationException::withMessages([
+                'subject_id' => __('lecture-session.subject_not_assigned_to_lecturer'),
+            ]);
+        }
+
+        $data['lecturer_id'] = $subject->lecturer_id ?? $data['lecturer_id'] ?? $user?->id;
+
+        return $data;
     }
 }

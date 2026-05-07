@@ -8,10 +8,15 @@ use App\Models\Faculty;
 use App\Models\LectureSession;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Services\PinLoginService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CustomLoginController extends Controller
 {
@@ -75,32 +80,63 @@ class CustomLoginController extends Controller
         return view('auth.register', compact('faculties'));
     }
 
-    public function showLoginForm()
+    public function showLoginForm(PinLoginService $pinLogin)
     {
-        return view('auth.custom-login');
+        return view('auth.custom-login', [
+            'pinLoginEnabled' => $pinLogin->enabled(),
+        ]);
     }
-    public function login(Request $request)
+
+    public function login(Request $request, PinLoginService $pinLogin)
     {
+        $pinLoginEnabled = $pinLogin->enabled();
+        $login = (string) $request->input('login', $request->input('email'));
+
+        $request->merge([
+            'login' => $login,
+        ]);
+
         $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
+            'login' => 'required|string',
+            'password' => 'required|string',
             'role' => 'nullable|in:super-admin,lecturer,manager',
         ]);
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
-            app(ActivityLogger::class)->logAuth('failed_login', 'login_failed', [
-                'email' => $request->input('email'),
-                'role' => $request->input('role'),
-            ]);
+        $throttleKey = $this->throttleKey($request);
 
-            return back()->withErrors([
-                'email' => 'بيانات الدخول غير صحيحة.',
+        if ($pinLoginEnabled && RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            throw ValidationException::withMessages([
+                'login' => __('auth.failed'),
             ]);
         }
 
-        $user = Auth::user();
+        $user = $pinLogin->attemptPassword(
+            $login,
+            (string) $request->input('password'),
+            $request->boolean('remember')
+        );
 
-        if (!$user->is_active ?? true) {
+        if (! $user) {
+            if ($pinLoginEnabled) {
+                RateLimiter::hit($throttleKey, 60);
+            }
+
+            app(ActivityLogger::class)->logAuth('failed_login', 'login_failed', [
+                'login' => $login,
+                'role' => $request->input('role'),
+                'pin_login_enabled' => $pinLoginEnabled,
+            ]);
+
+            return back()->withErrors([
+                'login' => __('auth.failed'),
+            ])->onlyInput('login', 'email', 'role', 'remember');
+        }
+
+        if (! ($user->is_active ?? true)) {
+            if ($pinLoginEnabled) {
+                RateLimiter::hit($throttleKey, 60);
+            }
+
             app(ActivityLogger::class)->logAuth('failed_login', 'inactive_user_login_attempt', [
                 'user_id' => $user->id,
                 'email' => $user->email,
@@ -109,7 +145,7 @@ class CustomLoginController extends Controller
             Auth::logout();
             return back()->withErrors([
                 'email' => __('auth.failed'),
-            ]);
+            ])->onlyInput('login', 'email', 'role', 'remember');
         }
 
         if ($request->filled('role')) {
@@ -133,10 +169,37 @@ class CustomLoginController extends Controller
 
                 return back()->withErrors([
                     'role' => __('auth.unauthorized_role'),
-                ]);
+                ])->onlyInput('login', 'email', 'role', 'remember');
             }
         }
+
         $request->session()->regenerate();
+
+        $pinLogin->clearVerification();
+
+        Log::debug('PIN login debug: custom password login completed', $pinLogin->debugContext(
+            $request,
+            $user,
+            middlewareExecuted: false,
+        ));
+
+        if ($pinLogin->requiresPinSetup($user)) {
+            RateLimiter::clear($throttleKey);
+            session()->put('url.intended', $this->dashboardPath($user));
+
+            return redirect()->route('pin.set.form');
+        }
+
+        if ($pinLogin->requiresPinVerification($user)) {
+            RateLimiter::clear($throttleKey);
+            session()->put('url.intended', $this->dashboardPath($user));
+
+            return redirect()->route('pin.verify.form');
+        }
+
+        if ($pinLoginEnabled) {
+            RateLimiter::clear($throttleKey);
+        }
 
         app(ActivityLogger::class)->logAuth('login', 'user_logged_in', [
             'user_id' => $user->id,
@@ -144,15 +207,22 @@ class CustomLoginController extends Controller
             'role' => $user->role,
         ]);
 
+        return redirect($this->dashboardPath($user));
+    }
+
+    private function throttleKey(Request $request): string
+    {
+        return Str::transliterate(Str::lower((string) $request->input('login')) . '|' . $request->ip());
+    }
+
+    private function dashboardPath(User $user): string
+    {
         return match (true) {
-
-            $user->hasRole('super-admin') => redirect('/admin'),
-
-            $user->hasRole('course_lecturer') => redirect('/teacher'),
-
-            $user->hasRole('manager') => redirect('/manager'),
-
-            default => redirect('/login')
+            $user->hasRole('super-admin') => '/admin',
+            $user->hasRole('course_lecturer') => '/teacher',
+            $user->hasRole('manager') => '/manager',
+            $user->hasRole('student') => '/student',
+            default => '/login',
         };
     }
 
@@ -169,6 +239,7 @@ class CustomLoginController extends Controller
         }
 
         Auth::logout();
+        app(PinLoginService::class)->clearVerification();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect('/login');

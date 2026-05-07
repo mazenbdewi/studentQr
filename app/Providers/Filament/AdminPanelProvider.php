@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use Andreia\FilamentNordTheme\FilamentNordThemePlugin;
+use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\DatabaseBackups;
 use App\Filament\Pages\PortalSettings;
 use App\Filament\Resources\Attendances\AttendanceResource;
@@ -16,7 +17,10 @@ use App\Filament\Resources\StudentDevices\StudentDeviceResource;
 use App\Filament\Resources\Students\StudentResource;
 use App\Filament\Resources\Subjects\SubjectResource;
 use App\Filament\Resources\Users\UserResource;
+use App\Http\Middleware\EnsurePinIsVerified;
 use App\Http\Middleware\SetAdminLocale;
+use App\Livewire\Filament\Profile\UpdatePassword;
+use App\Livewire\Filament\Profile\UpdatePinCode;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
@@ -44,7 +48,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login()
+            ->login(Login::class)
             ->colors([
                 'primary' => Color::hex('#1E40AF'),
             ])
@@ -81,7 +85,11 @@ class AdminPanelProvider extends PanelProvider
                 //                FilamentNordThemePlugin::make(),
                 //                FilamentBackgroundsPlugin::make(),
                 BreezyCore::make()
-                    ->myProfile(),
+                    ->myProfile()
+                    ->myProfileComponents([
+                        'update_password' => UpdatePassword::class,
+                        'update_pin_code' => UpdatePinCode::class,
+                    ]),
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -97,6 +105,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                EnsurePinIsVerified::class,
             ])
             ->userMenuItems([
                 Action::make('ar')

@@ -25,6 +25,7 @@ class RolesAndPermissionsSeeder extends Seeder
     {
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
         AppSetting::put('qr_base_url', AppSetting::value('qr_base_url', rtrim((string) config('app.url'), '/')));
+        AppSetting::put('enable_pin_login', AppSetting::value('enable_pin_login', '0'));
 
         $cs = Faculty::withTrashed()->updateOrCreate(
             ['name' => 'كلية المعلوماتية'],

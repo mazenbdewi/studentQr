@@ -7,8 +7,7 @@ use App\Http\Controllers\Student\AttendanceController;
 use App\Http\Controllers\Student\ProfileController;
 
 
-// Route::middleware(['auth', 'role:student'])
-Route::middleware(['role:student'])
+Route::middleware(['auth', 'role:student', 'pin.verified'])
     ->prefix('student')
     ->name('student.')
     ->group(function () {
@@ -23,4 +22,10 @@ Route::middleware(['role:student'])
 
         Route::put('/profile', [ProfileController::class, 'update'])
             ->name('profile.update');
+
+        Route::put('/profile/password', [ProfileController::class, 'updatePassword'])
+            ->name('profile.password.update');
+
+        Route::put('/profile/pin', [ProfileController::class, 'updatePin'])
+            ->name('profile.pin.update');
     });

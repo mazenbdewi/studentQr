@@ -61,5 +61,5 @@ return [
     'import_failed' => 'Import Failed',
 'no_lectures_today' => 'No lectures scheduled for today.',
     'todays_lectures' => 'Today\'s Lectures',
+    'subject_not_assigned_to_lecturer' => 'You cannot create a session for this subject because it is not assigned to your account.',
 ];
-

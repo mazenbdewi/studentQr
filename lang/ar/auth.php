@@ -2,7 +2,7 @@
 return [
 
 
-    'failed'   => 'بيانات الدخول غير صحيحة.',
+    'failed'   => 'بيانات الدخول غير صحيحة',
     'inactive' => 'الحساب غير مفعل.',
     'unauthorized_role' => 'ليس لديك هذه الصلاحية.',
     'remember'=>'تذكرني',
@@ -17,7 +17,19 @@ return [
     'system_name'=>'نظام حضور الطلاب',
 
     'email'=>'البريد الإلكتروني',
+    'login_identifier' => 'البريد الإلكتروني أو الرقم الجامعي',
     'password'=>'كلمة المرور',
+    'pin_code' => 'رمز PIN',
+    'pin_code_help' => 'رمز PIN مكوّن من 6 أرقام. لن يتم عرض الرمز الحالي في أي مكان.',
+    'pin_required' => 'رمز PIN مطلوب عند تفعيل التحقق الإضافي.',
+    'pin_digits' => 'يجب أن يتكوّن رمز PIN من 6 أرقام فقط.',
+    'pin_set_title' => 'تعيين رمز PIN',
+    'pin_set_required_message' => 'يجب تعيين رمز PIN قبل المتابعة',
+    'pin_set_action' => 'حفظ ومتابعة',
+    'pin_verify_title' => 'تأكيد رمز PIN',
+    'pin_verify_help' => 'أدخل رمز PIN الخاص بحسابك لإكمال الدخول إلى لوحة التحكم.',
+    'pin_verify_action' => 'تحقق',
+    'logout' => 'تسجيل الخروج',
 
     'login_as_optional'=>'الدخول بصفة (اختياري)',
 

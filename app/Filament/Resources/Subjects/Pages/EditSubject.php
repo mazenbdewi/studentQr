@@ -15,6 +15,11 @@ class EditSubject extends EditRecord
     protected static string $resource = SubjectResource::class;
     protected array $originalAuditAttributes = [];
 
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        return SubjectResource::validateSubjectFacultyDepartment($data);
+    }
+
     public function getTitle(): string
     {
         return __('subjects.edit_title');

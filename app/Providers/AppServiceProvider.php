@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Http\Responses\Filament\LoginResponse;
 use App\Policies\ActivityPolicy;
 use BezhanSalleh\FilamentShield\Facades\FilamentShield;
+use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
 use Filament\Tables\Columns\Column;
 use Filament\Tables\Table;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -23,7 +25,7 @@ class AppServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        //
+        $this->app->bind(LoginResponseContract::class, LoginResponse::class);
     }
 
     public function boot(): void

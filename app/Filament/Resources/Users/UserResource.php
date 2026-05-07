@@ -9,6 +9,7 @@ use App\Filament\Resources\Users\Schemas\UserForm;
 use App\Filament\Resources\Users\Tables\UsersTable;
 use App\Models\User;
 use BackedEnum;
+use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Resources\Resource;
@@ -65,6 +66,15 @@ class UserResource extends Resource
             'super_admin' => __('user.super_admin'),
             'course_lecturer' => __('user.course_lecturer'),
         ];
+    }
+
+    public static function canManagePins(?User $user = null): bool
+    {
+        $user ??= Filament::auth()->user();
+
+        return (bool) ($user?->email === 'super@admin.com'
+            || $user?->role === 'super_admin'
+            || $user?->hasRole('super-admin'));
     }
 
     public static function getDetectedSystemRoleNames(): array

@@ -51,6 +51,26 @@ body {
     letter-spacing: -0.02em;
 }
 
+.profile-section {
+    padding-top: 24px;
+    margin-top: 28px;
+    border-top: 1px solid var(--gray-200);
+}
+
+.section-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--gray-800);
+    margin: 0 0 18px;
+}
+
+.section-help {
+    color: var(--gray-600);
+    font-size: 0.92rem;
+    line-height: 1.7;
+    margin: -10px 0 18px;
+}
+
 .form-group {
     margin-bottom: 24px;
 }
@@ -166,6 +186,20 @@ body {
     margin: 0;
     padding-left: 20px;
 }
+
+.field-error {
+    color: #dc2626;
+    font-size: 0.875rem;
+    margin-top: 6px;
+}
+
+.danger-btn {
+    background: #dc2626;
+}
+
+.danger-btn:hover {
+    background: #b91c1c;
+}
 </style>
 @endpush
  @section('content')
@@ -209,6 +243,68 @@ body {
         </div>
 
         <button type="submit" class="submit-btn">{{ __('teacher.save_changes') }}</button>
+    </form>
+
+    <form method="POST" action="{{ route('teacher.profile.password.update') }}" class="profile-section">
+        @csrf
+        @method('PUT')
+
+        <h2 class="section-title">{{ __('profile.change_password') }}</h2>
+
+        <div class="form-group">
+            <label for="password_current_password" class="form-label">{{ __('profile.current_password') }}</label>
+            <input type="password" id="password_current_password" name="current_password" class="form-input" required autocomplete="current-password">
+            @error('current_password')
+                <div class="field-error">{{ $message }}</div>
+            @enderror
+        </div>
+
+        <div class="form-group">
+            <label for="new_password" class="form-label">{{ __('profile.new_password') }}</label>
+            <input type="password" id="new_password" name="new_password" class="form-input" required autocomplete="new-password">
+        </div>
+
+        <div class="form-group">
+            <label for="new_password_confirmation" class="form-label">{{ __('profile.confirm_new_password') }}</label>
+            <input type="password" id="new_password_confirmation" name="new_password_confirmation" class="form-input" required autocomplete="new-password">
+        </div>
+
+        <button type="submit" class="submit-btn">{{ __('profile.change_password_action') }}</button>
+    </form>
+
+    <form method="POST" action="{{ route('teacher.profile.pin.update') }}" class="profile-section">
+        @csrf
+        @method('PUT')
+
+        <h2 class="section-title">{{ __('profile.change_pin') }}</h2>
+        <p class="section-help">{{ __('profile.pin_help') }}</p>
+
+        <div class="form-group">
+            <label for="pin_current_password" class="form-label">{{ __('profile.current_password') }}</label>
+            <input type="password" id="pin_current_password" name="current_password" class="form-input" required autocomplete="current-password">
+        </div>
+
+        @if ($user->hasPinCode())
+            <div class="form-group">
+                <label for="old_pin" class="form-label">{{ __('profile.old_pin') }}</label>
+                <input type="password" id="old_pin" name="old_pin" class="form-input" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off">
+                @error('old_pin')
+                    <div class="field-error">{{ $message }}</div>
+                @enderror
+            </div>
+        @endif
+
+        <div class="form-group">
+            <label for="new_pin" class="form-label">{{ __('profile.new_pin') }}</label>
+            <input type="password" id="new_pin" name="new_pin" class="form-input" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off">
+        </div>
+
+        <div class="form-group">
+            <label for="new_pin_confirmation" class="form-label">{{ __('profile.confirm_new_pin') }}</label>
+            <input type="password" id="new_pin_confirmation" name="new_pin_confirmation" class="form-input" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off">
+        </div>
+
+        <button type="submit" class="submit-btn">{{ __('profile.change_pin_action') }}</button>
     </form>
 </div>
 @endsection

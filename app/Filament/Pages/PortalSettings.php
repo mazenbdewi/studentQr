@@ -3,9 +3,12 @@
 namespace App\Filament\Pages;
 
 use App\Models\AppSetting;
+use App\Services\PinLoginService;
 use App\Services\ActivityLogger;
 use BackedEnum;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Facades\Filament;
@@ -65,6 +68,7 @@ class PortalSettings extends Page implements HasForms
     {
         $this->form->fill([
             'qr_base_url' => AppSetting::value('qr_base_url'),
+            'enable_pin_login' => AppSetting::boolean(PinLoginService::SETTING_KEY),
         ]);
     }
 
@@ -83,6 +87,21 @@ class PortalSettings extends Page implements HasForms
                             ->nullable()
                             ->maxLength(2048),
                     ]),
+                Section::make(__('settings.security_section_title'))
+                    ->description(__('settings.security_section_description'))
+                    ->schema([
+                        Toggle::make('enable_pin_login')
+                            ->label(__('settings.enable_pin_login'))
+                            ->helperText(__('settings.enable_pin_login_help'))
+                            ->inline(false),
+                        Placeholder::make('pin_login_current_status')
+                            ->label(__('settings.pin_login_current_status'))
+                            ->content(fn (): string => AppSetting::boolean(PinLoginService::SETTING_KEY)
+                                ? __('settings.pin_login_enabled')
+                                : __('settings.pin_login_disabled'))
+                            ->badge()
+                            ->color(fn (): string => AppSetting::boolean(PinLoginService::SETTING_KEY) ? 'success' : 'danger'),
+                    ]),
             ])
             ->statePath('data');
     }
@@ -91,15 +110,24 @@ class PortalSettings extends Page implements HasForms
     {
         $data = $this->form->getState();
         $oldQrBaseUrl = AppSetting::value('qr_base_url');
+        $oldPinLoginEnabled = AppSetting::boolean(PinLoginService::SETTING_KEY);
         $qrBaseUrl = filled($data['qr_base_url'] ?? null)
             ? rtrim((string) $data['qr_base_url'], '/')
             : null;
+        $pinLoginEnabled = (bool) ($data['enable_pin_login'] ?? false);
 
         AppSetting::put('qr_base_url', $qrBaseUrl);
+        AppSetting::putBoolean(PinLoginService::SETTING_KEY, $pinLoginEnabled);
 
         app(ActivityLogger::class)->logSettingsChange(
-            ['qr_base_url' => $oldQrBaseUrl],
-            ['qr_base_url' => $qrBaseUrl],
+            [
+                'qr_base_url' => $oldQrBaseUrl,
+                'enable_pin_login' => $oldPinLoginEnabled,
+            ],
+            [
+                'qr_base_url' => $qrBaseUrl,
+                'enable_pin_login' => $pinLoginEnabled,
+            ],
             'portal_settings_saved'
         );
 
