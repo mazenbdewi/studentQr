@@ -91,22 +91,6 @@ Route::middleware(['auth', 'role:student', 'pin.verified'])
 
     });
 
-// Legacy routes for backward compatibility
-Route::get('/student/attendance/{session}', [AttendanceController::class, 'verifySession'])
-    ->name('student.attendance.verify.form');
-
-Route::post('/student/attendance/store/{session}', [AttendanceController::class, 'store'])
-    ->name('student.attendance.store');
-
-Route::post('/student/attendance/store-sync/{session}', [AttendanceController::class, 'storeSync'])
-    ->name('student.attendance.store.sync');
-
-Route::get('/student/attendance/check-status/{session}', [AttendanceController::class, 'checkStatus'])
-    ->name('student.attendance.check.status');
-
-Route::get('/student/attendance/verify/{token}', [AttendanceController::class, 'verifyToken'])
-    ->name('student.attendance.verify.token');
-
 // Routes for manager
 Route::middleware(['auth', 'role:manager', 'pin.verified'])
     ->prefix('manager')

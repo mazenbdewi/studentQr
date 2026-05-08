@@ -5,6 +5,7 @@ return [
     'retention_days' => env('ACTIVITY_LOG_RETENTION_DAYS', 180),
     'log_to_database' => env('ACTIVITY_LOG_TO_DATABASE', true),
     'log_to_file' => env('ACTIVITY_LOG_TO_FILE', false),
+    'log_successful_attendance' => env('ACTIVITY_LOG_SUCCESSFUL_ATTENDANCE', false),
     'use_queue_for_heavy_logs' => env('ACTIVITY_LOG_USE_QUEUE_FOR_HEAVY_LOGS', true),
     'queue' => env('ACTIVITY_LOG_QUEUE', 'audit'),
     'max_value_length' => 255,

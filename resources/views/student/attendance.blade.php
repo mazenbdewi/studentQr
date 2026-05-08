@@ -563,31 +563,31 @@
     </div>
     @endif
 
-    @if (session('success'))
+    @if (request()->hasSession() && session('success'))
     <div class="alert alert-success" data-session-success="true">
         {{ session('success') }}
     </div>
     @endif
 
-    @if (session('status'))
+    @if (request()->hasSession() && session('status'))
     <div class="alert alert-success">
         {{ session('status') }}
     </div>
     @endif
 
-    @if (session('message') && !session('success') && !session('status'))
+    @if (request()->hasSession() && session('message') && !session('success') && !session('status'))
     <div class="alert alert-success">
         {{ session('message') }}
     </div>
     @endif
 
-    @if (session('error'))
+    @if (request()->hasSession() && session('error'))
     <div class="alert alert-error">
         {{ session('error') }}
     </div>
     @endif
 
-    @if ($errors->any())
+    @if (isset($errors) && $errors->any())
     <div class="alert alert-error">
         <ul>
             @foreach ($errors->all() as $error)
@@ -601,7 +601,6 @@
 {{-- Attendance Form --}}
 <form method="POST" action="{{ route('student.attendance.store.sync', ['session' => $sessionId ?? 0]) }}" class="form-card"
     id="attendanceForm" novalidate data-completed="{{ ($attendanceCompleted ?? false) ? 'true' : 'false' }}">
-    @csrf
     <input type="hidden" id="submission_token" name="submission_token" value="{{ $submissionToken ?? '' }}">
 
     <div class="field">
@@ -613,15 +612,15 @@
             {{ __('student.student_number') }}
         </label>
 
-        <input id="student_number" name="student_number" type="text" value="{{ old('student_number', $studentNumberValue ?? '') }}"
-            class="input {{ $errors->has('student_number') ? 'is-invalid' : '' }}"
+        <input id="student_number" name="student_number" type="text" value="{{ request()->hasSession() ? old('student_number', $studentNumberValue ?? '') : ($studentNumberValue ?? '') }}"
+            class="input {{ isset($errors) && $errors->has('student_number') ? 'is-invalid' : '' }}"
             placeholder="{{ __('student.student_number') }}" autocomplete="off" inputmode="numeric" dir="ltr"
-            aria-invalid="{{ $errors->has('student_number') ? 'true' : 'false' }}" autofocus required
+            aria-invalid="{{ isset($errors) && $errors->has('student_number') ? 'true' : 'false' }}" autofocus required
             @disabled($attendanceCompleted ?? false)>
 
-        @error('student_number')
-        <div class="field-error">{{ $message }}</div>
-        @enderror
+        @if (isset($errors) && $errors->has('student_number'))
+        <div class="field-error">{{ $errors->first('student_number') }}</div>
+        @endif
     </div>
 
     <div class="field">
@@ -633,15 +632,15 @@
             {{ __('student.verification_code') }}
         </label>
 
-        <input id="otp" name="otp" type="text" value="{{ old('otp') }}"
-            class="input {{ $errors->has('otp') ? 'is-invalid' : '' }}" placeholder="******"
+        <input id="otp" name="otp" type="text" value="{{ request()->hasSession() ? old('otp') : '' }}"
+            class="input {{ isset($errors) && $errors->has('otp') ? 'is-invalid' : '' }}" placeholder="******"
             autocomplete="one-time-code" inputmode="numeric" dir="ltr" maxlength="6"
-            aria-invalid="{{ $errors->has('otp') ? 'true' : 'false' }}" required
+            aria-invalid="{{ isset($errors) && $errors->has('otp') ? 'true' : 'false' }}" required
             @disabled($attendanceCompleted ?? false)>
 
-        @error('otp')
-        <div class="field-error">{{ $message }}</div>
-        @enderror
+        @if (isset($errors) && $errors->has('otp'))
+        <div class="field-error">{{ $errors->first('otp') }}</div>
+        @endif
     </div>
 
     <button type="submit" class="submit-btn" id="submitBtn" @disabled($attendanceCompleted ?? false)>
@@ -848,7 +847,6 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('student_number', studentNumber);
             formData.append('otp', otp);
             formData.append('submission_token', submissionToken);
-            formData.append('_token', '{{ csrf_token() }}');
 
             const response = await fetch('{{ route('student.attendance.store.sync', ['session' => $sessionId ?? 0]) }}', {
                 method: 'POST',
@@ -911,7 +909,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             try {
                 const response = await fetch(
-                    `{{ route('student.attendance.check.status', ['session' => $sessionId ?? 0]) }}?student_number=${encodeURIComponent(studentNumber)}`, {
+                    `{{ route('student.attendance.check.status', ['session' => $sessionId ?? 0]) }}?student_number=${encodeURIComponent(studentNumber)}&submission_token=${encodeURIComponent(submissionTokenInput ? submissionTokenInput.value.trim() : '')}`, {
                         headers: {
                             'Accept': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest'

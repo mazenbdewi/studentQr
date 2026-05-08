@@ -1,0 +1,156 @@
+{
+    "metrics": {
+        "http_req_blocked": {
+            "avg": 0.227721,
+            "min": 0.214162,
+            "med": 0.227721,
+            "max": 0.24128,
+            "p(90)": 0.2385682,
+            "p(95)": 0.2399241
+        },
+        "http_req_tls_handshaking": {
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0
+        },
+        "http_req_duration": {
+            "p(90)": 66.88710789999999,
+            "p(95)": 67.04755995,
+            "avg": 65.60349149999999,
+            "min": 63.998971,
+            "med": 65.60349149999999,
+            "max": 67.208012
+        },
+        "http_req_duration{name:store_attendance}": {
+            "avg": 67.208012,
+            "min": 67.208012,
+            "med": 67.208012,
+            "max": 67.208012,
+            "p(90)": 67.208012,
+            "p(95)": 67.208012,
+            "thresholds": {
+                "p(95)<1500": false
+            }
+        },
+        "iterations": {
+            "count": 1,
+            "rate": 7.5404157044750635
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 65.60349149999999,
+            "min": 63.998971,
+            "med": 65.60349149999999,
+            "max": 67.208012,
+            "p(90)": 66.88710789999999,
+            "p(95)": 67.04755995
+        },
+        "data_sent": {
+            "count": 967,
+            "rate": 7291.581986227387
+        },
+        "http_req_waiting": {
+            "avg": 65.0897445,
+            "min": 63.456647,
+            "med": 65.0897445,
+            "max": 66.722842,
+            "p(90)": 66.3962225,
+            "p(95)": 66.55953225
+        },
+        "http_req_duration{name:verify_qr}": {
+            "p(90)": 63.998971,
+            "p(95)": 63.998971,
+            "avg": 63.998971,
+            "min": 63.998971,
+            "med": 63.998971,
+            "max": 63.998971,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "http_req_receiving": {
+            "med": 0.47211499999999995,
+            "max": 0.502821,
+            "p(90)": 0.49667979999999995,
+            "p(95)": 0.4997504,
+            "avg": 0.47211499999999995,
+            "min": 0.441409
+        },
+        "checks": {
+            "passes": 3,
+            "fails": 0,
+            "value": 1
+        },
+        "http_reqs": {
+            "count": 2,
+            "rate": 15.080831408950127
+        },
+        "http_req_connecting": {
+            "p(95)": 0.1768934,
+            "avg": 0.171353,
+            "min": 0.165197,
+            "med": 0.171353,
+            "max": 0.177509,
+            "p(90)": 0.1762778
+        },
+        "data_received": {
+            "count": 7642,
+            "rate": 57623.85681359843
+        },
+        "http_req_failed": {
+            "fails": 2,
+            "passes": 0,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_req_sending": {
+            "max": 0.043761,
+            "p(90)": 0.043335200000000004,
+            "p(95)": 0.0435481,
+            "avg": 0.041632,
+            "min": 0.039503,
+            "med": 0.041632
+        },
+        "iteration_duration": {
+            "min": 132.496683,
+            "med": 132.496683,
+            "max": 132.496683,
+            "p(90)": 132.496683,
+            "p(95)": 132.496683,
+            "avg": 132.496683
+        }
+    },
+    "root_group": {
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "QR verification page loaded": {
+                    "fails": 0,
+                    "name": "QR verification page loaded",
+                    "path": "::QR verification page loaded",
+                    "id": "008b8b9ac1797e90910d8e97933ada63",
+                    "passes": 1
+                },
+                "attendance request succeeded": {
+                    "name": "attendance request succeeded",
+                    "path": "::attendance request succeeded",
+                    "id": "a7778a4695d87111a68f2cfab5de4ece",
+                    "passes": 1,
+                    "fails": 0
+                },
+                "attendance response is successful": {
+                    "name": "attendance response is successful",
+                    "path": "::attendance response is successful",
+                    "id": "da6fce64796e0eb59f23d96579f40d06",
+                    "passes": 1,
+                    "fails": 0
+                }
+            },
+        "name": "",
+        "path": ""
+    }
+}
