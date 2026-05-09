@@ -61,6 +61,7 @@ class PortalSettings extends Page implements HasForms
     {
         $this->form->fill([
             'qr_base_url' => AppSetting::value('qr_base_url'),
+            'default_qr_refresh_rate' => AppSetting::defaultQrRefreshRate(),
             'enable_pin_login' => AppSetting::boolean(PinLoginService::SETTING_KEY),
         ]);
     }
@@ -79,6 +80,13 @@ class PortalSettings extends Page implements HasForms
                             ->url()
                             ->nullable()
                             ->maxLength(2048),
+                        TextInput::make('default_qr_refresh_rate')
+                            ->label(__('settings.default_qr_refresh_rate'))
+                            ->helperText(__('settings.default_qr_refresh_rate_help'))
+                            ->numeric()
+                            ->minValue(AppSetting::MIN_QR_REFRESH_RATE)
+                            ->required()
+                            ->suffix(__('lecture-session.seconds')),
                     ]),
                 Section::make(__('settings.security_section_title'))
                     ->description(__('settings.security_section_description'))
@@ -103,22 +111,30 @@ class PortalSettings extends Page implements HasForms
     {
         $data = $this->form->getState();
         $oldQrBaseUrl = AppSetting::value('qr_base_url');
+        $oldDefaultQrRefreshRate = AppSetting::defaultQrRefreshRate();
         $oldPinLoginEnabled = AppSetting::boolean(PinLoginService::SETTING_KEY);
         $qrBaseUrl = filled($data['qr_base_url'] ?? null)
             ? rtrim((string) $data['qr_base_url'], '/')
             : null;
+        $defaultQrRefreshRate = max(
+            AppSetting::MIN_QR_REFRESH_RATE,
+            (int) ($data['default_qr_refresh_rate'] ?? AppSetting::FALLBACK_QR_REFRESH_RATE),
+        );
         $pinLoginEnabled = (bool) ($data['enable_pin_login'] ?? false);
 
         AppSetting::put('qr_base_url', $qrBaseUrl);
+        AppSetting::put(AppSetting::DEFAULT_QR_REFRESH_RATE_KEY, (string) $defaultQrRefreshRate);
         AppSetting::putBoolean(PinLoginService::SETTING_KEY, $pinLoginEnabled);
 
         app(ActivityLogger::class)->logSettingsChange(
             [
                 'qr_base_url' => $oldQrBaseUrl,
+                'default_qr_refresh_rate' => $oldDefaultQrRefreshRate,
                 'enable_pin_login' => $oldPinLoginEnabled,
             ],
             [
                 'qr_base_url' => $qrBaseUrl,
+                'default_qr_refresh_rate' => $defaultQrRefreshRate,
                 'enable_pin_login' => $pinLoginEnabled,
             ],
             'portal_settings_saved'

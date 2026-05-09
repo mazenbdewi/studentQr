@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class AppSetting extends Model
 {
+    public const DEFAULT_QR_REFRESH_RATE_KEY = 'default_qr_refresh_rate';
+    public const FALLBACK_QR_REFRESH_RATE = 120;
+    public const MIN_QR_REFRESH_RATE = 10;
+
     protected $fillable = [
         'key',
         'value',
@@ -40,5 +44,24 @@ class AppSetting extends Model
     public static function putBoolean(string $key, bool $value): self
     {
         return static::put($key, $value ? '1' : '0');
+    }
+
+    public static function integer(string $key, int $default = 0): int
+    {
+        $value = static::value($key);
+
+        if ($value === null || $value === '') {
+            return $default;
+        }
+
+        return (int) $value;
+    }
+
+    public static function defaultQrRefreshRate(): int
+    {
+        return max(
+            self::MIN_QR_REFRESH_RATE,
+            self::integer(self::DEFAULT_QR_REFRESH_RATE_KEY, self::FALLBACK_QR_REFRESH_RATE),
+        );
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Imports;
 
+use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\LectureSession;
 use App\Models\Subject;
@@ -207,7 +208,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
                 'end_time' => $row['end_time'],
                 'status' => $row['status'] ?? 'scheduled',
                 'attendance_mode' => $row['attendance_mode'] ?? 'qr_otp',
-                'qr_refresh_rate' => $row['qr_refresh_rate'] ?? 120,
+                'qr_refresh_rate' => $row['qr_refresh_rate'] ?? AppSetting::defaultQrRefreshRate(),
                 'notes' => $row['notes'] ?? null,
             ]
         );

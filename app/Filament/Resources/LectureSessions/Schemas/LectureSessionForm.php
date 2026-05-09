@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\LectureSessions\Schemas;
 
+use App\Models\AppSetting;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -50,7 +51,8 @@ class LectureSessionForm
         TextInput::make('qr_refresh_rate')
             ->required()
             ->numeric()
-            ->default(120),
+            ->minValue(AppSetting::MIN_QR_REFRESH_RATE)
+            ->default(fn (): int => AppSetting::defaultQrRefreshRate()),
                 TextInput::make('expected_students')
                     ->required()
                     ->numeric()

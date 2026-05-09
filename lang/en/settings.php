@@ -8,6 +8,8 @@ return [
     'qr_section_description' => 'Manage the base URL used when QR attendance links are generated.',
     'qr_base_url' => 'QR base URL',
     'qr_base_url_help' => 'Enter the public base URL that students should open from QR codes. If this is empty, the system falls back to APP_URL (:app_url).',
+    'default_qr_refresh_rate' => 'Default QR refresh rate',
+    'default_qr_refresh_rate_help' => 'This value is used automatically when creating a new lecture session, and can still be changed per session.',
     'security_section_title' => 'Security Settings',
     'security_section_description' => 'Manage extra verification layers during login.',
     'enable_pin_login' => 'Enable PIN Code Login',

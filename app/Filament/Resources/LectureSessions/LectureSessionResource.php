@@ -4,6 +4,7 @@ namespace App\Filament\Resources\LectureSessions;
 
 use App\Filament\Resources\LectureSessions\RelationManagers\AbsentStudentsRelationManager;
 use App\Filament\Resources\LectureSessions\RelationManagers\AttendancesRelationManager;
+use App\Models\AppSetting;
 use App\Models\LectureSession;
 use App\Models\Subject;
 use App\Services\ActivityLogger;
@@ -146,7 +147,8 @@ class LectureSessionResource extends Resource
                 Forms\Components\TextInput::make('qr_refresh_rate')
                     ->label(__('lecture-session.qr_refresh_rate'))
                     ->numeric()
-                    ->default(120)
+                    ->minValue(AppSetting::MIN_QR_REFRESH_RATE)
+                    ->default(fn (): int => AppSetting::defaultQrRefreshRate())
                     ->suffix(__('lecture-session.seconds')),
 
                 Forms\Components\Textarea::make('notes')

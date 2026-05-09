@@ -2,6 +2,7 @@
 
 namespace App\Exports\Templates;
 
+use App\Models\AppSetting;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -26,7 +27,7 @@ class LectureSessionsTemplateExport implements FromCollection, WithHeadings, Wit
                 ExcelDate::dateTimeToExcel(new \DateTimeImmutable('1970-01-01 10:00:00')),
                 'scheduled',
                 'qr_otp',
-                '120',
+                (string) AppSetting::defaultQrRefreshRate(),
                 'ملاحظات',
             ],
         ]);
