@@ -3,9 +3,14 @@
 namespace App\Filament\Resources\LectureSessions\Pages;
 
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
+use App\Models\AppSetting;
+use App\Models\Hall;
+use App\Models\Subject;
 use App\Services\ActivityLogger;
+use App\Services\LectureSessionCalendarService;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
+use Filament\Forms;
 use Filament\Forms\Components\FileUpload;
 use Filament\Resources\Pages\ListRecords;
 
@@ -162,7 +167,112 @@ class ListLectureSessions extends ListRecords
     }
 }),
 
+            Action::make('create_recurring')
+                ->label(__('lecture-session.create_recurring'))
+                ->icon('heroicon-o-calendar-days')
+                ->color('warning')
+                ->modalHeading(__('lecture-session.create_recurring_heading'))
+                ->form([
+                    Forms\Components\Select::make('subject_id')
+                        ->label(__('lecture-session.subject'))
+                        ->options(fn (): array => LectureSessionResource::scopeSubjectQueryForCurrentUser(Subject::query())
+                            ->pluck('name', 'id')
+                            ->all())
+                        ->searchable()
+                        ->preload()
+                        ->required(),
+
+                    Forms\Components\Select::make('hall_id')
+                        ->label(__('lecture-session.hall'))
+                        ->options(fn (): array => Hall::query()
+                            ->withoutTrashed()
+                            ->pluck('name', 'id')
+                            ->all())
+                        ->searchable()
+                        ->preload()
+                        ->required(),
+
+                    Forms\Components\DatePicker::make('date_from')
+                        ->label(__('lecture-session.date_from'))
+                        ->required(),
+
+                    Forms\Components\DatePicker::make('date_to')
+                        ->label(__('lecture-session.date_to'))
+                        ->required(),
+
+                    Forms\Components\Select::make('weekdays')
+                        ->label(__('lecture-session.weekdays'))
+                        ->options(static::weekdayOptions())
+                        ->multiple()
+                        ->required()
+                        ->helperText(__('lecture-session.recurring_weekdays_help')),
+
+                    Forms\Components\TimePicker::make('start_time')
+                        ->label(__('lecture-session.start_time'))
+                        ->seconds(false)
+                        ->required(),
+
+                    Forms\Components\TimePicker::make('end_time')
+                        ->label(__('lecture-session.end_time'))
+                        ->seconds(false)
+                        ->required(),
+
+                    Forms\Components\Select::make('status')
+                        ->label(__('lecture-session.status'))
+                        ->options([
+                            'scheduled' => __('lecture-session.status_scheduled'),
+                            'active' => __('lecture-session.status_active'),
+                            'completed' => __('lecture-session.status_completed'),
+                            'cancelled' => __('lecture-session.status_cancelled'),
+                        ])
+                        ->default('scheduled')
+                        ->required(),
+
+                    Forms\Components\TextInput::make('qr_refresh_rate')
+                        ->label(__('lecture-session.qr_refresh_rate'))
+                        ->numeric()
+                        ->minValue(AppSetting::MIN_QR_REFRESH_RATE)
+                        ->default(fn (): int => AppSetting::defaultQrRefreshRate())
+                        ->required()
+                        ->suffix(__('lecture-session.seconds')),
+
+                    Forms\Components\Textarea::make('notes')
+                        ->label(__('lecture-session.notes'))
+                        ->nullable(),
+                ])
+                ->action(function (array $data): void {
+                    $data = LectureSessionResource::ensureSubjectCanBeUsedByCurrentUser($data);
+                    $result = app(LectureSessionCalendarService::class)->createRecurring($data);
+
+                    $notification = Notification::make()
+                        ->title(__('lecture-session.recurring_created_title'))
+                        ->body(__('lecture-session.recurring_created_body', [
+                            'created' => $result['created'],
+                            'skipped' => $result['skipped'],
+                            'total' => $result['total'],
+                        ]));
+
+                    $result['created'] > 0
+                        ? $notification->success()
+                        : $notification->warning();
+
+                    $notification->send();
+                }),
+
             CreateAction::make(),
+        ];
+    }
+
+    protected static function weekdayOptions(): array
+    {
+        return [
+            0 => __('lecture-session.weekday_sunday'),
+            1 => __('lecture-session.weekday_monday'),
+            2 => __('lecture-session.weekday_tuesday'),
+            3 => __('lecture-session.weekday_wednesday'),
+            4 => __('lecture-session.weekday_thursday'),
+            5 => __('lecture-session.weekday_friday'),
+            6 => __('lecture-session.weekday_saturday'),
         ];
     }
 }
