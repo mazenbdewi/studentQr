@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\CustomLoginController;
 use App\Http\Controllers\Auth\PinVerificationController;
+use App\Http\Controllers\SeminarAttendanceController;
 use App\Http\Controllers\Student\AttendanceController;
 use App\Http\Controllers\Student\DashboardController;
 use Illuminate\Support\Facades\Route;
@@ -45,6 +46,12 @@ Route::middleware('auth')->group(function () {
 // Public attendance page
 Route::get('/attendance', [AttendanceController::class, 'index'])
     ->name('student.attendance');
+
+Route::get('/seminar-attendance/{token}', [SeminarAttendanceController::class, 'scan'])
+    ->name('seminars.attendance.scan');
+
+Route::post('/seminar-attendance/{token}', [SeminarAttendanceController::class, 'store'])
+    ->name('seminars.attendance.store');
 
 // QR scan redirect
 Route::post(
@@ -148,6 +155,36 @@ Route::middleware(['auth', 'role:super-admin|course_lecturer', 'pin.verified'])
         // Mark QR as expired
         Route::post('/session/{session}/expire-qr', [App\Http\Controllers\Teacher\AttendanceController::class, 'expireQr'])
             ->name('session.expire-qr');
+
+        Route::get('/seminars', [App\Http\Controllers\Teacher\SeminarController::class, 'index'])
+            ->name('seminars.index');
+
+        Route::get('/seminars/create', [App\Http\Controllers\Teacher\SeminarController::class, 'create'])
+            ->name('seminars.create');
+
+        Route::post('/seminars', [App\Http\Controllers\Teacher\SeminarController::class, 'store'])
+            ->name('seminars.store');
+
+        Route::get('/seminars/{seminar}', [App\Http\Controllers\Teacher\SeminarController::class, 'show'])
+            ->name('seminars.show');
+
+        Route::post('/seminars/{seminar}/start', [App\Http\Controllers\Teacher\SeminarController::class, 'start'])
+            ->name('seminars.start');
+
+        Route::get('/seminars/{seminar}/open-qr', [App\Http\Controllers\Teacher\SeminarController::class, 'openQr'])
+            ->name('seminars.open-qr');
+
+        Route::get('/seminars/{seminar}/qr', [App\Http\Controllers\Teacher\SeminarController::class, 'qr'])
+            ->name('seminars.qr');
+
+        Route::get('/seminars/{seminar}/status', [App\Http\Controllers\Teacher\SeminarController::class, 'status'])
+            ->name('seminars.status');
+
+        Route::post('/seminars/{seminar}/expire-qr', [App\Http\Controllers\Teacher\SeminarController::class, 'expireQr'])
+            ->name('seminars.expire-qr');
+
+        Route::get('/seminars/{seminar}/export', [App\Http\Controllers\Teacher\SeminarController::class, 'export'])
+            ->name('seminars.export');
     });
 
 // Department API

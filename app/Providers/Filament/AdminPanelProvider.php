@@ -14,6 +14,7 @@ use App\Filament\Resources\Faculties\FacultyResource;
 use App\Filament\Resources\FailedAttempts\FailedAttemptResource;
 use App\Filament\Resources\Halls\HallResource;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
+use App\Filament\Resources\Seminars\SeminarResource;
 use App\Filament\Resources\StudentDevices\StudentDeviceResource;
 use App\Filament\Resources\Students\StudentResource;
 use App\Filament\Resources\Subjects\SubjectResource;
@@ -60,6 +61,7 @@ class AdminPanelProvider extends PanelProvider
             // Only show specific resources - hide: Attendances, FailedAttempts, StudentDevices
             ->resources([
                 LectureSessionResource::class,
+                SeminarResource::class,
                 StudentResource::class,
                 SubjectResource::class,
                 FacultyResource::class,

@@ -2,7 +2,7 @@
 <html lang="{{ app()->getLocale() }}" dir="{{ $direction ?? 'rtl' }}">
 
 @php
-$isQrPresentation = request()->routeIs('teacher.lecture-session.qr');
+$isQrPresentation = request()->routeIs('teacher.lecture-session.qr', 'teacher.seminars.qr');
 @endphp
 
 <head>
@@ -470,15 +470,22 @@ $isQrPresentation = request()->routeIs('teacher.lecture-session.qr');
             </div>
 
             <nav class="sidebar-nav">
-                <a href="{{ route('teacher.dashboard') }}"
+                <a href="{{ url('/') }}"
                     class="nav-link {{ request()->routeIs('teacher.dashboard') ? 'active' : '' }}">
                     {{ __('teacher.dashboard') }}
                 </a>
 
-                <a href="{{ route('teacher.profile') }}"
-                    class="nav-link {{ request()->routeIs('teacher.profile') ? 'active' : '' }}">
-                    {{ __('teacher.profile_title') }}
+                <a href="{{ route('teacher.seminars.index') }}"
+                    class="nav-link {{ request()->routeIs('teacher.seminars.*') ? 'active' : '' }}">
+                    {{ __('teacher.seminars') }}
                 </a>
+
+                @unless(request()->routeIs('teacher.seminars.*'))
+                    <a href="{{ route('teacher.profile') }}"
+                        class="nav-link {{ request()->routeIs('teacher.profile') ? 'active' : '' }}">
+                        {{ __('teacher.profile_title') }}
+                    </a>
+                @endunless
 
                 <form method="POST" action="{{ route('logout') }}" class="logout-form">
                     @csrf
