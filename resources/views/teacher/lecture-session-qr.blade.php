@@ -31,15 +31,15 @@
         </div>
     </div>
 
-    <div id="qr-container" class="mb-6">
-        <img src="{{ $qr }}" alt="QR Code" class="w-64 h-64">
+    <div id="qr-container" class="qr-container mb-6">
+        <img src="{{ $qr }}" alt="QR Code" class="qr-image w-64 h-64">
     </div>
 
     <p id="otp-label" class="text-gray-500 text-sm mt-4">
         {{ __('teacher.verification_code') }}
     </p>
 
-    <p id="otp-code" class="text-8xl font-bold tracking-widest text-blue-600 mt-2">
+    <p id="otp-code" class="otp-code text-8xl font-bold tracking-widest text-blue-600 mt-2">
         {{ $otp }}
     </p>
     @endif

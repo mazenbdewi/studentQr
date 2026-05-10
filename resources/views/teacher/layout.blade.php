@@ -266,7 +266,7 @@ $isQrPresentation = request()->routeIs('teacher.lecture-session.qr');
     .qr-presentation-card .qr-box,
     .qr-presentation-card .qr-image,
     .qr-presentation-card .qr-code {
-        max-width: 760px !important;
+        max-width: 920px !important;
         margin-left: auto !important;
         margin-right: auto !important;
     }
@@ -274,7 +274,7 @@ $isQrPresentation = request()->routeIs('teacher.lecture-session.qr');
     .qr-presentation-card svg,
     .qr-presentation-card canvas {
         display: block;
-        width: min(70vh, 760px) !important;
+        width: min(78vh, 920px) !important;
         height: auto !important;
         max-width: 100% !important;
         margin: 0 auto !important;
@@ -282,7 +282,7 @@ $isQrPresentation = request()->routeIs('teacher.lecture-session.qr');
 
     .qr-presentation-card img {
         display: block;
-        width: min(70vh, 760px) !important;
+        width: min(78vh, 920px) !important;
         height: auto !important;
         max-width: 100% !important;
         margin: 0 auto !important;
@@ -294,14 +294,14 @@ $isQrPresentation = request()->routeIs('teacher.lecture-session.qr');
         display: inline-flex !important;
         align-items: center;
         justify-content: center;
-        min-width: 340px;
+        min-width: 100%;
         padding: 22px 40px;
         border-radius: 22px;
         background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
         color: #fff;
-        font-size: 3.2rem !important;
+        font-size: clamp(4.5rem, 8vw, 7rem) !important;
         font-weight: 800;
-        letter-spacing: 12px;
+        letter-spacing: 16px;
         direction: ltr;
         box-shadow: 0 14px 30px rgba(29, 78, 216, 0.22);
         margin: 20px auto 0 !important;
@@ -331,14 +331,14 @@ $isQrPresentation = request()->routeIs('teacher.lecture-session.qr');
         .qr-presentation-card svg,
         .qr-presentation-card canvas,
         .qr-presentation-card img {
-            width: min(62vh, 620px) !important;
+            width: min(68vh, 760px) !important;
         }
 
         .qr-presentation-card .otp-code,
         .qr-presentation-card .otp,
         .qr-presentation-card .session-otp {
-            font-size: 2.5rem !important;
-            letter-spacing: 10px;
+            font-size: 4rem !important;
+            letter-spacing: 12px;
         }
     }
 
@@ -372,15 +372,15 @@ $isQrPresentation = request()->routeIs('teacher.lecture-session.qr');
         .qr-presentation-card svg,
         .qr-presentation-card canvas,
         .qr-presentation-card img {
-            width: min(58vh, 500px) !important;
+            width: min(62vh, 620px) !important;
         }
 
         .qr-presentation-card .otp-code,
         .qr-presentation-card .otp,
         .qr-presentation-card .session-otp {
             min-width: 260px;
-            font-size: 2rem !important;
-            letter-spacing: 8px;
+            font-size: 3rem !important;
+            letter-spacing: 10px;
             padding: 18px 26px;
         }
     }

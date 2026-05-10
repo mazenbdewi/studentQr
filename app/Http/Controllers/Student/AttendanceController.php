@@ -611,7 +611,11 @@ class AttendanceController extends Controller
         $tokenData = $qrUrlGenerator->attendanceVerificationUrl($tokenValue);
 
         $writer = new PngWriter;
-        $qrCode = new \Endroid\QrCode\QrCode($tokenData);
+        $qrCode = new \Endroid\QrCode\QrCode(
+            data: $tokenData,
+            size: 1100,
+            margin: 18,
+        );
         $result = $writer->write($qrCode);
         $qr = $result->getDataUri();
 
