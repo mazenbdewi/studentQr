@@ -470,3 +470,30 @@ html:not(.dark) select.fi-select-input optgroup {
     background: #ffffff !important;
     color: #111827 !important;
 }
+
+.lecture-weekday-toggle-buttons .fi-fo-toggle-buttons-btn-ctn {
+    min-width: 0;
+}
+
+.lecture-weekday-toggle-buttons .fi-btn {
+    width: 100%;
+    min-height: 44px;
+    border-radius: 12px !important;
+    font-weight: 700;
+}
+
+.lecture-weekday-toggle-buttons .fi-fo-toggle-buttons-input:checked + .fi-btn {
+    background: linear-gradient(135deg, #1e40af, #2563eb) !important;
+    color: #ffffff !important;
+    border-color: #60a5fa !important;
+    box-shadow:
+        0 0 0 3px rgba(37, 99, 235, 0.22),
+        0 10px 22px rgba(30, 64, 175, 0.22) !important;
+    transform: translateY(-1px);
+}
+
+.lecture-weekday-toggle-buttons .fi-fo-toggle-buttons-input:checked + .fi-btn::after {
+    content: "✓";
+    font-weight: 800;
+    margin-inline-start: 8px;
+}
