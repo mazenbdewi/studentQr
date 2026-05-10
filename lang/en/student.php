@@ -86,6 +86,7 @@ return [
     'excel_file' => 'Excel File',
     'import_success' => 'Students imported successfully',
     'import_failed' => 'Import failed, please check the file format',
+    'help_content' => 'Upload an Excel file with student data. You can add subject codes in the subject_codes column separated by commas, such as CS101, CS102, to enroll the student directly.',
     'enter_student_number_and_code' => 'Enter your student number and verification code to confirm your attendance.',
     'absent_students' => 'Absent Students',
     'already_attended' => 'You have already recorded your attendance',
@@ -113,7 +114,13 @@ return [
     'teacher' => 'Teacher',
     'hall' => 'Hall',
     'date' => 'Date',
-'subject' => 'Subject',
+    'subject' => 'Subject',
+    'already_enrolled' => 'The student is already enrolled in this subject.',
+    'enrolled_subjects' => 'Student Subjects',
+    'enrolled_subjects_help' => 'Select the department first, then choose one or more subjects to enroll this student directly.',
+    'subject_codes' => 'Subject Codes',
+    'subject_code_not_found' => 'Subject code :code was not found.',
+    'subject_not_in_department' => 'Subject :subject does not belong to the selected student department.',
 
     // Attendance Report
     'attendance_report' => 'Attendance Report',

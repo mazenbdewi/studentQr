@@ -20,11 +20,10 @@ class StudentsTemplateExport implements FromCollection, ShouldAutoSize, WithHead
                 'كلية الهندسة',
                 'علوم الحاسب',
                 '1',
-                'student',
                 '0123456789',
                 'active',
-                '',
                 'true',
+                'CS101, CS102',
             ],
         ]);
     }
@@ -38,11 +37,10 @@ class StudentsTemplateExport implements FromCollection, ShouldAutoSize, WithHead
             'faculty_name',
             'department_name',
             'year',
-            'type',
             'phone',
             'status',
-            'avatar',
             'is_active',
+            'subject_codes',
         ];
     }
 
