@@ -2,6 +2,7 @@
 
 return [
     'subject' => 'Subject',
+    'section_helper_text' => 'Choose a section for this subject when sections are defined.',
     'hall' => 'Hall',
     'session_date' => 'Session Date',
     'start_time' => 'Start Time',

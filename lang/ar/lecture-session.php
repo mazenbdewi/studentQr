@@ -2,6 +2,7 @@
 
 return [
     'subject' => 'المادة',
+    'section_helper_text' => 'اختر شعبة لهذه المادة عند وجود شعب معرفة.',
     'hall' => 'القاعة',
     'session_date' => 'تاريخ الجلسة',
     'start_time' => 'وقت البدء',

@@ -148,22 +148,22 @@ function createStudentAttendanceFixture(): array
     $primarySubject = Subject::query()->create([
         'code' => 'INF301',
         'name' => 'هندسة البرمجيات',
+        'subject_type' => Subject::TYPE_THEORETICAL,
         'lecturer_id' => $lecturer->id,
         'department_id' => $department->id,
         'credit_hours' => 3,
         'level' => 3,
-        'semester' => 2,
         'is_active' => true,
     ]);
 
     $secondarySubject = Subject::query()->create([
         'code' => 'DB302',
         'name' => 'قواعد البيانات',
+        'subject_type' => Subject::TYPE_THEORETICAL,
         'lecturer_id' => $lecturer->id,
         'department_id' => $department->id,
         'credit_hours' => 3,
         'level' => 3,
-        'semester' => 2,
         'is_active' => true,
     ]);
 
@@ -182,7 +182,7 @@ function createStudentAttendanceFixture(): array
         'student_id' => $student->id,
         'subject_id' => $primarySubject->id,
         'semester' => 2,
-        'year' => 2026,
+        'year' => 3,
         'status' => 'enrolled',
         'created_at' => now(),
         'updated_at' => now(),
@@ -192,7 +192,7 @@ function createStudentAttendanceFixture(): array
         'student_id' => $student->id,
         'subject_id' => $secondarySubject->id,
         'semester' => 2,
-        'year' => 2026,
+        'year' => 3,
         'status' => 'enrolled',
         'created_at' => now(),
         'updated_at' => now(),

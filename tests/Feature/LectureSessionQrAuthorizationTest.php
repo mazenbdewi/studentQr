@@ -34,11 +34,11 @@ function createLectureSessionForQrTests(User $lecturer): LectureSession
     $subject = Subject::unguarded(fn () => Subject::create([
         'code' => 'CS101',
         'name' => 'Programming 1',
+        'subject_type' => Subject::TYPE_THEORETICAL,
         'department_id' => $department->id,
         'lecturer_id' => $lecturer->id,
         'credit_hours' => 3,
         'level' => 1,
-        'semester' => 1,
         'is_active' => true,
     ]));
 

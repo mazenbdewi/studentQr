@@ -36,14 +36,14 @@ class CreateStudent extends CreateRecord
 
     protected function syncSubjects(): void
     {
-        foreach (Subject::query()->whereKey($this->selectedSubjectIds)->get(['id', 'semester', 'level']) as $subject) {
+        foreach (Subject::query()->whereKey($this->selectedSubjectIds)->get(['id', 'level']) as $subject) {
             Enrollment::query()->updateOrCreate(
                 [
                     'student_id' => $this->getRecord()->id,
                     'subject_id' => $subject->id,
                 ],
                 [
-                    'semester' => Subject::normalizeSemester($subject->semester),
+                    'semester' => null,
                     'year' => $subject->level ?: $this->getRecord()->year,
                     'status' => Enrollment::STATUS_ENROLLED,
                 ],

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Subjects;
 
 use App\Filament\Resources\Students\RelationManagers\SubjectsRelationManager;
 use App\Filament\Resources\Subjects\RelationManagers\StudentsRelationManager;
+use App\Filament\Resources\Subjects\RelationManagers\SubjectSectionsRelationManager;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\Subject;
@@ -130,12 +131,12 @@ class SubjectResource extends Resource
                     ->required()
                     ->maxLength(255),
 
-                Forms\Components\Select::make('semester')
-                    ->label(__('subjects.semester'))
-                    ->options(fn (): array => Subject::semesterOptions())
+                Forms\Components\Select::make('subject_type')
+                    ->label(__('subjects.subject_type'))
+                    ->options(fn (): array => Subject::subjectTypeOptions())
                     ->native(false)
-                    ->afterStateHydrated(fn ($component, mixed $state): mixed => $component->state(Subject::normalizeSemester($state)))
-                    ->required(),
+                    ->required()
+                    ->default(Subject::TYPE_THEORETICAL),
 
                 Forms\Components\Toggle::make('is_active')
                     ->label(__('subjects.is_active'))
@@ -156,6 +157,12 @@ class SubjectResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                ->withCount('sections')
+                ->with(['sections' => fn ($sectionsQuery) => $sectionsQuery
+                    ->select(['id', 'subject_id', 'code'])
+                    ->orderBy('code'),
+                ]))
             ->columns([
                 Tables\Columns\TextColumn::make('code')
                     ->label(__('subjects.code'))
@@ -165,6 +172,24 @@ class SubjectResource extends Resource
                     ->label(__('subjects.name'))
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('subject_type')
+                    ->label(__('subjects.subject_type'))
+                    ->formatStateUsing(fn (Subject $record): string => $record->subject_type_label)
+                    ->badge()
+                    ->color(fn (?string $state): string => $state === Subject::TYPE_PRACTICAL ? 'success' : 'info')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('sections_count')
+                    ->label(__('subjects.sections_count'))
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('section_codes')
+                    ->label(__('subjects.section_codes'))
+                    ->state(fn (Subject $record): string => $record->sections
+                        ->pluck('code')
+                        ->filter()
+                        ->take(5)
+                        ->implode(', '))
+                    ->placeholder(__('subjects.not_available'))
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('lecturer.name')
                     ->label(__('subjects.lecturer'))
                     ->formatStateUsing(fn (?string $state): string => $state ?: __('subjects.not_assigned'))
@@ -173,10 +198,6 @@ class SubjectResource extends Resource
                 Tables\Columns\TextColumn::make('department.name')
                     ->label(__('subjects.department_id'))
                     ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('semester')
-                    ->label(__('subjects.semester'))
-                    ->formatStateUsing(fn (Subject $record): string => $record->semester_label)
                     ->sortable(),
                 Tables\Columns\TextColumn::make('deleted_at')
                     ->label(__('subjects.deleted_at'))
@@ -198,6 +219,9 @@ class SubjectResource extends Resource
                 Tables\Filters\TrashedFilter::make(),
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label(__('subjects.is_active')),
+                Tables\Filters\SelectFilter::make('subject_type')
+                    ->label(__('subjects.subject_type'))
+                    ->options(fn (): array => Subject::subjectTypeOptions()),
             ])
             ->actions([
                 EditAction::make()
@@ -221,6 +245,7 @@ class SubjectResource extends Resource
     public static function getRelations(): array
     {
         return [
+            SubjectSectionsRelationManager::class,
             StudentsRelationManager::class
 
         ];

@@ -16,9 +16,9 @@ return [
     'help_content' => [
         'students' => 'قم بملء القالب بالبيانات التالية: <strong>رقم الطالب (فريد)</strong>, <strong>الاسم</strong>, <strong>الرقم القومي (فريد)</strong>, <strong>اسم الكلية (مطابق تماماً)</strong>, <strong>اسم القسم (مطابق تماماً)</strong>. السنة (1-4), الهاتف اختياري. تجنب التكرار في رقم الطالب/القومي.',
         'departments' => '<strong>الاسم</strong>, <strong>اسم الكلية الموجودة بالنظام</strong>. الحالة اختيارية: نعم/لا/1/0/true/false.',
-        'subjects' => '<strong>كود المادة (فريد)</strong>, <strong>اسم المادة</strong>, <strong>اسم المحاضر (من course_lecturer)</strong>, <strong>اسم القسم</strong>, <strong>الفصل</strong>. الفصل يقبل فقط: first, second, summer. السنة الدراسية اختيارية (1-6).',
+        'subjects' => '<strong>كود المادة (فريد)</strong>, <strong>اسم المادة</strong>, <strong>نوع المادة</strong>, <strong>الشعب</strong>, <strong>اسم القسم</strong>. النوع يقبل theoretical/practical أو نظري/عملي. رموز الشعب يجب أن تطابق النوع: T للنظري و P للعملي.',
         'halls' => '<strong>الكود (فريد)</strong>, <strong>الاسم</strong>, <strong>الدور</strong>, <strong>السعة</strong>, جهاز عرض (نعم/لا), حاسب (نعم/لا), اسم الشبكة, نطاق IP بداية/نهاية (صالح IP).',
-        'lecture_sessions' => '<strong>اسم المادة الموجودة</strong>, <strong>اسم القاعة</strong>, <strong>التاريخ (2026-04-28)</strong>, <strong>وقت البداية (08:30)</strong>, <strong>وقت النهاية (10:00)</strong>. صيغة التاريخ يجب أن تكون YYYY-MM-DD وصيغة الوقت HH:MM. الحالة: scheduled/active/completed/cancelled.',
+        'lecture_sessions' => '<strong>اسم المادة الموجودة</strong>, <strong>رمز الشعبة</strong>, <strong>اسم القاعة</strong>, <strong>التاريخ (2026-04-28)</strong>, <strong>وقت البداية (08:30)</strong>, <strong>وقت النهاية (10:00)</strong>. صيغة التاريخ يجب أن تكون YYYY-MM-DD وصيغة الوقت HH:MM. الحالة: scheduled/active/completed/cancelled.',
         'subject_students' => 'للمادة الحالية: <strong>رقم الطالب</strong>, <strong>الاسم</strong>, الرقم القومي اختياري, الفصل/السنة. يُنشأ الطالب تلقائياً إن لم يوجد.',
     ],
     

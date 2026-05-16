@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\LectureSession;
 use App\Models\Subject;
+use App\Models\SubjectSection;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
@@ -128,6 +129,10 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
             $data['hall_name'] = trim((string) $data['hall_name']);
         }
 
+        if (isset($data['section_code']) && $data['section_code'] !== null) {
+            $data['section_code'] = SubjectSection::normalizeCode($data['section_code']);
+        }
+
         if (isset($data['status']) && $data['status'] !== null) {
             $data['status'] = trim((string) $data['status']);
         }
@@ -171,6 +176,25 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
 
             $data['subject_id'] = $subject['id'];
             $data['lecturer_id'] = $subject['lecturer_id'];
+
+            if (! empty($data['section_code'])) {
+                $section = SubjectSection::query()
+                    ->where('subject_id', $subject['id'])
+                    ->where('code', $data['section_code'])
+                    ->first();
+
+                if (! $section) {
+                    throw ValidationException::withMessages([
+                        'section_code' => __('subjects.section_not_found_for_subject', [
+                            'code' => $data['section_code'],
+                            'subject' => $data['subject_name'],
+                            'row' => $rowNumber,
+                        ]),
+                    ]);
+                }
+
+                $data['subject_section_id'] = $section->id;
+            }
         }
 
         if (! empty($data['hall_name'])) {
@@ -187,7 +211,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
             $data['qr_refresh_rate'] = (int) $data['qr_refresh_rate'];
         }
 
-        unset($data['subject_name'], $data['hall_name']);
+        unset($data['subject_name'], $data['hall_name'], $data['section_code']);
 
         return $data;
     }
@@ -199,6 +223,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
         $lectureSession = LectureSession::withTrashed()->updateOrCreate(
             [
                 'subject_id' => $row['subject_id'],
+                'subject_section_id' => $row['subject_section_id'] ?? null,
                 'hall_id' => $row['hall_id'],
                 'session_date' => $row['session_date'],
             ],
@@ -224,6 +249,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
     {
         return [
             'subject_id' => ['required', 'exists:subjects,id'],
+            'subject_section_id' => ['nullable', 'exists:subject_sections,id'],
             'lecturer_id' => ['required', 'exists:users,id'],
             'hall_id' => ['required', 'exists:halls,id'],
             'session_date' => ['required', 'date_format:Y-m-d'],
@@ -241,6 +267,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
         return [
             'subject_id.required' => __('validation.subject_required'),
             'subject_id.exists' => __('validation.subject_not_found'),
+            'subject_section_id.exists' => __('subjects.section_not_found'),
             'lecturer_id.required' => 'المحاضر مطلوب.',
             'lecturer_id.exists' => 'المحاضر المحدد غير موجود.',
             'hall_id.required' => __('validation.hall_required'),
@@ -264,6 +291,7 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
     {
         return [
             'subject_id' => __('validation.subject'),
+            'subject_section_id' => __('subjects.section_code'),
             'lecturer_id' => 'المحاضر',
             'hall_id' => __('validation.hall'),
             'session_date' => __('validation.session_date'),

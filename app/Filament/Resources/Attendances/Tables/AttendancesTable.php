@@ -35,6 +35,21 @@ class AttendancesTable
                     ->searchable()
                     ->sortable(),
 
+                TextColumn::make('lectureSession.subject.code')
+                    ->label(__('subjects.code'))
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('lectureSession.subject.subject_type')
+                    ->label(__('subjects.subject_type'))
+                    ->formatStateUsing(fn ($record): string => $record->lectureSession?->subjectSection?->section_type_label ?? $record->lectureSession?->subject?->subject_type_label ?? __('subjects.not_available'))
+                    ->badge()
+                    ->toggleable(),
+
+                TextColumn::make('lectureSession.subjectSection.code')
+                    ->label(__('subjects.section_code'))
+                    ->badge()
+                    ->placeholder(__('subjects.not_available')),
 
                 TextColumn::make('attendance_token_id')
                     ->label(__('attendance.attendance_token_id'))

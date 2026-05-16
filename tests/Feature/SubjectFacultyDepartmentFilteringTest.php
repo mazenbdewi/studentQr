@@ -73,8 +73,8 @@ function subjectFormData(Faculty $faculty, Department $department, User $lecture
         'department_id' => $department->id,
         'code' => $code,
         'name' => "Subject {$code}",
+        'subject_type' => Subject::TYPE_THEORETICAL,
         'lecturer_id' => $lecturer->id,
-        'semester' => Subject::SEMESTER_FIRST,
         'is_active' => true,
     ];
 }
@@ -152,9 +152,9 @@ it('hydrates the correct faculty on the edit page and clears the department when
     $subject = Subject::query()->create([
         'code' => 'SUB-301',
         'name' => 'Subject 301',
+        'subject_type' => Subject::TYPE_THEORETICAL,
         'lecturer_id' => $lecturer->id,
         'department_id' => $departmentA->id,
-        'semester' => Subject::SEMESTER_FIRST,
         'is_active' => true,
     ]);
 
@@ -176,9 +176,9 @@ it('prevents editing a subject with a department from another faculty', function
     $subject = Subject::query()->create([
         'code' => 'SUB-401',
         'name' => 'Subject 401',
+        'subject_type' => Subject::TYPE_THEORETICAL,
         'lecturer_id' => $lecturer->id,
         'department_id' => $departmentA->id,
-        'semester' => Subject::SEMESTER_FIRST,
         'is_active' => true,
     ]);
 
@@ -200,9 +200,9 @@ it('updates a subject when the new department belongs to the selected faculty', 
     $subject = Subject::query()->create([
         'code' => 'SUB-501',
         'name' => 'Subject 501',
+        'subject_type' => Subject::TYPE_THEORETICAL,
         'lecturer_id' => $lecturer->id,
         'department_id' => $departmentA->id,
-        'semester' => Subject::SEMESTER_FIRST,
         'is_active' => true,
     ]);
 

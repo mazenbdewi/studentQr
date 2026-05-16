@@ -15,13 +15,14 @@ class SubjectsTemplateExport implements FromCollection, WithHeadings, WithStyles
     public function headings(): array
     {
         return [
-            'code',
-            'name',
+            'college',
+            'department',
+            'subject_code',
+            'subject_name',
+            'subject_type',
+            'sections',
             'lecturer_name',
-            'faculty_name',
-            'department_name',
             'year',
-            'semester',
             'is_active',
         ];
     }
@@ -30,23 +31,25 @@ class SubjectsTemplateExport implements FromCollection, WithHeadings, WithStyles
     {
         return collect([
             [
-                'CS101',
-                'برمجة أساسية',
-                'د. أحمد محمد',
                 'كلية الهندسة',
                 'علوم الحاسب',
+                'CS101',
+                'برمجة أساسية',
+                'theoretical',
+                'T1,T2,T3',
+                'د. أحمد محمد',
                 1,
-                'first',
                 'true',
             ],
             [
                 __('subjects.template_notes'),
-                __('subjects.template_code_note'),
-                __('subjects.template_lecturer_note'),
-                __('subjects.template_faculty_note'),
                 __('subjects.template_department_note'),
+                __('subjects.template_code_note'),
+                __('subjects.template_name_note'),
+                __('subjects.template_subject_type_note'),
+                __('subjects.template_sections_note'),
+                __('subjects.template_lecturer_note'),
                 __('subjects.template_year_note'),
-                __('subjects.template_semester_note'),
                 __('subjects.template_status_note'),
             ],
         ]);
@@ -54,7 +57,7 @@ class SubjectsTemplateExport implements FromCollection, WithHeadings, WithStyles
 
     public function styles(Worksheet $sheet): array
     {
-        $lastColumn = 'H';
+        $lastColumn = 'I';
 
         $sheet->getStyle("A1:{$lastColumn}1")->getFont()->setBold(true);
 

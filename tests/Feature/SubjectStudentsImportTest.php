@@ -35,7 +35,7 @@ it('upserts subject enrollments without creating duplicates', function () {
         ->and(Enrollment::query()->first())->toMatchArray([
             'student_id' => $student->id,
             'subject_id' => $subject->id,
-            'semester' => 2,
+            'semester' => Subject::SEMESTER_SECOND,
             'year' => 3,
             'status' => Enrollment::STATUS_PASSED,
         ]);
@@ -91,11 +91,11 @@ function createSubjectEnrollmentFixture(bool $createStudent): array
     $subject = Subject::query()->create([
         'code' => 'SUB101',
         'name' => 'Subject',
+        'subject_type' => Subject::TYPE_THEORETICAL,
         'lecturer_id' => $lecturer->id,
         'department_id' => $department->id,
         'credit_hours' => 3,
         'level' => 3,
-        'semester' => 2,
         'is_active' => true,
     ]);
 

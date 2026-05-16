@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 
 class LectureSession extends Model
 {
@@ -18,6 +19,7 @@ class LectureSession extends Model
 
     protected $fillable = [
         'subject_id',
+        'subject_section_id',
         'lecturer_id',
         'hall_id',
         'session_date',
@@ -46,6 +48,23 @@ class LectureSession extends Model
         'session_date' => 'date',
         'qr_expired' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $session): void {
+            if (blank($session->subject_section_id)) {
+                return;
+            }
+
+            $section = SubjectSection::query()->find($session->subject_section_id);
+
+            if (! $section || (int) $section->subject_id !== (int) $session->subject_id) {
+                throw ValidationException::withMessages([
+                    'subject_section_id' => __('subjects.section_must_belong_to_subject'),
+                ]);
+            }
+        });
+    }
 
     public function canManageQr(?Authenticatable $user): bool
     {
@@ -188,6 +207,11 @@ class LectureSession extends Model
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class)->withTrashed();
+    }
+
+    public function subjectSection(): BelongsTo
+    {
+        return $this->belongsTo(SubjectSection::class);
     }
 
     public function lecturer(): BelongsTo

@@ -17,11 +17,14 @@ return new class extends Migration
         if ($driver === 'mysql') {
             DB::statement("ALTER TABLE subjects MODIFY credit_hours TINYINT NULL");
             DB::statement("ALTER TABLE subjects MODIFY level TINYINT NULL");
-            DB::statement("ALTER TABLE subjects MODIFY semester VARCHAR(20) NOT NULL DEFAULT 'first'");
 
-            DB::table('subjects')->where('semester', '1')->update(['semester' => 'first']);
-            DB::table('subjects')->where('semester', '2')->update(['semester' => 'second']);
-            DB::table('subjects')->where('semester', '3')->update(['semester' => 'summer']);
+            if (Schema::hasColumn('subjects', 'semester')) {
+                DB::statement("ALTER TABLE subjects MODIFY semester VARCHAR(20) NOT NULL DEFAULT 'first'");
+
+                DB::table('subjects')->where('semester', '1')->update(['semester' => 'first']);
+                DB::table('subjects')->where('semester', '2')->update(['semester' => 'second']);
+                DB::table('subjects')->where('semester', '3')->update(['semester' => 'summer']);
+            }
         }
 
         if (Schema::hasTable('enrollments') && $driver === 'mysql') {
@@ -42,13 +45,16 @@ return new class extends Migration
         $driver = DB::getDriverName();
 
         if ($driver === 'mysql') {
-            DB::table('subjects')->where('semester', 'first')->update(['semester' => '1']);
-            DB::table('subjects')->where('semester', 'second')->update(['semester' => '2']);
-            DB::table('subjects')->where('semester', 'summer')->update(['semester' => '3']);
-
             DB::statement('ALTER TABLE subjects MODIFY credit_hours TINYINT NOT NULL');
             DB::statement('ALTER TABLE subjects MODIFY level TINYINT NOT NULL');
-            DB::statement('ALTER TABLE subjects MODIFY semester TINYINT NOT NULL');
+
+            if (Schema::hasColumn('subjects', 'semester')) {
+                DB::table('subjects')->where('semester', 'first')->update(['semester' => '1']);
+                DB::table('subjects')->where('semester', 'second')->update(['semester' => '2']);
+                DB::table('subjects')->where('semester', 'summer')->update(['semester' => '3']);
+
+                DB::statement('ALTER TABLE subjects MODIFY semester TINYINT NOT NULL');
+            }
         }
 
         if (Schema::hasTable('enrollments') && $driver === 'mysql') {

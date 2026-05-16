@@ -110,6 +110,32 @@ class ListSubjects extends ListRecords
                             ->body(implode('<br>', array_slice($messages, 0, 5)))
                             ->danger()
                             ->send();
+                    } catch (\Illuminate\Validation\ValidationException $e) {
+                        $messages = [];
+
+                        foreach ($e->errors() as $fieldErrors) {
+                            foreach ($fieldErrors as $error) {
+                                $messages[] = $error;
+                            }
+                        }
+
+                        app(ActivityLogger::class)->logImportSummary(
+                            'subjects',
+                            'subjects_import',
+                            $fileName,
+                            $import->getImportedCount(),
+                            $import->getImportedCount(),
+                            count($messages),
+                            $startedAt->toIso8601String(),
+                            now()->toIso8601String(),
+                            ['status' => 'failed']
+                        );
+
+                        Notification::make()
+                            ->title(__('subjects.import_failed'))
+                            ->body(implode('<br>', array_slice($messages, 0, 5)))
+                            ->danger()
+                            ->send();
                     }
                 }),
 

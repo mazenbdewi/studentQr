@@ -31,10 +31,6 @@ class SubjectsTable
                 ->label(__('subjects.department_id'))
                 ->numeric()
                 ->sortable(),
-            TextColumn::make('semester')
-                ->label(__('subjects.semester'))
-                ->formatStateUsing(fn (Subject $record): string => $record->semester_label)
-                ->sortable(),
             IconColumn::make('is_active')
                 ->label(__('subjects.is_active'))
                 ->boolean(),

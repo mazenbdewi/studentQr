@@ -44,7 +44,7 @@ class Student extends Model
     {
         return $this->belongsToMany(Subject::class, 'enrollments', 'student_id', 'subject_id')
             ->withTrashed()
-            ->withPivot(['semester', 'year', 'status'])
+            ->withPivot(['semester', 'year', 'status', 'theoretical_section_id', 'practical_section_id', 'registration_date'])
             ->withTimestamps();
     }
 

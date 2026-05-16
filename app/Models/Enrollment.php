@@ -10,6 +10,9 @@ class Enrollment extends Model
     protected $fillable = [
         'student_id',
         'subject_id',
+        'theoretical_section_id',
+        'practical_section_id',
+        'registration_date',
         'semester',
         'year',
         'status',
@@ -18,6 +21,9 @@ class Enrollment extends Model
     protected $casts = [
         'student_id' => 'integer',
         'subject_id' => 'integer',
+        'theoretical_section_id' => 'integer',
+        'practical_section_id' => 'integer',
+        'registration_date' => 'date',
         'year' => 'integer',
     ];
 
@@ -47,5 +53,15 @@ class Enrollment extends Model
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class)->withTrashed();
+    }
+
+    public function theoreticalSection(): BelongsTo
+    {
+        return $this->belongsTo(SubjectSection::class, 'theoretical_section_id');
+    }
+
+    public function practicalSection(): BelongsTo
+    {
+        return $this->belongsTo(SubjectSection::class, 'practical_section_id');
     }
 }

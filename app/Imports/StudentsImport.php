@@ -44,7 +44,7 @@ class StudentsImport implements OnEachRow, WithHeadingRow, WithValidation
 
         Subject::query()
             ->withoutTrashed()
-            ->get(['id', 'code', 'name', 'department_id', 'semester', 'level'])
+            ->get(['id', 'code', 'name', 'department_id', 'level'])
             ->each(function (Subject $subject): void {
                 $normalizedCode = $this->normalizeLookupValue($subject->code);
 
@@ -107,7 +107,7 @@ class StudentsImport implements OnEachRow, WithHeadingRow, WithValidation
                     'subject_id' => $subject->id,
                 ],
                 [
-                    'semester' => Subject::normalizeSemester($subject->semester),
+                    'semester' => null,
                     'year' => $subject->level ?: $student->year,
                     'status' => Enrollment::STATUS_ENROLLED,
                 ],
@@ -221,7 +221,7 @@ class StudentsImport implements OnEachRow, WithHeadingRow, WithValidation
     {
         return Subject::query()
             ->whereKey($subjectIds)
-            ->get(['id', 'semester', 'level'])
+            ->get(['id', 'level'])
             ->all();
     }
 

@@ -14,7 +14,7 @@ class StudentAttendanceReport
     {
         return LectureSession::query()
             ->withTrashed()
-            ->with(['subject', 'lecturer', 'hall'])
+            ->with(['subject', 'subjectSection', 'lecturer', 'hall'])
             ->select('lecture_sessions.*')
             ->selectRaw(
                 "student_attendances.id as attendance_record_id,

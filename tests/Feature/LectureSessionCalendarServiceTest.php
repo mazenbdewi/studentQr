@@ -18,8 +18,8 @@ function createCalendarServiceSubject(): array
     $subject = Subject::create([
         'code' => 'CAL-101',
         'name' => 'Calendar Test Subject',
+        'subject_type' => Subject::TYPE_THEORETICAL,
         'lecturer_id' => $lecturer->id,
-        'semester' => 'first',
         'is_active' => true,
     ]);
 

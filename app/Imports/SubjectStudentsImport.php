@@ -29,7 +29,7 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
         }
 
         $subject = Subject::query()
-            ->select(['id', 'semester', 'level'])
+            ->select(['id', 'level'])
             ->findOrFail($this->subjectId);
 
         $normalizedRows = $rows
@@ -58,7 +58,7 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
             $upsertRows[] = [
                 'student_id' => $student->id,
                 'subject_id' => $subject->id,
-                'semester' => Subject::normalizeSemester($row['semester'] ?? $this->semester ?? $subject->semester),
+                'semester' => Subject::normalizeSemester($row['semester'] ?? $this->semester),
                 'year' => $row['year'] ?? $this->year ?? $subject->level,
                 'status' => $row['status'] ?? Enrollment::STATUS_ENROLLED,
                 'created_at' => now(),

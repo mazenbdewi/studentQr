@@ -18,6 +18,7 @@ use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Forms;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables;
@@ -97,7 +98,19 @@ class LectureSessionResource extends Resource
                     ->afterStateUpdated(function (callable $set, $state) {
                         $subject = static::scopeSubjectQueryForCurrentUser(Subject::query())->find($state);
                         $set('lecturer_id', $subject?->lecturer_id ?? auth()->id());
+                        $set('subject_section_id', null);
                     }),
+
+                Forms\Components\Select::make('subject_section_id')
+                    ->label(__('subjects.section_code'))
+                    ->options(fn (Get $get): array => static::getSectionOptionsForSubject($get('subject_id')))
+                    ->searchable()
+                    ->preload()
+                    ->native(false)
+                    ->disabled(fn (Get $get): bool => blank($get('subject_id')))
+                    ->required(fn (Get $get): bool => static::subjectHasSections($get('subject_id')))
+                    ->placeholder(__('subjects.select_subject_first'))
+                    ->helperText(__('lecture-session.section_helper_text')),
 
                 Forms\Components\Select::make('hall_id')
                     ->label(__('lecture-session.hall'))
@@ -181,6 +194,23 @@ class LectureSessionResource extends Resource
                     ->label(__('lecture-session.subject'))
                     ->searchable()
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('subject.code')
+                    ->label(__('subjects.code'))
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('subject.subject_type')
+                    ->label(__('subjects.subject_type'))
+                    ->formatStateUsing(fn (LectureSession $record): string => $record->subjectSection?->section_type_label ?? $record->subject?->subject_type_label ?? __('subjects.not_available'))
+                    ->badge()
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('subjectSection.code')
+                    ->label(__('subjects.section_code'))
+                    ->badge()
+                    ->placeholder(__('subjects.not_available'))
+                    ->searchable(),
 
                 Tables\Columns\TextColumn::make('hall.name')
                     ->label(__('lecture-session.hall'))
@@ -445,6 +475,39 @@ class LectureSessionResource extends Resource
 
         $data['lecturer_id'] = $subject->lecturer_id ?? $data['lecturer_id'] ?? $user?->id;
 
+        if (filled($data['subject_section_id'] ?? null)) {
+            $sectionBelongsToSubject = $subject->sections()
+                ->whereKey($data['subject_section_id'])
+                ->exists();
+
+            if (! $sectionBelongsToSubject) {
+                throw ValidationException::withMessages([
+                    'subject_section_id' => __('subjects.section_must_belong_to_subject'),
+                ]);
+            }
+        }
+
         return $data;
+    }
+
+    public static function getSectionOptionsForSubject(int | string | null $subjectId): array
+    {
+        if (blank($subjectId)) {
+            return [];
+        }
+
+        return \App\Models\SubjectSection::query()
+            ->where('subject_id', $subjectId)
+            ->orderBy('code')
+            ->pluck('code', 'id')
+            ->all();
+    }
+
+    public static function subjectHasSections(int | string | null $subjectId): bool
+    {
+        return filled($subjectId)
+            && \App\Models\SubjectSection::query()
+                ->where('subject_id', $subjectId)
+                ->exists();
     }
 }

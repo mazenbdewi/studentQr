@@ -18,7 +18,7 @@ class SubjectStudentsTemplateExport implements FromCollection, WithColumnWidths,
         return collect([
             [
                 '2024001',
-                (string) Subject::normalizeSemester($this->subject?->semester ?? Subject::SEMESTER_FIRST),
+                Subject::SEMESTER_FIRST,
                 (string) ($this->subject?->level ?? 1),
                 'enrolled',
             ],

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\UserGuideDownloadController;
 use App\Http\Controllers\Admin\DatabaseBackupDownloadController;
+use App\Http\Controllers\Admin\ManaraEnrollmentImportErrorDownloadController;
 use App\Exports\Templates\StudentsTemplateExport;
 use App\Exports\Templates\DepartmentsTemplateExport;
 use App\Exports\Templates\SubjectsTemplateExport;
@@ -42,3 +43,8 @@ Route::middleware('auth')
 Route::middleware(['auth', 'pin.verified'])
     ->get('/admin/user-guide/download', UserGuideDownloadController::class)
     ->name('admin.user-guide.download');
+
+Route::middleware(['auth', 'role:super-admin|admin', 'pin.verified'])
+    ->get('/admin/manara-enrollment-import/errors/{fileName}', ManaraEnrollmentImportErrorDownloadController::class)
+    ->where('fileName', 'manara-enrollment-errors-[0-9]{8}-[0-9]{6}\.xlsx')
+    ->name('admin.manara-enrollment-import.errors.download');

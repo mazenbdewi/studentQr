@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Students\RelationManagers;
 use App\Filament\Resources\Subjects\SubjectResource;
 use App\Models\Enrollment;
 use App\Models\Subject;
+use App\Models\SubjectSection;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -36,7 +37,7 @@ class SubjectsRelationManager extends RelationManager
         return $table
             ->modelLabel(__('enrollments.singular'))
             ->pluralModelLabel(__('enrollments.plural'))
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('subject'))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['subject', 'theoreticalSection', 'practicalSection']))
             ->defaultSort('subject_id')
             ->recordTitle(fn (Enrollment $record): string => $record->subject?->name ?? __('subjects.record_title'))
             ->columns([
@@ -49,6 +50,22 @@ class SubjectsRelationManager extends RelationManager
                     ->label(__('subjects.name'))
                     ->url(fn (Enrollment $record): string => SubjectResource::getUrl('view', ['record' => $record->subject]))
                     ->searchable()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('theoreticalSection.code')
+                    ->label(__('enrollments.theoretical_section'))
+                    ->placeholder(__('subjects.not_available'))
+                    ->badge(),
+
+                Tables\Columns\TextColumn::make('practicalSection.code')
+                    ->label(__('enrollments.practical_section'))
+                    ->placeholder(__('subjects.not_available'))
+                    ->badge(),
+
+                Tables\Columns\TextColumn::make('registration_date')
+                    ->label(__('enrollments.registration_date'))
+                    ->date()
+                    ->placeholder(__('subjects.not_available'))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('semester')
@@ -131,15 +148,17 @@ class SubjectsRelationManager extends RelationManager
                 ->live()
                 ->afterStateUpdated(function (?string $state, callable $set): void {
                     $subject = Subject::query()
-                        ->select(['id', 'semester', 'level'])
+                        ->select(['id', 'level'])
                         ->find($state);
 
                     if (! $subject) {
                         return;
                     }
 
-                    $set('semester', Subject::normalizeSemester($subject->semester));
+                    $set('semester', null);
                     $set('year', $subject->level);
+                    $set('theoretical_section_id', null);
+                    $set('practical_section_id', null);
                 })
                 ->rule(
                     Rule::unique('enrollments', 'subject_id')
@@ -165,6 +184,29 @@ class SubjectsRelationManager extends RelationManager
                 ->native(false)
                 ->required(),
 
+            Forms\Components\Select::make('theoretical_section_id')
+                ->label(__('enrollments.theoretical_section'))
+                ->options(fn (?Enrollment $record, callable $get): array => $this->sectionOptions(
+                    $get('subject_id') ?: $record?->subject_id,
+                    Subject::TYPE_THEORETICAL,
+                ))
+                ->searchable()
+                ->preload()
+                ->nullable(),
+
+            Forms\Components\Select::make('practical_section_id')
+                ->label(__('enrollments.practical_section'))
+                ->options(fn (?Enrollment $record, callable $get): array => $this->sectionOptions(
+                    $get('subject_id') ?: $record?->subject_id,
+                    Subject::TYPE_PRACTICAL,
+                ))
+                ->searchable()
+                ->preload()
+                ->nullable(),
+
+            Forms\Components\DatePicker::make('registration_date')
+                ->label(__('enrollments.registration_date')),
+
             Forms\Components\TextInput::make('year')
                 ->label(__('enrollments.year'))
                 ->numeric()
@@ -179,5 +221,19 @@ class SubjectsRelationManager extends RelationManager
                 ->default(Enrollment::STATUS_ENROLLED)
                 ->required(),
         ];
+    }
+
+    protected function sectionOptions(mixed $subjectId, string $sectionType): array
+    {
+        if (blank($subjectId)) {
+            return [];
+        }
+
+        return SubjectSection::query()
+            ->where('subject_id', $subjectId)
+            ->where('section_type', $sectionType)
+            ->orderBy('code')
+            ->pluck('code', 'id')
+            ->all();
     }
 }

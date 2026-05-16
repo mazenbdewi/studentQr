@@ -21,10 +21,10 @@ class AcademicDataSeeder extends Seeder
                         'name' => 'هندسة المعلوماتية',
                         'name_en' => 'Computer Engineering',
                         'subjects' => [
-                            ['code' => 'CSE101', 'name' => 'مقدمة في البرمجة', 'level' => 1, 'semester' => Subject::SEMESTER_FIRST, 'credit_hours' => 3],
-                            ['code' => 'CSE102', 'name' => 'بنى المعطيات', 'level' => 1, 'semester' => Subject::SEMESTER_SECOND, 'credit_hours' => 3],
-                            ['code' => 'CSE201', 'name' => 'قواعد البيانات', 'level' => 2, 'semester' => Subject::SEMESTER_FIRST, 'credit_hours' => 3],
-                            ['code' => 'CSE202', 'name' => 'شبكات الحاسوب', 'level' => 2, 'semester' => Subject::SEMESTER_SECOND, 'credit_hours' => 3],
+                            ['code' => 'CSE101', 'name' => 'مقدمة في البرمجة', 'subject_type' => Subject::TYPE_THEORETICAL, 'sections' => ['T1', 'T2'], 'level' => 1, 'credit_hours' => 3],
+                            ['code' => 'CSE102', 'name' => 'بنى المعطيات', 'subject_type' => Subject::TYPE_PRACTICAL, 'sections' => ['P1', 'P2'], 'level' => 1, 'credit_hours' => 3],
+                            ['code' => 'CSE201', 'name' => 'قواعد البيانات', 'subject_type' => Subject::TYPE_THEORETICAL, 'sections' => ['T1'], 'level' => 2, 'credit_hours' => 3],
+                            ['code' => 'CSE202', 'name' => 'شبكات الحاسوب', 'subject_type' => Subject::TYPE_THEORETICAL, 'sections' => ['T1', 'T2'], 'level' => 2, 'credit_hours' => 3],
                         ],
                     ],
                     [
@@ -32,9 +32,9 @@ class AcademicDataSeeder extends Seeder
                         'name' => 'الهندسة المدنية',
                         'name_en' => 'Civil Engineering',
                         'subjects' => [
-                            ['code' => 'CIV101', 'name' => 'ميكانيك هندسي', 'level' => 1, 'semester' => Subject::SEMESTER_FIRST, 'credit_hours' => 3],
-                            ['code' => 'CIV201', 'name' => 'مقاومة مواد', 'level' => 2, 'semester' => Subject::SEMESTER_FIRST, 'credit_hours' => 3],
-                            ['code' => 'CIV202', 'name' => 'تحليل إنشائي', 'level' => 2, 'semester' => Subject::SEMESTER_SECOND, 'credit_hours' => 3],
+                            ['code' => 'CIV101', 'name' => 'ميكانيك هندسي', 'subject_type' => Subject::TYPE_THEORETICAL, 'sections' => ['T1'], 'level' => 1, 'credit_hours' => 3],
+                            ['code' => 'CIV201', 'name' => 'مقاومة مواد', 'subject_type' => Subject::TYPE_THEORETICAL, 'sections' => ['T1'], 'level' => 2, 'credit_hours' => 3],
+                            ['code' => 'CIV202', 'name' => 'تحليل إنشائي', 'subject_type' => Subject::TYPE_THEORETICAL, 'sections' => ['T1'], 'level' => 2, 'credit_hours' => 3],
                         ],
                     ],
                 ],
@@ -48,9 +48,9 @@ class AcademicDataSeeder extends Seeder
                         'name' => 'التمريض',
                         'name_en' => 'Nursing',
                         'subjects' => [
-                            ['code' => 'NUR101', 'name' => 'أساسيات التمريض', 'level' => 1, 'semester' => Subject::SEMESTER_FIRST, 'credit_hours' => 3],
-                            ['code' => 'NUR102', 'name' => 'تشريح ووظائف الأعضاء', 'level' => 1, 'semester' => Subject::SEMESTER_SECOND, 'credit_hours' => 3],
-                            ['code' => 'NUR201', 'name' => 'تمريض صحة المجتمع', 'level' => 2, 'semester' => Subject::SEMESTER_FIRST, 'credit_hours' => 3],
+                            ['code' => 'NUR101', 'name' => 'أساسيات التمريض', 'subject_type' => Subject::TYPE_PRACTICAL, 'sections' => ['P1', 'P2'], 'level' => 1, 'credit_hours' => 3],
+                            ['code' => 'NUR102', 'name' => 'تشريح ووظائف الأعضاء', 'subject_type' => Subject::TYPE_THEORETICAL, 'sections' => ['T1'], 'level' => 1, 'credit_hours' => 3],
+                            ['code' => 'NUR201', 'name' => 'تمريض صحة المجتمع', 'subject_type' => Subject::TYPE_THEORETICAL, 'sections' => ['T1'], 'level' => 2, 'credit_hours' => 3],
                         ],
                     ],
                     [
@@ -58,9 +58,9 @@ class AcademicDataSeeder extends Seeder
                         'name' => 'المخابر الطبية',
                         'name_en' => 'Medical Laboratories',
                         'subjects' => [
-                            ['code' => 'LAB101', 'name' => 'كيمياء حيوية', 'level' => 1, 'semester' => Subject::SEMESTER_FIRST, 'credit_hours' => 3],
-                            ['code' => 'LAB102', 'name' => 'علم الدم', 'level' => 1, 'semester' => Subject::SEMESTER_SECOND, 'credit_hours' => 3],
-                            ['code' => 'LAB201', 'name' => 'الأحياء الدقيقة الطبية', 'level' => 2, 'semester' => Subject::SEMESTER_FIRST, 'credit_hours' => 3],
+                            ['code' => 'LAB101', 'name' => 'كيمياء حيوية', 'subject_type' => Subject::TYPE_THEORETICAL, 'sections' => ['T1'], 'level' => 1, 'credit_hours' => 3],
+                            ['code' => 'LAB102', 'name' => 'علم الدم', 'subject_type' => Subject::TYPE_PRACTICAL, 'sections' => ['P1'], 'level' => 1, 'credit_hours' => 3],
+                            ['code' => 'LAB201', 'name' => 'الأحياء الدقيقة الطبية', 'subject_type' => Subject::TYPE_THEORETICAL, 'sections' => ['T1'], 'level' => 2, 'credit_hours' => 3],
                         ],
                     ],
                 ],
@@ -90,18 +90,22 @@ class AcademicDataSeeder extends Seeder
                 );
 
                 foreach ($departmentData['subjects'] as $subjectData) {
-                    Subject::query()->updateOrCreate(
+                    $subject = Subject::query()->updateOrCreate(
                         ['code' => $subjectData['code']],
                         [
                             'name' => $subjectData['name'],
+                            'subject_type' => $subjectData['subject_type'],
                             'department_id' => $department->id,
                             'lecturer_id' => null,
                             'credit_hours' => $subjectData['credit_hours'],
                             'level' => $subjectData['level'],
-                            'semester' => $subjectData['semester'],
                             'is_active' => true,
                         ],
                     );
+
+                    foreach ($subjectData['sections'] as $sectionCode) {
+                        $subject->sections()->firstOrCreate(['code' => $sectionCode]);
+                    }
                 }
             }
         }

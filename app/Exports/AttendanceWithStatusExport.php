@@ -18,6 +18,8 @@ class AttendanceWithStatusExport implements FromView
 
     public function view(): View
     {
+        $this->session->loadMissing(['subject', 'subjectSection', 'hall']);
+
         // Get all enrolled students for this session's subject
         $enrolledStudents = $this->session->subject->students()
             ->orderBy('name')
@@ -31,6 +33,12 @@ class AttendanceWithStatusExport implements FromView
         // Mark each student as present or absent
         $studentsWithStatus = $enrolledStudents->map(function ($student) use ($attendanceRecords) {
             return [
+                'subject_code' => $this->session->subject?->code,
+                'subject_name' => $this->session->subject?->name,
+                'subject_type' => $this->session->subjectSection?->section_type_label
+                    ?? $this->session->subject?->subject_type_label,
+                'section_code' => $this->session->subjectSection?->code,
+                'hall_name' => $this->session->hall?->name,
                 'name' => $student->name,
                 'student_number' => $student->student_number,
                 'status' => in_array($student->id, $attendanceRecords) ? 'present' : 'absent',

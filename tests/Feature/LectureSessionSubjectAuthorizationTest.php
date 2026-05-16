@@ -53,10 +53,10 @@ function lectureSessionSubject(User $lecturer, string $code): Subject
     return Subject::query()->create([
         'code' => $code,
         'name' => "Subject {$code}",
+        'subject_type' => Subject::TYPE_THEORETICAL,
         'lecturer_id' => $lecturer->id,
         'credit_hours' => 3,
         'level' => 1,
-        'semester' => Subject::SEMESTER_FIRST,
         'is_active' => true,
     ]);
 }

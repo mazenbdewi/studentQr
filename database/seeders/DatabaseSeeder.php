@@ -13,7 +13,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
            RolesAndPermissionsSeeder::class,
-           AcademicDataSeeder::class,
+        //    AcademicDataSeeder::class,
         ]);
 //         $superAdmin = User::create([
 //                'name' => 'Super Admin',

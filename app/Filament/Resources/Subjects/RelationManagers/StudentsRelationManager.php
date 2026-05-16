@@ -8,6 +8,7 @@ use App\Imports\SubjectStudentsImport;
 use App\Models\Enrollment;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Models\SubjectSection;
 use App\Services\ActivityLogger;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -43,7 +44,7 @@ class StudentsRelationManager extends RelationManager
         return $table
             ->modelLabel(__('enrollments.singular'))
             ->pluralModelLabel(__('enrollments.plural'))
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('student'))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['student', 'theoreticalSection', 'practicalSection']))
             ->defaultSort('student_id')
             ->recordTitle(fn (Enrollment $record): string => $record->student?->name ?? __('student.record_title'))
             ->columns([
@@ -56,6 +57,22 @@ class StudentsRelationManager extends RelationManager
                     ->label(__('student.name'))
                     ->url(fn (Enrollment $record): string => StudentResource::getUrl('view', ['record' => $record->student]))
                     ->searchable()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('theoreticalSection.code')
+                    ->label(__('enrollments.theoretical_section'))
+                    ->placeholder(__('subjects.not_available'))
+                    ->badge(),
+
+                Tables\Columns\TextColumn::make('practicalSection.code')
+                    ->label(__('enrollments.practical_section'))
+                    ->placeholder(__('subjects.not_available'))
+                    ->badge(),
+
+                Tables\Columns\TextColumn::make('registration_date')
+                    ->label(__('enrollments.registration_date'))
+                    ->date()
+                    ->placeholder(__('subjects.not_available'))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('semester')
@@ -240,8 +257,24 @@ class StudentsRelationManager extends RelationManager
                 ->label(__('enrollments.semester'))
                 ->options(fn (): array => Subject::semesterOptions())
                 ->native(false)
-                ->default(fn (): ?string => Subject::normalizeSemester($this->ownerRecord->semester))
                 ->required(),
+
+            Forms\Components\Select::make('theoretical_section_id')
+                ->label(__('enrollments.theoretical_section'))
+                ->options(fn (): array => $this->sectionOptions(Subject::TYPE_THEORETICAL))
+                ->searchable()
+                ->preload()
+                ->nullable(),
+
+            Forms\Components\Select::make('practical_section_id')
+                ->label(__('enrollments.practical_section'))
+                ->options(fn (): array => $this->sectionOptions(Subject::TYPE_PRACTICAL))
+                ->searchable()
+                ->preload()
+                ->nullable(),
+
+            Forms\Components\DatePicker::make('registration_date')
+                ->label(__('enrollments.registration_date')),
 
             Forms\Components\TextInput::make('year')
                 ->label(__('enrollments.year'))
@@ -257,5 +290,15 @@ class StudentsRelationManager extends RelationManager
                 ->default(Enrollment::STATUS_ENROLLED)
                 ->required(),
         ];
+    }
+
+    protected function sectionOptions(string $sectionType): array
+    {
+        return SubjectSection::query()
+            ->where('subject_id', $this->ownerRecord->getKey())
+            ->where('section_type', $sectionType)
+            ->orderBy('code')
+            ->pluck('code', 'id')
+            ->all();
     }
 }

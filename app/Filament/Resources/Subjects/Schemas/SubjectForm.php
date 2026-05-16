@@ -20,6 +20,12 @@ class SubjectForm
                 TextInput::make('name')
                     ->label(__('subjects.name'))
                     ->required(),
+                Select::make('subject_type')
+                    ->label(__('subjects.subject_type'))
+                    ->options(fn (): array => Subject::subjectTypeOptions())
+                    ->native(false)
+                    ->required()
+                    ->default(Subject::TYPE_THEORETICAL),
                 TextInput::make('lecturer_id')
                     ->label(__('subjects.lecturer_id'))
                     ->numeric()
@@ -28,13 +34,6 @@ class SubjectForm
                     ->label(__('subjects.department_id'))
                     ->numeric()
                     ->default(null),
-                Select::make('semester')
-                    ->label(__('subjects.semester'))
-                    ->options(fn (): array => Subject::semesterOptions())
-                    ->native(false)
-                    ->afterStateHydrated(fn ($component, mixed $state): mixed => $component->state(Subject::normalizeSemester($state)))
-                    ->required()
-                    ->default(Subject::SEMESTER_FIRST),
                 Toggle::make('is_active')
                     ->label(__('subjects.is_active'))
                     ->required(),

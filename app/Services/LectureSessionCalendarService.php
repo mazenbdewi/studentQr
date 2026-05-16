@@ -80,6 +80,7 @@ class LectureSessionCalendarService
             foreach ($dates as $date) {
                 $exists = LectureSession::query()
                     ->where('subject_id', $subject->id)
+                    ->where('subject_section_id', $data['subject_section_id'] ?? null)
                     ->where('hall_id', $data['hall_id'])
                     ->whereDate('session_date', $date->toDateString())
                     ->whereTime('start_time', $startTime)
@@ -94,6 +95,7 @@ class LectureSessionCalendarService
 
                 $session = LectureSession::create([
                     'subject_id' => $subject->id,
+                    'subject_section_id' => $data['subject_section_id'] ?? null,
                     'lecturer_id' => $subject->lecturer_id,
                     'hall_id' => $data['hall_id'],
                     'session_date' => $date->toDateString(),

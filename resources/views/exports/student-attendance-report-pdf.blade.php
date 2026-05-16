@@ -429,11 +429,13 @@
                 <table class="attendance-table">
                     <thead>
                         <tr>
-                            <th style="width: 25%;">{{ __('student.lecture') }}</th>
-                            <th style="width: 22%;">{{ __('student.day_date') }}</th>
-                            <th style="width: 17%;">{{ __('student.time') }}</th>
-                            <th style="width: 16%;">{{ __('attendance.status') }}</th>
-                            <th style="width: 20%;">{{ __('attendance.recorded_at') }}</th>
+                            <th style="width: 24%;">{{ __('student.lecture') }}</th>
+                            <th style="width: 12%;">{{ __('subjects.code') }}</th>
+                            <th style="width: 12%;">{{ __('subjects.subject_type') }}</th>
+                            <th style="width: 10%;">{{ __('subjects.section_code') }}</th>
+                            <th style="width: 18%;">{{ __('student.day_date') }}</th>
+                            <th style="width: 12%;">{{ __('student.time') }}</th>
+                            <th style="width: 12%;">{{ __('attendance.status') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -441,12 +443,12 @@
                             @php
                                 $startTime = $row->start_time ? \Illuminate\Support\Carbon::parse($row->start_time)->format('H:i') : null;
                                 $endTime = $row->end_time ? \Illuminate\Support\Carbon::parse($row->end_time)->format('H:i') : null;
-                                $recordedAt = $row->attendance_recorded_at
-                                    ? \Illuminate\Support\Carbon::parse($row->attendance_recorded_at)->translatedFormat('Y-m-d H:i')
-                                    : $notAvailable;
                             @endphp
                             <tr>
                                 <td>{{ $row->subject?->name ?? $notAvailable }}</td>
+                                <td class="ltr center">{{ $row->subject?->code ?? $notAvailable }}</td>
+                                <td>{{ $row->subjectSection?->section_type_label ?? $row->subject?->subject_type_label ?? $notAvailable }}</td>
+                                <td class="ltr center">{{ $row->subjectSection?->code ?? $notAvailable }}</td>
                                 <td>{{ $row->session_date?->translatedFormat('l, Y-m-d') ?? $notAvailable }}</td>
                                 <td class="ltr center">
                                     {{ ($startTime && $endTime) ? "{$startTime} - {$endTime}" : $notAvailable }}
@@ -456,7 +458,6 @@
                                         {{ $row->report_status === 'present' ? __('attendance.status_present') : __('attendance.status_absent') }}
                                     </span>
                                 </td>
-                                <td class="ltr center">{{ $recordedAt }}</td>
                             </tr>
                         @endforeach
                     </tbody>

@@ -21,6 +21,7 @@ class LectureSessionsTemplateExport implements FromCollection, WithHeadings, Wit
         return collect([
             [
                 'برمجة أساسية',
+                'T1',
                 'B44',
                 ExcelDate::dateTimeToExcel(new \DateTimeImmutable('2026-04-28')),
                 ExcelDate::dateTimeToExcel(new \DateTimeImmutable('1970-01-01 08:30:00')),
@@ -37,6 +38,7 @@ class LectureSessionsTemplateExport implements FromCollection, WithHeadings, Wit
     {
         return [
             'subject_name',
+            'section_code',
             'hall_name',
             'session_date',
             'start_time',
@@ -59,18 +61,18 @@ class LectureSessionsTemplateExport implements FromCollection, WithHeadings, Wit
             AfterSheet::class => function (AfterSheet $event): void {
                 $sheet = $event->sheet->getDelegate();
 
-                $sheet->getStyle('C2:C1000')
+                $sheet->getStyle('D2:D1000')
                     ->getNumberFormat()
                     ->setFormatCode(NumberFormat::FORMAT_DATE_YYYYMMDD2);
 
-                $sheet->getStyle('D2:E1000')
+                $sheet->getStyle('E2:F1000')
                     ->getNumberFormat()
                     ->setFormatCode('hh:mm');
 
                 for ($row = 2; $row <= 1000; $row++) {
-                    $this->applyDateValidation($sheet, "C{$row}");
-                    $this->applyTimeValidation($sheet, "D{$row}");
+                    $this->applyDateValidation($sheet, "D{$row}");
                     $this->applyTimeValidation($sheet, "E{$row}");
+                    $this->applyTimeValidation($sheet, "F{$row}");
                 }
             },
         ];

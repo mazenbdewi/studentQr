@@ -81,7 +81,7 @@ class AttendancesRelationManager extends RelationManager
                     ->icon('heroicon-o-arrow-down-tray')
                     ->action(function ($livewire) {
                         $records = $livewire->getRelationship()
-                            ->with('student')
+                            ->with(['student', 'lectureSession.subject', 'lectureSession.subjectSection', 'lectureSession.hall'])
                             ->get()
                             ->unique('student_id');
 

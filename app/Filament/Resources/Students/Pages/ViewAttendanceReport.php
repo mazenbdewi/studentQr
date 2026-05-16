@@ -52,6 +52,19 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
                     ->label(__('student.lecture'))
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('subject.code')
+                    ->label(__('subjects.code'))
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('subject.subject_type')
+                    ->label(__('subjects.subject_type'))
+                    ->formatStateUsing(fn ($record): string => $record->subjectSection?->section_type_label ?? $record->subject?->subject_type_label ?? __('subjects.not_available'))
+                    ->badge()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('subjectSection.code')
+                    ->label(__('subjects.section_code'))
+                    ->badge()
+                    ->placeholder(__('subjects.not_available')),
                 Tables\Columns\TextColumn::make('session_date')
                     ->label(__('student.day_date'))
                     ->formatStateUsing(fn ($state) => $state ? $state->translatedFormat('l, Y-m-d') : __('lecture-session.not_available'))

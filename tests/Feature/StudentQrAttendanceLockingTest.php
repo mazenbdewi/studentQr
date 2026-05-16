@@ -44,11 +44,11 @@ function createQrAttendanceScenario(): array
     $subject = Subject::unguarded(fn () => Subject::create([
         'code' => 'CS101',
         'name' => 'Programming 1',
+        'subject_type' => Subject::TYPE_THEORETICAL,
         'department_id' => $department->id,
         'lecturer_id' => $lecturer->id,
         'credit_hours' => 3,
         'level' => 1,
-        'semester' => 1,
         'is_active' => true,
     ]));
 
@@ -105,7 +105,7 @@ it('locks the QR attendance page after a successful submission, even after refre
     $verifyResponse = $this->get(route('student.attendance.verify.token', ['token' => $token->token_value]));
 
     $verifyResponse->assertOk();
-    $verifyResponse->assertViewIs('student.attendance');
+    $verifyResponse->assertViewIs('student.attendance-fast');
     $verifyResponse->assertViewHas('attendanceCompleted', false);
 
     preg_match('/name="submission_token" value="([^"]+)"/', $verifyResponse->getContent(), $matches);

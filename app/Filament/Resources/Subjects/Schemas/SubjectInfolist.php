@@ -17,6 +17,10 @@ class SubjectInfolist
                 ->label(__('subjects.code')),
             TextEntry::make('name')
                 ->label(__('subjects.name')),
+            TextEntry::make('subject_type')
+                ->label(__('subjects.subject_type'))
+                ->formatStateUsing(fn (Subject $record): string => $record->subject_type_label)
+                ->badge(),
             TextEntry::make('lecturer_id')
                 ->label(__('subjects.lecturer_id'))
                 ->numeric()
@@ -25,9 +29,6 @@ class SubjectInfolist
                 ->label(__('subjects.department_id'))
                 ->numeric()
                 ->placeholder(__('subjects.not_available')),
-            TextEntry::make('semester')
-                ->label(__('subjects.semester'))
-                ->formatStateUsing(fn (Subject $record): string => $record->semester_label),
             IconEntry::make('is_active')
                 ->label(__('subjects.is_active'))
                 ->boolean(),

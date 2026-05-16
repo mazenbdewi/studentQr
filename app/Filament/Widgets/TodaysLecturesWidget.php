@@ -33,7 +33,7 @@ public function getHeading(): ?string
             ->heading(__('lecture-session.todays_lectures'))
             ->query(
                 LectureSession::query()
-                    ->with(['lecturer', 'subject'])
+                    ->with(['lecturer', 'subject', 'subjectSection'])
                     ->whereDate('session_date', today())
                     ->orderBy('start_time')
             )
@@ -66,6 +66,16 @@ public function getHeading(): ?string
                 Tables\Columns\TextColumn::make('subject.name')
                     ->label(__('lecture-session.subject'))
                     ->searchable(),
+
+                Tables\Columns\TextColumn::make('subject.subject_type')
+                    ->label(__('subjects.subject_type'))
+                    ->formatStateUsing(fn ($record): string => $record->subjectSection?->section_type_label ?? $record->subject?->subject_type_label ?? __('subjects.not_available'))
+                    ->badge(),
+
+                Tables\Columns\TextColumn::make('subjectSection.code')
+                    ->label(__('subjects.section_code'))
+                    ->badge()
+                    ->placeholder(__('subjects.not_available')),
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label(__('lecture-session.status'))

@@ -391,11 +391,11 @@ class RolesAndPermissionsSeeder extends Seeder
             ['code' => 'P101'],
             [
                 'name' => 'programming 1',
+                'subject_type' => Subject::TYPE_THEORETICAL,
                 'department_id' => $softwareDepartment?->id,
                 'lecturer_id' => $lecturer->id,
                 'credit_hours' => 3,
                 'level' => 1,
-                'semester' => Subject::SEMESTER_FIRST,
                 'is_active' => true,
             ]
         );

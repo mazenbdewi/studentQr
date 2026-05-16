@@ -102,6 +102,10 @@ class ViewStudent extends ViewRecord implements HasForms, HasTable
                     ->label(__('attendance.subject'))
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('lectureSession.subjectSection.code')
+                    ->label(__('subjects.section_code'))
+                    ->badge()
+                    ->placeholder(__('subjects.not_available')),
                 Tables\Columns\TextColumn::make('lectureSession.session_date')
                     ->label(__('attendance.attendance_date'))
                     ->date()
@@ -177,7 +181,7 @@ class ViewStudent extends ViewRecord implements HasForms, HasTable
     {
         return Attendance::query()
             ->select('attendances.*')
-            ->with(['lectureSession' => fn (Relation $query) => $query->with(['subject', 'lecturer', 'hall'])])
+            ->with(['lectureSession' => fn (Relation $query) => $query->with(['subject', 'subjectSection', 'lecturer', 'hall'])])
             ->where('attendances.student_id', $this->record->id)
             ->leftJoin('lecture_sessions', 'attendances.lecture_session_id', '=', 'lecture_sessions.id');
     }

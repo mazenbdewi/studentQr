@@ -192,7 +192,19 @@ class ListLectureSessions extends ListRecords
                                 ->searchable()
                                 ->preload()
                                 ->native(false)
+                                ->live()
+                                ->afterStateUpdated(fn (callable $set): mixed => $set('subject_section_id', null))
                                 ->required(),
+
+                            Forms\Components\Select::make('subject_section_id')
+                                ->label(__('subjects.section_code'))
+                                ->options(fn (Get $get): array => LectureSessionResource::getSectionOptionsForSubject($get('subject_id')))
+                                ->searchable()
+                                ->preload()
+                                ->native(false)
+                                ->disabled(fn (Get $get): bool => blank($get('subject_id')))
+                                ->required(fn (Get $get): bool => LectureSessionResource::subjectHasSections($get('subject_id')))
+                                ->placeholder(__('subjects.select_subject_first')),
 
                             Forms\Components\Select::make('hall_id')
                                 ->label(__('lecture-session.hall'))
