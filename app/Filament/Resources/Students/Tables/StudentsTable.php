@@ -15,8 +15,10 @@ use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Tables;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class StudentsTable
 {
@@ -67,6 +69,26 @@ class StudentsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('faculty')
+                    ->label(__('student.faculty_id'))
+                    ->relationship(
+                        name: 'faculty',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query): Builder => $query->orderBy('name'),
+                    )
+                    ->searchable()
+                    ->preload(),
+
+                SelectFilter::make('department')
+                    ->label(__('student.department_id'))
+                    ->relationship(
+                        name: 'department',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query): Builder => $query->orderBy('name'),
+                    )
+                    ->searchable()
+                    ->preload(),
+
                 TrashedFilter::make(),
             ])
             ->recordActions([
