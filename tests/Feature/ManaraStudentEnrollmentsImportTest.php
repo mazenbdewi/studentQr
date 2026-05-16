@@ -27,7 +27,7 @@ it('imports Manara enrollment rows with theoretical and practical sections idemp
     $path = manaraWorkbookPath([
         manaraRow('2026001', 'أحمد علي', 'كلية الهندسة', 'هندسة العمارة', 'تصميم معماري', 'ARC101', '01/04/2026', 1, null),
         manaraRow('2026002', 'ليلى محمود', 'كلية الهندسة', 'هندسة العمارة', 'تصميم معماري', 'ARC101', '01/04/2026', null, 1),
-        manaraRow('2026003', 'سامر حسن', 'كلية الهندسة', 'هندسة العمارة', 'تصميم معماري', 'ARC101', '01/04/2026', 2, 2),
+        manaraRow('2026003', 'سامر حسن', 'كلية الهندسة', 'هندسة العمارة', 'تصميم معماري', 'ARC101', '01/04/2026', 2, 2, 3),
     ]);
 
     try {
@@ -79,7 +79,7 @@ it('imports Manara enrollment rows with theoretical and practical sections idemp
             ->and($both->practicalSection?->code)->toBe('P2')
             ->and($both->registration_date?->toDateString())->toBe('2026-04-01')
             ->and($both->semester)->toBeNull()
-            ->and($both->year)->toBeNull();
+            ->and($both->year)->toBe(3);
 
         Excel::import(new ManaraStudentEnrollmentsImport(), $path);
 
@@ -268,6 +268,7 @@ function manaraRow(
     string $registrationDate,
     mixed $theoreticalSection,
     mixed $practicalSection,
+    mixed $courseLevel = null,
 ): array {
     return [
         null,
@@ -282,7 +283,7 @@ function manaraRow(
         $practicalSection,
         null,
         null,
-        null,
+        $courseLevel,
         null,
     ];
 }

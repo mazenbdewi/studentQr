@@ -2,28 +2,22 @@
 
 namespace App\Filament\Resources\Subjects\RelationManagers;
 
-use App\Exports\Templates\SubjectStudentsTemplateExport;
 use App\Filament\Resources\Students\StudentResource;
-use App\Imports\SubjectStudentsImport;
 use App\Models\Enrollment;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\SubjectSection;
-use App\Services\ActivityLogger;
-use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms;
-use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rule;
-use Maatwebsite\Excel\Facades\Excel;
 
 class StudentsRelationManager extends RelationManager
 {
@@ -75,11 +69,6 @@ class StudentsRelationManager extends RelationManager
                     ->placeholder(__('subjects.not_available'))
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('semester')
-                    ->label(__('enrollments.semester'))
-                    ->formatStateUsing(fn (mixed $state): string => Subject::semesterOptions()[Subject::normalizeSemester($state)] ?? __('subjects.not_available'))
-                    ->sortable(),
-
                 Tables\Columns\TextColumn::make('year')
                     ->label(__('enrollments.year'))
                     ->sortable(),
@@ -114,82 +103,6 @@ class StudentsRelationManager extends RelationManager
                         'status' => $data['status'] ?? Enrollment::STATUS_ENROLLED,
                     ])
                     ->successNotificationTitle(__('filament-actions::create.single.notifications.created.title')),
-
-                Action::make('download_subject_students_template')
-                    ->label(__('subjects.download_subject_students_template'))
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->color('info')
-                    ->action(function () {
-                        app(ActivityLogger::class)->logExport(
-                            'subjects',
-                            'subject_students_template_download',
-                            $this->ownerRecord->name . '_students_template.xlsx',
-                            $this->ownerRecord
-                        );
-
-                        return Excel::download(
-                            new SubjectStudentsTemplateExport($this->ownerRecord),
-                            $this->ownerRecord->name . '_students_template.xlsx',
-                        );
-                    }),
-
-                Action::make('import_students')
-                    ->label(__('subjects.import_students'))
-                    ->icon('heroicon-o-arrow-up-tray')
-                    ->color('success')
-                    ->schema([
-                        Forms\Components\FileUpload::make('file')
-                            ->label(__('subjects.excel_file'))
-                            ->acceptedFileTypes([
-                                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                                'application/vnd.ms-excel',
-                            ])
-                            ->required(),
-                    ])
-                    ->action(function (array $data): void {
-                        $startedAt = now();
-                        $fileName = basename((string) $data['file']);
-                        $import = new SubjectStudentsImport($this->ownerRecord->id);
-
-                        try {
-                            Excel::import($import, $data['file']);
-
-                            app(ActivityLogger::class)->logImportSummary(
-                                'subjects',
-                                'subject_students_import',
-                                $fileName,
-                                $import->getImportedCount(),
-                                $import->getImportedCount(),
-                                0,
-                                $startedAt->toIso8601String(),
-                                now()->toIso8601String(),
-                                ['subject_id' => $this->ownerRecord->id]
-                            );
-
-                            Notification::make()
-                                ->title(__('subjects.import_success'))
-                                ->success()
-                                ->send();
-                        } catch (\Throwable $exception) {
-                            app(ActivityLogger::class)->logImportSummary(
-                                'subjects',
-                                'subject_students_import',
-                                $fileName,
-                                $import->getImportedCount(),
-                                $import->getImportedCount(),
-                                1,
-                                $startedAt->toIso8601String(),
-                                now()->toIso8601String(),
-                                ['subject_id' => $this->ownerRecord->id, 'status' => 'failed', 'error' => $exception->getMessage()]
-                            );
-
-                            Notification::make()
-                                ->title(__('subjects.import_failed'))
-                                ->body($exception->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
             ])
             ->actions([
                 EditAction::make()
@@ -253,12 +166,6 @@ class StudentsRelationManager extends RelationManager
     protected function getEnrollmentMetadataSchema(): array
     {
         return [
-            Forms\Components\Select::make('semester')
-                ->label(__('enrollments.semester'))
-                ->options(fn (): array => Subject::semesterOptions())
-                ->native(false)
-                ->required(),
-
             Forms\Components\Select::make('theoretical_section_id')
                 ->label(__('enrollments.theoretical_section'))
                 ->options(fn (): array => $this->sectionOptions(Subject::TYPE_THEORETICAL))

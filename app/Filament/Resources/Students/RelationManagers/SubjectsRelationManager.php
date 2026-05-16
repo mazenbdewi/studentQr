@@ -68,11 +68,6 @@ class SubjectsRelationManager extends RelationManager
                     ->placeholder(__('subjects.not_available'))
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('semester')
-                    ->label(__('enrollments.semester'))
-                    ->formatStateUsing(fn (mixed $state): string => Subject::semesterOptions()[Subject::normalizeSemester($state)] ?? __('subjects.not_available'))
-                    ->sortable(),
-
                 Tables\Columns\TextColumn::make('year')
                     ->label(__('enrollments.year'))
                     ->sortable(),
@@ -155,7 +150,6 @@ class SubjectsRelationManager extends RelationManager
                         return;
                     }
 
-                    $set('semester', null);
                     $set('year', $subject->level);
                     $set('theoretical_section_id', null);
                     $set('practical_section_id', null);
@@ -178,12 +172,6 @@ class SubjectsRelationManager extends RelationManager
     protected function getEnrollmentMetadataSchema(): array
     {
         return [
-            Forms\Components\Select::make('semester')
-                ->label(__('enrollments.semester'))
-                ->options(fn (): array => Subject::semesterOptions())
-                ->native(false)
-                ->required(),
-
             Forms\Components\Select::make('theoretical_section_id')
                 ->label(__('enrollments.theoretical_section'))
                 ->options(fn (?Enrollment $record, callable $get): array => $this->sectionOptions(
@@ -212,7 +200,6 @@ class SubjectsRelationManager extends RelationManager
                 ->numeric()
                 ->minValue(1)
                 ->maxValue(6)
-                ->default(fn (): ?int => $this->ownerRecord->year)
                 ->required(),
 
             Forms\Components\Select::make('status')

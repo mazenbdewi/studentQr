@@ -56,6 +56,7 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
         'تاريخ التسجيل' => 'registration_date',
         'رمز الفئة النظرية' => 'theoretical_section_number',
         'رمز الفئة العملية' => 'practical_section_number',
+        'مستوى المقرر' => 'course_level',
     ];
 
     private array $summary = [
@@ -235,6 +236,7 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
         $row['theoretical_section_number'] = $this->normalizeSectionNumber($row['theoretical_section_number'] ?? null);
         $row['practical_section_number'] = $this->normalizeSectionNumber($row['practical_section_number'] ?? null);
         $row['registration_date'] = $this->parseRegistrationDate($row['registration_date'] ?? null);
+        $row['course_level'] = $this->normalizeCourseLevel($row['course_level'] ?? null);
 
         return $row;
     }
@@ -260,6 +262,10 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
 
         if ($row['registration_date'] === null) {
             $messages[] = 'تاريخ التسجيل غير صالح / Registration date is invalid.';
+        }
+
+        if (($row['course_level'] ?? null) !== null && ((int) $row['course_level'] < 1 || (int) $row['course_level'] > 6)) {
+            $messages[] = 'مستوى المقرر غير صالح / Course level is invalid.';
         }
 
         if ($row['theoretical_section_number'] === null && $row['practical_section_number'] === null) {
@@ -437,6 +443,8 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
             'theoretical_section_id' => $theoreticalSection?->id,
             'practical_section_id' => $practicalSection?->id,
             'registration_date' => $data['registration_date'],
+            'semester' => null,
+            'year' => $data['course_level'],
             'status' => Enrollment::STATUS_ENROLLED,
         ];
 
@@ -518,6 +526,66 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
         $value = $this->normalizeSectionNumber($value);
 
         return $value !== null && ctype_digit($value) ? (int) $value : null;
+    }
+
+    private function normalizeCourseLevel(mixed $value): ?int
+    {
+        $value = $this->normalizeValue($value);
+
+        if ($value === null) {
+            return null;
+        }
+
+        $value = Str::lower($value);
+        $value = str_replace(['السنة', 'سنة', 'المستوى', 'مستوى', 'year', 'level'], '', $value);
+        $value = trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
+
+        $words = [
+            'اولى' => 1,
+            'الأولى' => 1,
+            'الاولى' => 1,
+            'اول' => 1,
+            'الأول' => 1,
+            'الاول' => 1,
+            'ثانية' => 2,
+            'الثانية' => 2,
+            'ثاني' => 2,
+            'الثاني' => 2,
+            'ثالثة' => 3,
+            'الثالثة' => 3,
+            'ثالث' => 3,
+            'الثالث' => 3,
+            'رابعة' => 4,
+            'الرابعة' => 4,
+            'رابع' => 4,
+            'الرابع' => 4,
+            'خامسة' => 5,
+            'الخامسة' => 5,
+            'خامس' => 5,
+            'الخامس' => 5,
+            'سادسة' => 6,
+            'السادسة' => 6,
+            'سادس' => 6,
+            'السادس' => 6,
+        ];
+
+        if (array_key_exists($value, $words)) {
+            return $words[$value];
+        }
+
+        if (preg_match('/^\d+\.0+$/', $value)) {
+            $value = (string) ((int) $value);
+        }
+
+        if (ctype_digit($value)) {
+            return (int) $value;
+        }
+
+        if (preg_match('/\d+/', $value, $matches)) {
+            return (int) $matches[0];
+        }
+
+        return null;
     }
 
     private function parseRegistrationDate(mixed $value): ?string

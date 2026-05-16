@@ -44,7 +44,7 @@ class CreateStudent extends CreateRecord
                 ],
                 [
                     'semester' => null,
-                    'year' => $subject->level ?: $this->getRecord()->year,
+                    'year' => $subject->level,
                     'status' => Enrollment::STATUS_ENROLLED,
                 ],
             );

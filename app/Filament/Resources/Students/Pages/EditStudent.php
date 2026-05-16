@@ -73,7 +73,7 @@ class EditStudent extends EditRecord
                 ],
                 [
                     'semester' => null,
-                    'year' => $subject->level ?: $student->year,
+                    'year' => $subject->level,
                     'status' => Enrollment::STATUS_ENROLLED,
                 ],
             );

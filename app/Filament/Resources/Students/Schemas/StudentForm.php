@@ -84,19 +84,6 @@ class StudentForm
                     ->preload()
                     ->disabled(fn (Get $get): bool => blank($get('department_id')))
                     ->helperText(__('student.enrolled_subjects_help')),
-                Select::make('year')
-                    ->label(__('student.year'))
-                    ->options([
-                        1 => __('student.year_options.1'),
-                        2 => __('student.year_options.2'),
-                        3 => __('student.year_options.3'),
-                        4 => __('student.year_options.4'),
-                        5 => __('student.year_options.5'),
-                        6 => __('student.year_options.6'),
-                    ])
-                    ->native(false)
-                    ->default(null),
-       
                 TextInput::make('phone')
                     ->label(__('student.phone'))
                     ->tel()

@@ -3,7 +3,7 @@
 return [
     'title' => 'Manara Enrollment Import',
     'form_section' => 'Import file',
-    'form_description' => 'Upload the Excel file only. Registration data is read directly from the file; no academic year, study year, semester, or term is required.',
+    'form_description' => 'Upload the Excel file only. Registration data and study year are read directly from the file; no academic year, semester, or term is required.',
     'excel_file' => 'Excel file',
     'import_button' => 'Import enrollments',
     'import_button_loading' => 'Importing...',
@@ -23,13 +23,13 @@ return [
         'تاريخ التسجيل: registration date',
         'رمز الفئة النظرية: theoretical section number',
         'رمز الفئة العملية: practical section number',
+        'مستوى المقرر: study year for the enrollment',
     ],
     'ignored_columns' => 'Ignored columns',
     'ignored_columns_list' => [
         'First serial-number column',
         'عبئ المقرر',
         'حالة التسجيل',
-        'مستوى المقرر',
         'سعة الفئة النظرية',
     ],
     'rules' => [
@@ -38,6 +38,7 @@ return [
         'Section codes are stored as text, for example T1 or P1.',
         'An empty practical section means no practical section is created for that row.',
         'A practical-only row is accepted when the theoretical section is empty.',
+        'مستوى المقرر is imported into the enrollment study year field.',
         'New files add or update data. They never delete previous students, subjects, sections, or enrollments.',
     ],
     'completed' => 'Import completed',
