@@ -31,8 +31,7 @@ class StudentsTable
                     ->searchable(),
                 Tables\Columns\TextColumn::make('name')
                     ->label(__('student.name'))
-                    ->searchable()
-                    ->url(fn (Student $record): string => StudentResource::getUrl('view', ['record' => $record])),
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('faculty.name')
                     ->label(__('student.faculty_id'))
                     ->searchable()

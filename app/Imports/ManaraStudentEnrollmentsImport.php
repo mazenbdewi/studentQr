@@ -158,17 +158,17 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
     private function warmCaches(): void
     {
         Faculty::withTrashed()
-            ->get()
+            ->get(['id', 'name', 'is_active', 'deleted_at'])
             ->each(fn (Faculty $faculty): Faculty => $this->faculties[$this->normalizeKey($faculty->name)] = $faculty);
 
         Department::withTrashed()
-            ->get()
+            ->get(['id', 'faculty_id', 'name', 'is_active', 'deleted_at'])
             ->each(function (Department $department): void {
                 $this->departments[$this->departmentKey($department->faculty_id, $department->name)] = $department;
             });
 
         Student::withTrashed()
-            ->get()
+            ->get(['id', 'student_number', 'name', 'faculty_id', 'department_id', 'type', 'status', 'is_active', 'deleted_at'])
             ->each(function (Student $student): void {
                 if (filled($student->student_number)) {
                     $this->students[$this->normalizeKey($student->student_number)] = $student;
@@ -176,7 +176,7 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
             });
 
         Subject::withTrashed()
-            ->get()
+            ->get(['id', 'code', 'name', 'department_id', 'subject_type', 'is_active', 'deleted_at'])
             ->each(function (Subject $subject): void {
                 if (filled($subject->code)) {
                     $this->subjects[$this->normalizeKey($subject->code)] = $subject;
@@ -184,13 +184,13 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
             });
 
         SubjectSection::query()
-            ->get()
+            ->get(['id', 'subject_id', 'section_type', 'code', 'raw_section_number', 'section_number'])
             ->each(function (SubjectSection $section): void {
                 $this->sections[$this->sectionKey($section->subject_id, $section->section_type, $section->code)] = $section;
             });
 
         Enrollment::query()
-            ->get()
+            ->get(['id', 'student_id', 'subject_id', 'theoretical_section_id', 'practical_section_id', 'registration_date', 'semester', 'year', 'status'])
             ->each(function (Enrollment $enrollment): void {
                 $this->enrollments[$this->enrollmentKey($enrollment->student_id, $enrollment->subject_id)] = $enrollment;
             });
@@ -675,6 +675,20 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
 
     private function updateIfChanged(Model $model, array $attributes): bool
     {
+        $hasChanges = false;
+
+        foreach ($attributes as $key => $value) {
+            if (! $this->valuesAreEqual($model->getAttribute($key), $value)) {
+                $hasChanges = true;
+
+                break;
+            }
+        }
+
+        if (! $hasChanges) {
+            return false;
+        }
+
         $model->fill($attributes);
 
         if (! $model->isDirty()) {
@@ -684,6 +698,27 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
         $model->save();
 
         return true;
+    }
+
+    private function valuesAreEqual(mixed $current, mixed $incoming): bool
+    {
+        if ($current instanceof DateTimeInterface) {
+            $current = $current->format('Y-m-d');
+        }
+
+        if ($incoming instanceof DateTimeInterface) {
+            $incoming = $incoming->format('Y-m-d');
+        }
+
+        if (is_bool($current) || is_bool($incoming)) {
+            return (bool) $current === (bool) $incoming;
+        }
+
+        if ($current === null || $incoming === null) {
+            return $current === $incoming;
+        }
+
+        return (string) $current === (string) $incoming;
     }
 
     private function convertDigits(string $value): string

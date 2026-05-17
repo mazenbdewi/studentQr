@@ -16,6 +16,7 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use Throwable;
@@ -92,9 +93,10 @@ class ManaraEnrollmentImport extends Page implements HasForms
         $this->summary = null;
         $this->errorsUrl = null;
 
-        $import = new ManaraStudentEnrollmentsImport();
-
         try {
+            $this->prepareLongRunningImport();
+
+            $import = new ManaraStudentEnrollmentsImport();
             $sanitizer = app(XlsxNumericCellSanitizer::class);
             $sanitizedFile = $sanitizer->sanitizeToTemporaryFile($this->localPathForUploadedFile((string) $file));
 
@@ -169,5 +171,15 @@ class ManaraEnrollmentImport extends Page implements HasForms
         $path = Storage::disk($disk)->path($file);
 
         return is_file($path) ? $path : $file;
+    }
+
+    private function prepareLongRunningImport(): void
+    {
+        @set_time_limit(0);
+        DB::disableQueryLog();
+
+        if (app()->bound(\Fruitcake\LaravelDebugbar\LaravelDebugbar::class)) {
+            app(\Fruitcake\LaravelDebugbar\LaravelDebugbar::class)->disable();
+        }
     }
 }
