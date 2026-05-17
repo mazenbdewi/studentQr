@@ -53,22 +53,12 @@ class SubjectSectionsRelationManager extends RelationManager
                     ->color(fn (?string $state): string => SubjectSection::normalizeSectionType($state) === Subject::TYPE_PRACTICAL ? 'success' : 'info')
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('name')
-                    ->label(__('subjects.section_name'))
-                    ->placeholder(__('subjects.not_available'))
-                    ->searchable(),
-
                 Tables\Columns\TextColumn::make('lecturer.name')
                     ->label(__('subjects.lecturer'))
                     ->placeholder(__('subjects.not_available'))
                     ->searchable()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('capacity')
-                    ->label(__('subjects.capacity'))
-                    ->placeholder(__('subjects.not_available'))
-                    ->numeric()
-                    ->sortable(),
             ])
             ->headerActions([
                 CreateAction::make()
@@ -132,10 +122,6 @@ class SubjectSectionsRelationManager extends RelationManager
                 ->label(__('subjects.raw_section_number'))
                 ->maxLength(20),
 
-            Forms\Components\TextInput::make('name')
-                ->label(__('subjects.section_name'))
-                ->maxLength(255),
-
             Forms\Components\Select::make('lecturer_id')
                 ->label(__('subjects.lecturer'))
                 ->options(fn (): array => User::query()
@@ -148,11 +134,6 @@ class SubjectSectionsRelationManager extends RelationManager
                 ->preload()
                 ->native(false)
                 ->required(),
-
-            Forms\Components\TextInput::make('capacity')
-                ->label(__('subjects.capacity'))
-                ->numeric()
-                ->minValue(1),
         ];
     }
 

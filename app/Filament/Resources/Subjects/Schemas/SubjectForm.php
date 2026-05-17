@@ -26,10 +26,6 @@ class SubjectForm
                     ->native(false)
                     ->required()
                     ->default(Subject::TYPE_THEORETICAL),
-                TextInput::make('lecturer_id')
-                    ->label(__('subjects.lecturer_id'))
-                    ->numeric()
-                    ->default(null),
                 TextInput::make('department_id')
                     ->label(__('subjects.department_id'))
                     ->numeric()

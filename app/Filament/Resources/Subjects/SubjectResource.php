@@ -142,15 +142,6 @@ class SubjectResource extends Resource
                     ->label(__('subjects.is_active'))
                     ->default(true)
                     ->required(),
-
-                Forms\Components\Select::make('lecturer_id')
-                    ->label(__('subjects.lecturer'))
-                    ->options(fn() => \App\Models\User::query()
-                        ->withoutTrashed()
-                        ->whereHas('roles', fn($q) => $q->where('name', 'course_lecturer'))
-                        ->pluck('name', 'id'))
-                    ->searchable()
-                    ->required(),
             ]);
     }
 
@@ -190,11 +181,6 @@ class SubjectResource extends Resource
                         ->implode(', '))
                     ->placeholder(__('subjects.not_available'))
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('lecturer.name')
-                    ->label(__('subjects.lecturer'))
-                    ->formatStateUsing(fn (?string $state): string => $state ?: __('subjects.not_assigned'))
-                    ->searchable()
-                    ->sortable(),
                 Tables\Columns\TextColumn::make('department.name')
                     ->label(__('subjects.department_id'))
                     ->searchable()

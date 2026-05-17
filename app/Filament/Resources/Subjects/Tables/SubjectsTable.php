@@ -23,10 +23,6 @@ class SubjectsTable
             TextColumn::make('name')
                 ->label(__('subjects.name'))
                 ->searchable(),
-            TextColumn::make('lecturer_id')
-                ->label(__('subjects.lecturer_id'))
-                ->numeric()
-                ->sortable(),
             TextColumn::make('department_id')
                 ->label(__('subjects.department_id'))
                 ->numeric()

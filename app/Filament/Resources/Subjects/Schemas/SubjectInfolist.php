@@ -21,10 +21,6 @@ class SubjectInfolist
                 ->label(__('subjects.subject_type'))
                 ->formatStateUsing(fn (Subject $record): string => $record->subject_type_label)
                 ->badge(),
-            TextEntry::make('lecturer_id')
-                ->label(__('subjects.lecturer_id'))
-                ->numeric()
-                ->placeholder(__('subjects.not_available')),
             TextEntry::make('department_id')
                 ->label(__('subjects.department_id'))
                 ->numeric()
