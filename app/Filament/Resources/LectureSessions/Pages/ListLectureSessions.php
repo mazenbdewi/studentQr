@@ -6,24 +6,15 @@ use App\Filament\Resources\LectureSessions\LectureSessionResource;
 use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\Subject;
-use App\Services\ActivityLogger;
 use App\Services\LectureSessionCalendarService;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms;
-use Filament\Forms\Components\FileUpload;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Support\Carbon;
-
-
-use App\Imports\LectureSessionsImport;
-
 use Filament\Notifications\Notification;
-
-use Maatwebsite\Excel\Facades\Excel;
-use Maatwebsite\Excel\Validators\ValidationException;
 
 class ListLectureSessions extends ListRecords
 {
@@ -32,144 +23,6 @@ class ListLectureSessions extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-
-            Action::make('download_template')
-                ->label(__('lecture-session.template_download'))
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('info')
-                ->action(function () {
-                    app(ActivityLogger::class)->logExport(
-                        'lecture_sessions',
-                        'lecture_sessions_template_download',
-                        'lecture_sessions_template.xlsx'
-                    );
-
-                    return Excel::download(new \App\Exports\Templates\LectureSessionsTemplateExport(), 'lecture_sessions_template.xlsx');
-                }),
-
-            Action::make('import')
-                ->label(__('lecture-session.import_excel'))
-                ->icon('heroicon-o-arrow-up-tray')
-                ->color('success')
-                ->modalHeading(__('import-help.modal_title.lecture_sessions'))
-                ->modalContent(new \Illuminate\Support\HtmlString('<div class="p-4 space-y-3 prose-sm prose max-w-none" dir="rtl"><ul class="ml-6 space-y-2 text-gray-300 list-disc">' . implode('', array_map(fn($i) => '<li class="text-sm">' . htmlspecialchars($i) . '</li>', __('import-help.simple_instructions'))) . '</ul><p class="mt-4 text-xs text-gray-400">' . __('import-help.column_order_note') . '</p></div>'))
-                ->form([
-                    FileUpload::make('file')
-                        ->label(__('lecture-session.excel_file'))
-                        ->acceptedFileTypes(['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'])
-                        ->required(),
-                ])
-              ->action(function (array $data) {
-    $startedAt = now();
-    $fileName = basename((string) $data['file']);
-    $import = new \App\Imports\LectureSessionsImport();
-
-    try {
-        Excel::import($import, $data['file']);
-
-        app(ActivityLogger::class)->logImportSummary(
-            'lecture_sessions',
-            'lecture_sessions_import',
-            $fileName,
-            $import->getImportedCount(),
-            $import->getImportedCount(),
-            0,
-            $startedAt->toIso8601String(),
-            now()->toIso8601String()
-        );
-
-        \Filament\Notifications\Notification::make()
-            ->title(__('lecture-session.import_success'))
-            ->success()
-            ->send();
-
-    } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-        $messages = [];
-
-        foreach ($e->failures() as $failure) {
-            $row = $failure->row();
-            $values = $failure->values();
-
-            foreach ($failure->errors() as $error) {
-                $errorMessage = str_replace(':row', $row, $error);
-
-                if (str_contains($errorMessage, ':input')) {
-                    $attribute = $failure->attribute();
-                    $errorMessage = str_replace(':input', $values[$attribute] ?? $attribute, $errorMessage);
-                }
-
-                $messages[] = $errorMessage;
-            }
-        }
-
-        $failedCount = count($e->failures());
-
-        app(ActivityLogger::class)->logImportSummary(
-            'lecture_sessions',
-            'lecture_sessions_import',
-            $fileName,
-            $import->getImportedCount() + $failedCount,
-            $import->getImportedCount(),
-            $failedCount,
-            $startedAt->toIso8601String(),
-            now()->toIso8601String(),
-            ['status' => 'failed']
-        );
-
-        \Filament\Notifications\Notification::make()
-            ->title(__('lecture-session.import_failed'))
-            ->body(implode('<br>', array_slice($messages, 0, 5)))
-            ->danger()
-            ->send();
-
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        $messages = [];
-
-        foreach ($e->errors() as $fieldErrors) {
-            foreach ($fieldErrors as $error) {
-                $messages[] = $error;
-            }
-        }
-
-        app(ActivityLogger::class)->logImportSummary(
-            'lecture_sessions',
-            'lecture_sessions_import',
-            $fileName,
-            $import->getImportedCount(),
-            $import->getImportedCount(),
-            count($messages),
-            $startedAt->toIso8601String(),
-            now()->toIso8601String(),
-            ['status' => 'failed']
-        );
-
-        \Filament\Notifications\Notification::make()
-            ->title(__('lecture-session.import_failed'))
-            ->body(implode('<br>', array_slice($messages, 0, 5)))
-            ->danger()
-            ->send();
-
-    } catch (\Throwable $e) {
-        app(ActivityLogger::class)->logImportSummary(
-            'lecture_sessions',
-            'lecture_sessions_import',
-            $fileName,
-            $import->getImportedCount(),
-            $import->getImportedCount(),
-            1,
-            $startedAt->toIso8601String(),
-            now()->toIso8601String(),
-            ['status' => 'failed', 'error' => $e->getMessage()]
-        );
-
-        \Filament\Notifications\Notification::make()
-            ->title(__('lecture-session.import_failed'))
-            ->body($e->getMessage())
-            ->danger()
-            ->send();
-    }
-}),
-
             Action::make('create_recurring')
                 ->label(__('lecture-session.create_recurring'))
                 ->icon('heroicon-o-calendar-days')
@@ -193,7 +46,10 @@ class ListLectureSessions extends ListRecords
                                 ->preload()
                                 ->native(false)
                                 ->live()
-                                ->afterStateUpdated(fn (callable $set): mixed => $set('subject_section_id', null))
+                                ->afterStateUpdated(function (callable $set, mixed $state): void {
+                                    $set('subject_section_id', null);
+                                    $set('lecturer_id', LectureSessionResource::resolveLecturerIdForSubjectAndSection($state, null));
+                                })
                                 ->required(),
 
                             Forms\Components\Select::make('subject_section_id')
@@ -204,7 +60,37 @@ class ListLectureSessions extends ListRecords
                                 ->native(false)
                                 ->disabled(fn (Get $get): bool => blank($get('subject_id')))
                                 ->required(fn (Get $get): bool => LectureSessionResource::subjectHasSections($get('subject_id')))
-                                ->placeholder(__('subjects.select_subject_first')),
+                                ->placeholder(__('subjects.select_subject_first'))
+                                ->live()
+                                ->afterStateUpdated(fn (callable $set, Get $get, mixed $state): mixed => $set(
+                                    'lecturer_id',
+                                    LectureSessionResource::resolveLecturerIdForSubjectAndSection($get('subject_id'), $state),
+                                )),
+
+                            Forms\Components\Select::make('lecturer_id')
+                                ->label(__('lecture-session.lecturer'))
+                                ->options(fn (): array => \App\Models\User::query()
+                                    ->withoutTrashed()
+                                    ->pluck('name', 'id')
+                                    ->all())
+                                ->searchable()
+                                ->preload()
+                                ->native(false)
+                                ->placeholder(__('lecture-session.subject_has_no_lecturer'))
+                                ->disabled()
+                                ->dehydrated(),
+
+                            Forms\Components\Placeholder::make('missing_lecturer_warning')
+                                ->label(__('lecture-session.missing_lecturer_warning_title'))
+                                ->content(__('lecture-session.missing_lecturer_warning'))
+                                ->visible(fn (Get $get): bool => LectureSessionResource::shouldShowMissingLecturerWarning(
+                                    $get('subject_id'),
+                                    $get('subject_section_id'),
+                                ))
+                                ->columnSpanFull()
+                                ->extraAttributes([
+                                    'class' => 'rounded-lg border border-danger-300 bg-danger-50 px-4 py-3 text-sm font-medium text-danger-700 dark:border-danger-500/40 dark:bg-danger-500/10 dark:text-danger-300',
+                                ]),
 
                             Forms\Components\Select::make('hall_id')
                                 ->label(__('lecture-session.hall'))

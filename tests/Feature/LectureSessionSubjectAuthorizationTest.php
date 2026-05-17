@@ -223,3 +223,27 @@ it('allows a lecturer to create sessions for sections assigned to them', functio
 
     expect($session?->lecturer_id)->toBe($sectionLecturer->id);
 });
+
+it('does not default a lecture session lecturer to the authenticated admin when the subject has no lecturer', function (): void {
+    $admin = lectureSessionSuperAdmin();
+    $hall = lectureSessionHall();
+    $subject = Subject::query()->create([
+        'code' => 'NOLECT101',
+        'name' => 'Subject Without Lecturer',
+        'subject_type' => Subject::TYPE_THEORETICAL,
+        'lecturer_id' => null,
+        'credit_hours' => 3,
+        'level' => 1,
+        'is_active' => true,
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test(CreateLectureSession::class)
+        ->fillForm(array_merge(lectureSessionFormData($subject, $hall), [
+            'lecturer_id' => $admin->id,
+        ]))
+        ->call('create')
+        ->assertHasErrors(['lecturer_id']);
+
+    expect(LectureSession::query()->count())->toBe(0);
+});

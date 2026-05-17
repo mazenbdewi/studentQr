@@ -97,8 +97,7 @@ class LectureSessionResource extends Resource
                     ])
                     ->reactive()
                     ->afterStateUpdated(function (callable $set, $state) {
-                        $subject = static::scopeSubjectQueryForCurrentUser(Subject::query())->find($state);
-                        $set('lecturer_id', $subject?->lecturer_id ?? auth()->id());
+                        $set('lecturer_id', static::resolveLecturerIdForSubjectAndSection($state, null));
                         $set('subject_section_id', null);
                     }),
 
@@ -112,7 +111,7 @@ class LectureSessionResource extends Resource
                     ->required(fn (Get $get): bool => static::subjectHasSections($get('subject_id')))
                     ->placeholder(__('subjects.select_subject_first'))
                     ->afterStateUpdated(function (callable $set, Get $get, mixed $state): void {
-                        $set('lecturer_id', static::resolveLecturerIdForSubjectAndSection($get('subject_id'), $state) ?? auth()->id());
+                        $set('lecturer_id', static::resolveLecturerIdForSubjectAndSection($get('subject_id'), $state));
                     })
                     ->live()
                     ->helperText(__('lecture-session.section_helper_text')),
@@ -184,9 +183,24 @@ class LectureSessionResource extends Resource
                     )
                     ->searchable()
                     ->preload()
-                    ->required()
+                    ->placeholder(__('lecture-session.subject_has_no_lecturer'))
+                    ->validationMessages([
+                        'required' => __('lecture-session.subject_has_no_lecturer'),
+                    ])
                     ->disabled()
                     ->dehydrated(),
+
+                Forms\Components\Placeholder::make('missing_lecturer_warning')
+                    ->label(__('lecture-session.missing_lecturer_warning_title'))
+                    ->content(__('lecture-session.missing_lecturer_warning'))
+                    ->visible(fn (Get $get): bool => static::shouldShowMissingLecturerWarning(
+                        $get('subject_id'),
+                        $get('subject_section_id'),
+                    ))
+                    ->columnSpanFull()
+                    ->extraAttributes([
+                        'class' => 'rounded-lg border border-danger-300 bg-danger-50 px-4 py-3 text-sm font-medium text-danger-700 dark:border-danger-500/40 dark:bg-danger-500/10 dark:text-danger-300',
+                    ]),
             ]);
     }
 
@@ -507,13 +521,11 @@ class LectureSessionResource extends Resource
         }
 
         $data['lecturer_id'] = $section?->lecturer_id
-            ?? $subject->lecturer_id
-            ?? $data['lecturer_id']
-            ?? $user?->id;
+            ?? $subject->lecturer_id;
 
         if (blank($data['lecturer_id'])) {
             throw ValidationException::withMessages([
-                filled($data['subject_section_id'] ?? null) ? 'subject_section_id' : 'subject_id' => __('lecture-session.subject_has_no_lecturer'),
+                'lecturer_id' => __('lecture-session.subject_has_no_lecturer'),
             ]);
         }
 
@@ -577,6 +589,19 @@ class LectureSessionResource extends Resource
         }
 
         return null;
+    }
+
+    public static function shouldShowMissingLecturerWarning(int | string | null $subjectId, int | string | null $sectionId): bool
+    {
+        if (blank($subjectId)) {
+            return false;
+        }
+
+        if (static::subjectHasSections($subjectId) && blank($sectionId)) {
+            return false;
+        }
+
+        return static::resolveLecturerIdForSubjectAndSection($subjectId, $sectionId) === null;
     }
 
     private static function subjectCanBeUsedByLecturer(Subject $subject, int $lecturerId, ?SubjectSection $section = null): bool
