@@ -20,6 +20,7 @@
             ],
         };
         $subjectLabels = $this->getReportSubjectLabels();
+        $registrationDateEntries = $this->getRegistrationDateEntries();
         $notAvailable = __('lecture-session.not_available');
     @endphp
 
@@ -89,6 +90,29 @@
                                 @foreach($subjectLabels as $subjectLabel)
                                     <span class="inline-flex max-w-full items-center rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 ring-1 ring-inset ring-primary-600/20 dark:bg-primary-500/10 dark:text-primary-300 dark:ring-primary-400/30">
                                         <span class="truncate">{{ $subjectLabel }}</span>
+                                    </span>
+                                @endforeach
+                            </div>
+                        @else
+                            <p class="text-sm text-gray-500 dark:text-gray-400">{{ $notAvailable }}</p>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="min-w-0 rounded-lg border border-primary-200 bg-primary-50/60 p-4 dark:border-primary-500/30 dark:bg-primary-500/10 sm:col-span-2 xl:col-span-4">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="min-w-0">
+                            <p class="text-xs font-medium text-primary-700 dark:text-primary-300">{{ __('student.registration_date') }}</p>
+                            <p class="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">{{ __('student.attendance_calculated_from_registration_date') }}</p>
+                        </div>
+
+                        @if(count($registrationDateEntries) > 0)
+                            <div class="flex max-w-full flex-wrap gap-2 lg:justify-end">
+                                @foreach($registrationDateEntries as $entry)
+                                    <span class="inline-flex max-w-full items-center gap-1 rounded-md bg-white px-2.5 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-primary-600/20 dark:bg-gray-900 dark:text-gray-200 dark:ring-primary-400/30">
+                                        <span class="truncate">{{ $entry['subject'] }}</span>
+                                        <span class="text-gray-400 dark:text-gray-500">-</span>
+                                        <span dir="ltr">{{ $entry['date'] }}</span>
                                     </span>
                                 @endforeach
                             </div>

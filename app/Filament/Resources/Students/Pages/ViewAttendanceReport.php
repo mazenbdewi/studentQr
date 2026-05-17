@@ -188,6 +188,24 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
         return array_values($this->getAttendanceReport()->subjectOptions($this->record));
     }
 
+    public function getRegistrationDateEntries(): array
+    {
+        $selectedSubject = $this->getSelectedSubject();
+
+        return $this->record
+            ->enrollments()
+            ->with(['subject:id,name'])
+            ->when($selectedSubject, fn (Builder $query): Builder => $query->where('subject_id', $selectedSubject->id))
+            ->get()
+            ->sortBy(fn ($enrollment): string => $enrollment->subject?->name ?? '')
+            ->map(fn ($enrollment): array => [
+                'subject' => $enrollment->subject?->name ?? __('lecture-session.not_available'),
+                'date' => $enrollment->registration_date?->translatedFormat('Y-m-d') ?? __('lecture-session.not_available'),
+            ])
+            ->values()
+            ->all();
+    }
+
     private function getAttendanceReport(): StudentAttendanceReport
     {
         return app(StudentAttendanceReport::class);

@@ -63,6 +63,83 @@ it('filters student attendance rows and summary to the selected enrolled subject
         ->and($summary['attendance_percentage'])->toBe(66.7);
 });
 
+it('calculates student attendance from the enrollment registration date', function () {
+    ['student' => $student, 'subjects' => $subjects, 'sessions' => $sessions] = createStudentAttendanceFixture();
+
+    DB::table('enrollments')
+        ->where('student_id', $student->id)
+        ->where('subject_id', $subjects['primary']->id)
+        ->update(['registration_date' => '2026-04-15']);
+
+    $rows = app(StudentAttendanceReport::class)->rows($student, $subjects['primary']->id);
+    $summary = app(StudentAttendanceReport::class)->summaryFromRows($rows);
+
+    expect($rows)->toHaveCount(2)
+        ->and($rows->pluck('id')->all())->toBe([
+            $sessions['missing']->id,
+            $sessions['present']->id,
+        ])
+        ->and($rows->pluck('id')->contains($sessions['late']->id))->toBeFalse()
+        ->and($summary['total_lectures'])->toBe(2)
+        ->and($summary['total_present'])->toBe(1)
+        ->and($summary['total_absent'])->toBe(1)
+        ->and($summary['attendance_percentage'])->toBe(50.0);
+});
+
+it('counts only lecture sessions for the sections assigned to the student enrollment', function () {
+    ['student' => $student, 'subjects' => $subjects] = createStudentAttendanceFixture();
+
+    $subject = $subjects['primary'];
+    $theorySection = $subject->sections()->create([
+        'code' => 'T1',
+        'section_type' => Subject::TYPE_THEORETICAL,
+    ]);
+    $otherTheorySection = $subject->sections()->create([
+        'code' => 'T2',
+        'section_type' => Subject::TYPE_THEORETICAL,
+    ]);
+
+    DB::table('enrollments')
+        ->where('student_id', $student->id)
+        ->where('subject_id', $subject->id)
+        ->update([
+            'theoretical_section_id' => $theorySection->id,
+            'registration_date' => '2026-04-01',
+        ]);
+
+    $hall = Hall::query()->firstOrFail();
+    $lecturerId = $subject->lecturer_id;
+
+    $assignedSession = LectureSession::query()->create([
+        'subject_id' => $subject->id,
+        'subject_section_id' => $theorySection->id,
+        'lecturer_id' => $lecturerId,
+        'hall_id' => $hall->id,
+        'session_date' => '2026-04-17',
+        'start_time' => '08:00:00',
+        'end_time' => '09:00:00',
+        'status' => 'completed',
+        'attendance_mode' => 'qr_otp',
+    ]);
+
+    $otherSectionSession = LectureSession::query()->create([
+        'subject_id' => $subject->id,
+        'subject_section_id' => $otherTheorySection->id,
+        'lecturer_id' => $lecturerId,
+        'hall_id' => $hall->id,
+        'session_date' => '2026-04-18',
+        'start_time' => '08:00:00',
+        'end_time' => '09:00:00',
+        'status' => 'completed',
+        'attendance_mode' => 'qr_otp',
+    ]);
+
+    $rows = app(StudentAttendanceReport::class)->rows($student, $subject->id);
+
+    expect($rows->pluck('id')->contains($assignedSession->id))->toBeTrue()
+        ->and($rows->pluck('id')->contains($otherSectionSession->id))->toBeFalse();
+});
+
 it('renders the attendance pdf template with rtl layout and the uploaded university logo', function () {
     ['student' => $student, 'subjects' => $subjects] = createStudentAttendanceFixture();
 

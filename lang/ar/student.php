@@ -152,6 +152,8 @@ return [
     'day_date' => 'اليوم / التاريخ',
     'time' => 'الوقت',
     'generated_at' => 'تاريخ إنشاء التقرير',
+    'registration_date' => 'تاريخ التسجيل',
+    'attendance_calculated_from_registration_date' => 'سيتم احتساب الحضور من تاريخ التسجيل.',
     'no_attendance_history' => 'لا يوجد سجل حضور لهذا الطالب.',
     'no_attendance_records' => 'لا توجد سجلات حضور لهذا الطالب حالياً.',
     'no_attendance_data' => 'لا توجد بيانات حضور متاحة لهذا الطالب حالياً.',

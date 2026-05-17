@@ -144,6 +144,8 @@ return [
     'day_date' => 'Day / Date',
     'time' => 'Time',
     'generated_at' => 'Generated at',
+    'registration_date' => 'Registration Date',
+    'attendance_calculated_from_registration_date' => 'Attendance will be calculated from the registration date.',
     'no_attendance_history' => 'No attendance history found for this student.',
     'no_attendance_records' => 'There are no attendance records for this student right now.',
     'no_attendance_data' => 'No attendance data is available for this student right now.',

@@ -32,6 +32,22 @@ class StudentAttendanceReport
                 $join->on('enrollments.subject_id', '=', 'lecture_sessions.subject_id')
                     ->where('enrollments.student_id', '=', $student->id);
             })
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereNull('enrollments.registration_date')
+                    ->orWhereColumn('lecture_sessions.session_date', '>=', 'enrollments.registration_date');
+            })
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereNull('lecture_sessions.subject_section_id')
+                    ->orWhere(function (Builder $sectionQuery): void {
+                        $sectionQuery
+                            ->whereNull('enrollments.theoretical_section_id')
+                            ->whereNull('enrollments.practical_section_id');
+                    })
+                    ->orWhereColumn('lecture_sessions.subject_section_id', 'enrollments.theoretical_section_id')
+                    ->orWhereColumn('lecture_sessions.subject_section_id', 'enrollments.practical_section_id');
+            })
             ->leftJoin('attendances as student_attendances', function ($join) use ($student): void {
                 $join->on('student_attendances.lecture_session_id', '=', 'lecture_sessions.id')
                     ->where('student_attendances.student_id', '=', $student->id);
