@@ -11,6 +11,7 @@ class SubjectSection extends Model
 {
     protected $fillable = [
         'subject_id',
+        'lecturer_id',
         'section_type',
         'code',
         'section_number',
@@ -21,6 +22,7 @@ class SubjectSection extends Model
 
     protected $casts = [
         'capacity' => 'integer',
+        'lecturer_id' => 'integer',
         'section_number' => 'integer',
     ];
 
@@ -47,6 +49,11 @@ class SubjectSection extends Model
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class);
+    }
+
+    public function lecturer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'lecturer_id')->withTrashed();
     }
 
     public function getSectionTypeLabelAttribute(): string

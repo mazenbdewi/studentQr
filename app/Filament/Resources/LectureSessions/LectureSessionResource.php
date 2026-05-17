@@ -7,6 +7,7 @@ use App\Filament\Resources\LectureSessions\RelationManagers\AttendancesRelationM
 use App\Models\AppSetting;
 use App\Models\LectureSession;
 use App\Models\Subject;
+use App\Models\SubjectSection;
 use App\Services\ActivityLogger;
 use BackedEnum;
 use Filament\Actions\Action as ActionsAction;
@@ -110,6 +111,10 @@ class LectureSessionResource extends Resource
                     ->disabled(fn (Get $get): bool => blank($get('subject_id')))
                     ->required(fn (Get $get): bool => static::subjectHasSections($get('subject_id')))
                     ->placeholder(__('subjects.select_subject_first'))
+                    ->afterStateUpdated(function (callable $set, Get $get, mixed $state): void {
+                        $set('lecturer_id', static::resolveLecturerIdForSubjectAndSection($get('subject_id'), $state) ?? auth()->id());
+                    })
+                    ->live()
                     ->helperText(__('lecture-session.section_helper_text')),
 
                 Forms\Components\Select::make('hall_id')
@@ -429,7 +434,11 @@ class LectureSessionResource extends Resource
         $user = auth()->user();
 
         if ($user?->hasRole('course_lecturer')) {
-            $query->where('lecturer_id', $user->id);
+            $query->where(function (Builder $query) use ($user): void {
+                $query
+                    ->where('lecturer_id', $user->id)
+                    ->orWhereHas('sections', fn (Builder $sectionsQuery) => $sectionsQuery->where('lecturer_id', $user->id));
+            });
         }
 
         return $query;
@@ -444,7 +453,17 @@ class LectureSessionResource extends Resource
                 $query->whereNull('deleted_at');
 
                 if ($user?->hasRole('course_lecturer')) {
-                    $query->where('lecturer_id', $user->id);
+                    $query->where(function ($query) use ($user): void {
+                        $query
+                            ->where('lecturer_id', $user->id)
+                            ->orWhereExists(function ($sectionsQuery) use ($user): void {
+                                $sectionsQuery
+                                    ->selectRaw('1')
+                                    ->from('subject_sections')
+                                    ->whereColumn('subject_sections.subject_id', 'subjects.id')
+                                    ->where('subject_sections.lecturer_id', $user->id);
+                            });
+                    });
                 }
             });
     }
@@ -467,24 +486,35 @@ class LectureSessionResource extends Resource
 
         $user = auth()->user();
 
-        if ($user?->hasRole('course_lecturer') && (int) $subject->lecturer_id !== (int) $user->id) {
+        $section = null;
+
+        if (filled($data['subject_section_id'] ?? null)) {
+            $section = $subject->sections()
+                ->whereKey($data['subject_section_id'])
+                ->first();
+
+            if (! $section) {
+                throw ValidationException::withMessages([
+                    'subject_section_id' => __('subjects.section_must_belong_to_subject'),
+                ]);
+            }
+        }
+
+        if ($user?->hasRole('course_lecturer') && ! static::subjectCanBeUsedByLecturer($subject, $user->id, $section)) {
             throw ValidationException::withMessages([
                 'subject_id' => __('lecture-session.subject_not_assigned_to_lecturer'),
             ]);
         }
 
-        $data['lecturer_id'] = $subject->lecturer_id ?? $data['lecturer_id'] ?? $user?->id;
+        $data['lecturer_id'] = $section?->lecturer_id
+            ?? $subject->lecturer_id
+            ?? $data['lecturer_id']
+            ?? $user?->id;
 
-        if (filled($data['subject_section_id'] ?? null)) {
-            $sectionBelongsToSubject = $subject->sections()
-                ->whereKey($data['subject_section_id'])
-                ->exists();
-
-            if (! $sectionBelongsToSubject) {
-                throw ValidationException::withMessages([
-                    'subject_section_id' => __('subjects.section_must_belong_to_subject'),
-                ]);
-            }
+        if (blank($data['lecturer_id'])) {
+            throw ValidationException::withMessages([
+                filled($data['subject_section_id'] ?? null) ? 'subject_section_id' : 'subject_id' => __('lecture-session.subject_has_no_lecturer'),
+            ]);
         }
 
         return $data;
@@ -496,9 +526,23 @@ class LectureSessionResource extends Resource
             return [];
         }
 
-        return \App\Models\SubjectSection::query()
+        $query = SubjectSection::query()
             ->where('subject_id', $subjectId)
-            ->orderBy('code')
+            ->orderBy('code');
+
+        $user = auth()->user();
+
+        if ($user?->hasRole('course_lecturer')) {
+            $subjectLecturerId = Subject::query()
+                ->whereKey($subjectId)
+                ->value('lecturer_id');
+
+            if ((int) $subjectLecturerId !== (int) $user->id) {
+                $query->where('lecturer_id', $user->id);
+            }
+        }
+
+        return $query
             ->pluck('code', 'id')
             ->all();
     }
@@ -509,5 +553,40 @@ class LectureSessionResource extends Resource
             && \App\Models\SubjectSection::query()
                 ->where('subject_id', $subjectId)
                 ->exists();
+    }
+
+    public static function resolveLecturerIdForSubjectAndSection(int | string | null $subjectId, int | string | null $sectionId): ?int
+    {
+        if (filled($sectionId)) {
+            $section = SubjectSection::query()
+                ->whereKey($sectionId)
+                ->when(filled($subjectId), fn (Builder $query) => $query->where('subject_id', $subjectId))
+                ->first(['id', 'lecturer_id']);
+
+            if ($section?->lecturer_id) {
+                return (int) $section->lecturer_id;
+            }
+        }
+
+        if (filled($subjectId)) {
+            $lecturerId = Subject::query()
+                ->whereKey($subjectId)
+                ->value('lecturer_id');
+
+            return $lecturerId ? (int) $lecturerId : null;
+        }
+
+        return null;
+    }
+
+    private static function subjectCanBeUsedByLecturer(Subject $subject, int $lecturerId, ?SubjectSection $section = null): bool
+    {
+        if ($section) {
+            return (int) $section->lecturer_id === $lecturerId
+                || (blank($section->lecturer_id) && (int) $subject->lecturer_id === $lecturerId);
+        }
+
+        return (int) $subject->lecturer_id === $lecturerId
+            || $subject->sections()->where('lecturer_id', $lecturerId)->exists();
     }
 }

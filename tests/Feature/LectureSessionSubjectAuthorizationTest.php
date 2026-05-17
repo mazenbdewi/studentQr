@@ -166,3 +166,60 @@ it('allows super admins to create lecture sessions for any subject', function ()
     expect($session?->subject_id)->toBe($subject->id)
         ->and($session?->lecturer_id)->toBe($lecturer->id);
 });
+
+it('uses the selected subject section lecturer when creating a lecture session', function (): void {
+    $defaultLecturer = lectureSessionLecturer('default-section-lecturer@example.com');
+    $sectionLecturer = lectureSessionLecturer('practical-section-lecturer@example.com');
+    $subject = lectureSessionSubject($defaultLecturer, 'SEC101');
+    $section = $subject->sections()->create([
+        'code' => 'P1',
+        'lecturer_id' => $sectionLecturer->id,
+    ]);
+    $hall = lectureSessionHall();
+    $admin = lectureSessionSuperAdmin();
+
+    Livewire::actingAs($admin)
+        ->test(CreateLectureSession::class)
+        ->fillForm(array_merge(lectureSessionFormData($subject, $hall), [
+            'subject_section_id' => $section->id,
+            'lecturer_id' => $defaultLecturer->id,
+        ]))
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $session = LectureSession::query()->first();
+
+    expect($session?->subject_section_id)->toBe($section->id)
+        ->and($session?->lecturer_id)->toBe($sectionLecturer->id);
+});
+
+it('allows a lecturer to create sessions for sections assigned to them', function (): void {
+    $defaultLecturer = lectureSessionLecturer('default-owner@example.com');
+    $sectionLecturer = lectureSessionLecturer('section-owner@example.com');
+    $subject = lectureSessionSubject($defaultLecturer, 'SEC102');
+    $section = $subject->sections()->create([
+        'code' => 'T1',
+        'lecturer_id' => $sectionLecturer->id,
+    ]);
+    $hall = lectureSessionHall();
+
+    $this->actingAs($sectionLecturer);
+
+    expect(LectureSessionResource::scopeSubjectQueryForCurrentUser(Subject::query())->pluck('id')->all())
+        ->toBe([$subject->id])
+        ->and(LectureSessionResource::getSectionOptionsForSubject($subject->id))
+        ->toBe([$section->id => 'T1']);
+
+    Livewire::actingAs($sectionLecturer)
+        ->test(CreateLectureSession::class)
+        ->fillForm(array_merge(lectureSessionFormData($subject, $hall), [
+            'subject_section_id' => $section->id,
+            'lecturer_id' => $sectionLecturer->id,
+        ]))
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $session = LectureSession::query()->first();
+
+    expect($session?->lecturer_id)->toBe($sectionLecturer->id);
+});

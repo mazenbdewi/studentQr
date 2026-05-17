@@ -26,7 +26,11 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
         $this->subjects = Subject::query()
             ->when(
                 auth()->user()?->hasRole('course_lecturer'),
-                fn ($query) => $query->where('lecturer_id', auth()->id()),
+                fn ($query) => $query->where(function ($query): void {
+                    $query
+                        ->where('lecturer_id', auth()->id())
+                        ->orWhereHas('sections', fn ($sectionsQuery) => $sectionsQuery->where('lecturer_id', auth()->id()));
+                }),
             )
             ->get(['id', 'name', 'code', 'lecturer_id'])
             ->flatMap(function ($subject) {
@@ -168,14 +172,8 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
 
             $subject = $this->subjects[$data['subject_name']];
 
-            if (empty($subject['lecturer_id'])) {
-                throw ValidationException::withMessages([
-                    'subject_name' => "المادة '{$data['subject_name']}' في الصف {$rowNumber} لا يوجد لها محاضر معيّن. يرجى تعيين محاضر للمادة أولًا.",
-                ]);
-            }
-
             $data['subject_id'] = $subject['id'];
-            $data['lecturer_id'] = $subject['lecturer_id'];
+            $lecturerId = $subject['lecturer_id'] ?? null;
 
             if (! empty($data['section_code'])) {
                 $section = SubjectSection::query()
@@ -194,7 +192,22 @@ class LectureSessionsImport implements ToModel, WithHeadingRow, WithValidation, 
                 }
 
                 $data['subject_section_id'] = $section->id;
+                $lecturerId = $section->lecturer_id ?? $lecturerId;
             }
+
+            if (auth()->user()?->hasRole('course_lecturer') && (int) $lecturerId !== (int) auth()->id()) {
+                throw ValidationException::withMessages([
+                    'subject_name' => __('lecture-session.subject_not_assigned_to_lecturer'),
+                ]);
+            }
+
+            if (empty($lecturerId)) {
+                throw ValidationException::withMessages([
+                    'subject_name' => "المادة '{$data['subject_name']}' في الصف {$rowNumber} لا يوجد لها محاضر معيّن. يرجى تعيين محاضر للشعبة أو للمادة أولًا.",
+                ]);
+            }
+
+            $data['lecturer_id'] = $lecturerId;
         }
 
         if (! empty($data['hall_name'])) {

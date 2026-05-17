@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Subjects\RelationManagers;
 
 use App\Models\Subject;
 use App\Models\SubjectSection;
+use App\Models\User;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -56,6 +57,12 @@ class SubjectSectionsRelationManager extends RelationManager
                     ->label(__('subjects.section_name'))
                     ->placeholder(__('subjects.not_available'))
                     ->searchable(),
+
+                Tables\Columns\TextColumn::make('lecturer.name')
+                    ->label(__('subjects.lecturer'))
+                    ->placeholder(__('subjects.not_available'))
+                    ->searchable()
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('capacity')
                     ->label(__('subjects.capacity'))
@@ -128,6 +135,19 @@ class SubjectSectionsRelationManager extends RelationManager
             Forms\Components\TextInput::make('name')
                 ->label(__('subjects.section_name'))
                 ->maxLength(255),
+
+            Forms\Components\Select::make('lecturer_id')
+                ->label(__('subjects.lecturer'))
+                ->options(fn (): array => User::query()
+                    ->withoutTrashed()
+                    ->whereHas('roles', fn ($query) => $query->where('name', 'course_lecturer'))
+                    ->orderBy('name')
+                    ->pluck('name', 'id')
+                    ->all())
+                ->searchable()
+                ->preload()
+                ->native(false)
+                ->required(),
 
             Forms\Components\TextInput::make('capacity')
                 ->label(__('subjects.capacity'))

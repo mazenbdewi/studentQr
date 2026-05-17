@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AppSetting;
 use App\Models\LectureSession;
 use App\Models\Subject;
+use App\Models\SubjectSection;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -26,9 +27,12 @@ class LectureSessionCalendarService
             ->withoutTrashed()
             ->findOrFail($data['subject_id']);
 
-        if (blank($subject->lecturer_id)) {
+        $section = $this->resolveSubjectSection($subject, $data['subject_section_id'] ?? null);
+        $lecturerId = $section?->lecturer_id ?? $subject->lecturer_id;
+
+        if (blank($lecturerId)) {
             throw ValidationException::withMessages([
-                'subject_id' => __('lecture-session.subject_has_no_lecturer'),
+                $section ? 'subject_section_id' : 'subject_id' => __('lecture-session.subject_has_no_lecturer'),
             ]);
         }
 
@@ -76,11 +80,11 @@ class LectureSessionCalendarService
         $createdIds = [];
         $skipped = 0;
 
-        DB::transaction(function () use ($data, $dates, $subject, $startTime, $endTime, &$createdIds, &$skipped): void {
+        DB::transaction(function () use ($data, $dates, $subject, $section, $lecturerId, $startTime, $endTime, &$createdIds, &$skipped): void {
             foreach ($dates as $date) {
                 $exists = LectureSession::query()
                     ->where('subject_id', $subject->id)
-                    ->where('subject_section_id', $data['subject_section_id'] ?? null)
+                    ->where('subject_section_id', $section?->id)
                     ->where('hall_id', $data['hall_id'])
                     ->whereDate('session_date', $date->toDateString())
                     ->whereTime('start_time', $startTime)
@@ -95,8 +99,8 @@ class LectureSessionCalendarService
 
                 $session = LectureSession::create([
                     'subject_id' => $subject->id,
-                    'subject_section_id' => $data['subject_section_id'] ?? null,
-                    'lecturer_id' => $subject->lecturer_id,
+                    'subject_section_id' => $section?->id,
+                    'lecturer_id' => $lecturerId,
                     'hall_id' => $data['hall_id'],
                     'session_date' => $date->toDateString(),
                     'start_time' => $startTime,
@@ -158,5 +162,22 @@ class LectureSessionCalendarService
     private function normalizeTime(mixed $time): string
     {
         return CarbonImmutable::parse((string) $time)->format('H:i:s');
+    }
+
+    private function resolveSubjectSection(Subject $subject, mixed $sectionId): ?SubjectSection
+    {
+        if (blank($sectionId)) {
+            return null;
+        }
+
+        $section = $subject->sections()->whereKey($sectionId)->first();
+
+        if (! $section) {
+            throw ValidationException::withMessages([
+                'subject_section_id' => __('subjects.section_must_belong_to_subject'),
+            ]);
+        }
+
+        return $section;
     }
 }
