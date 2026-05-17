@@ -1,89 +1,54 @@
-# 🚀 Glow Starter Kit
+# نظام تفقد الطلاب
 
-This is a **Filament v4 Starter Kit** for **Laravel 12**, designed to accelerate the development of Filament-powered applications.
+نظام تفقد الطلاب هو تطبيق لإدارة حضور الطلاب في المحاضرات باستخدام QR وOTP، مع إدارة الطلاب والمواد والقاعات والجلسات والتقارير من لوحة تحكم واحدة.
 
-Preview:
-![](https://raw.githubusercontent.com/ercogx/laravel-filament-starter-kit/main/preview-white.png)
-Dark Mode:
-![](https://raw.githubusercontent.com/ercogx/laravel-filament-starter-kit/main/preview.png)
+## ماذا يفعل النظام؟
 
-## Compatibility
+- إدارة الكليات والأقسام والطلاب والمواد والقاعات.
+- إنشاء جلسات محاضرات وتفعيلها عند بدء التفقد.
+- عرض QR وOTP للطلاب داخل القاعة.
+- تسجيل حضور الطالب من الهاتف باستخدام الرقم الجامعي وOTP.
+- منع تكرار حضور الطالب في نفس الجلسة.
+- منع تسجيل حضور زميل من نفس الجهاز في نفس الجلسة.
+- عرض الحضور والغياب وتصدير التقارير.
+- إدارة الندوات وحضور الزوار عبر QR.
+- دعم الاستيراد من Excel للبيانات الأساسية.
+- دعم رمز PIN، النسخ الاحتياطي، وسجل النشاط حسب الصلاحيات.
 
-| Starter Kit                                                            | Filament Version                                        |
-|------------------------------------------------------------------------|---------------------------------------------------------|
-| [1.x](https://github.com/Ercogx/laravel-filament-starter-kit/tree/1.x) | [3.x](https://github.com/filamentphp/filament/tree/3.x) |
-| **2.x**                                                                | **4.x**                                                 |
+## دليل الاستخدام
 
+الدليل العربي الكامل موجود هنا:
 
-## 📦 Installation
+[docs/user-guide-ar.md](docs/user-guide-ar.md)
 
-You need the Laravel Installer if it is not yet installed.
+كما يمكن تحميل دليل الاستخدام PDF من داخل لوحة الإدارة من صفحة **دليل الاستخدام**.
+
+## شرح سريع للحضور
+
+1. المدرس يبدأ جلسة المحاضرة.
+2. المدرس يعرض QR وOTP داخل القاعة.
+3. الطالب يمسح QR من هاتفه.
+4. الطالب يدخل رقمه الجامعي وOTP.
+5. النظام يسجل الحضور مرة واحدة فقط.
+6. إذا حاول نفس الجهاز تسجيل طالب آخر في نفس الجلسة، يرفض النظام الطلب.
+
+## أوامر مفيدة للمطور
 
 ```bash
-composer global require laravel/installer
+composer install
+php artisan migrate
+php artisan db:seed
+php artisan serve
 ```
 
-Now you can create a new project using the Laravel Filament Starter Kit.
+تشغيل الاختبارات:
 
 ```bash
-laravel new test-kit --using=ercogx/laravel-filament-starter-kit
+php artisan test
 ```
 
-> If you want a Filament v3 (not recommended) ```laravel new test-kit --using=ercogx/laravel-filament-starter-kit:1.8.0```
+اختبار حماية حضور QR:
 
-## ⚙️ Setup
-
-1️⃣ **Database Configuration**
-
-By default, this starter kit uses **SQLite**. If you’re okay with this, you can skip this step. If you prefer **MySQL**, follow these steps:
-
-- Update your database credentials in `.env`
-- Run migrations: `php artisan migrate`
-- (Optional) delete the existing database file: ```rm database/database.sqlite```
-
-2️⃣ Create Filament Admin User
 ```bash
-php artisan make:filament-user
+php artisan test tests/Feature/StudentQrAttendanceLockingTest.php
 ```
-
-3️⃣ Assign Super Admin Role
-```bash
-php artisan shield:super-admin --user=1 --panel=admin
-```
-
-4️⃣ Generate Permissions
-```bash
-php artisan shield:generate --all --ignore-existing-policies --panel=admin
-```
-
-## 🌟Panel Include 
-
-- [Shield](https://filamentphp.com/plugins/bezhansalleh-shield) Access management to your Filament Panel's Resources, Pages & Widgets through spatie/laravel-permission.
-- [Backgrounds](https://filamentphp.com/plugins/swisnl-backgrounds) Beautiful backgrounds for Filament auth pages.
-- [Logger](https://filamentphp.com/plugins/z3d0x-logger) Extensible activity logger for filament that works out-of-the-box.
-- [Nord Theme](https://filamentphp.com/plugins/andreia-bohner-nord-theme) Beautiful Nord theme with subdued palette
-- [Breezy](https://filamentphp.com/plugins/jeffgreco-breezy) My Profile page.
-
-> More will be added when the relevant plugins release support for v4
-
-## 🧑‍💻Development Include
-
-- [barryvdh/laravel-debugbar](https://github.com/barryvdh/laravel-debugbar) The most popular debugging tool for Laravel, providing detailed request and query insights.
-- [larastan/larastan](https://github.com/larastan/larastan) A PHPStan extension for Laravel, configured at level 5 for robust static code analysis.
-- [plannr/laravel-fast-refresh-database](https://github.com/PlannrCrm/laravel-fast-refresh-database) 🚀 Refresh your test databases faster than you've ever seen before
-
-The `composer check` script runs **tests, PHPStan, and Pint** for code quality assurance:
-```bash
-composer check
-```
-
-## 📜 License
-
-This project is open-source and licensed under the MIT License.
-
-## 💡 Contributing
-
-We welcome contributions! Feel free to open issues, submit PRs, or suggest improvements.
-
-
-### 🚀 Happy Coding with Laravel & Filament! 🎉
