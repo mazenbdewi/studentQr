@@ -91,6 +91,7 @@ return [
     'absent_students' => 'Absent Students',
     'already_attended' => 'You have already recorded your attendance',
     'attendance_already_submitted' => 'Attendance already submitted successfully',
+    'device_already_used_for_attendance' => 'This device has already been used to record attendance for this session.',
     'already_attending' => 'You have a pending request, please wait',
     'attendance_processing' => 'Processing attendance request...',
     'please_fill_all_fields' => 'Please fill all fields',

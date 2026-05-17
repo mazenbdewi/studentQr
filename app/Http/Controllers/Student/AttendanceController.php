@@ -18,11 +18,13 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use JsonException;
+use Symfony\Component\HttpFoundation\Cookie;
 
 class AttendanceController extends Controller
 {
     private const VERIFICATION_SESSION_KEY = 'attendance_verification';
     private const COMPLETED_ATTENDANCE_SESSION_KEY = 'attendance_completed';
+    private const COMPLETED_ATTENDANCE_COOKIE_PREFIX = 'attendance_completed_';
     private const SUBMISSION_TOKEN_VERSION = 1;
 
     /**
@@ -92,6 +94,36 @@ class AttendanceController extends Controller
         $request->session()->put(self::COMPLETED_ATTENDANCE_SESSION_KEY, $context);
     }
 
+    private function completedAttendanceCookieName(int $sessionId): string
+    {
+        return self::COMPLETED_ATTENDANCE_COOKIE_PREFIX . $sessionId;
+    }
+
+    private function makeCompletedAttendanceCookie(
+        LectureSession $session,
+        Student $student,
+        Attendance $attendance
+    ): Cookie {
+        $value = Crypt::encryptString(json_encode([
+            'v' => self::SUBMISSION_TOKEN_VERSION,
+            'session_id' => $session->id,
+            'attendance_id' => $attendance->id,
+            'student_id' => $student->id,
+        ], JSON_THROW_ON_ERROR));
+
+        return cookie(
+            $this->completedAttendanceCookieName($session->id),
+            $value,
+            60 * 24 * 30,
+            null,
+            null,
+            null,
+            true,
+            false,
+            'Lax',
+        );
+    }
+
     private function forgetCompletedAttendanceContext(Request $request, int $sessionId): void
     {
         if (! $request->hasSession()) {
@@ -120,19 +152,19 @@ class AttendanceController extends Controller
     private function resolveCompletedAttendance(Request $request, int $sessionId): ?Attendance
     {
         if (! $request->hasSession()) {
-            return null;
+            return $this->resolveCompletedAttendanceFromCookie($request, $sessionId);
         }
 
         $context = $request->session()->get(self::COMPLETED_ATTENDANCE_SESSION_KEY, []);
 
         if (! is_array($context)) {
-            return null;
+            return $this->resolveCompletedAttendanceFromCookie($request, $sessionId);
         }
 
         $sessionContext = $context[(string) $sessionId] ?? null;
 
         if (! is_array($sessionContext)) {
-            return null;
+            return $this->resolveCompletedAttendanceFromCookie($request, $sessionId);
         }
 
         $attendanceId = (int) ($sessionContext['attendance_id'] ?? 0);
@@ -141,7 +173,7 @@ class AttendanceController extends Controller
         if ($attendanceId <= 0 || $studentId <= 0) {
             $this->forgetCompletedAttendanceContext($request, $sessionId);
 
-            return null;
+            return $this->resolveCompletedAttendanceFromCookie($request, $sessionId);
         }
 
         $attendance = Attendance::with('student')
@@ -153,10 +185,45 @@ class AttendanceController extends Controller
         if (! $attendance) {
             $this->forgetCompletedAttendanceContext($request, $sessionId);
 
-            return null;
+            return $this->resolveCompletedAttendanceFromCookie($request, $sessionId);
         }
 
         return $attendance;
+    }
+
+    private function resolveCompletedAttendanceFromCookie(Request $request, int $sessionId): ?Attendance
+    {
+        $cookieValue = $request->cookies->get($this->completedAttendanceCookieName($sessionId));
+
+        if (! is_string($cookieValue) || $cookieValue === '') {
+            return null;
+        }
+
+        try {
+            $context = json_decode(Crypt::decryptString($cookieValue), true, 512, JSON_THROW_ON_ERROR);
+        } catch (DecryptException|JsonException) {
+            return null;
+        }
+
+        if (! is_array($context)
+            || (int) ($context['v'] ?? 0) !== self::SUBMISSION_TOKEN_VERSION
+            || (int) ($context['session_id'] ?? 0) !== $sessionId
+        ) {
+            return null;
+        }
+
+        $attendanceId = (int) ($context['attendance_id'] ?? 0);
+        $studentId = (int) ($context['student_id'] ?? 0);
+
+        if ($attendanceId <= 0 || $studentId <= 0) {
+            return null;
+        }
+
+        return Attendance::with('student')
+            ->whereKey($attendanceId)
+            ->where('lecture_session_id', $sessionId)
+            ->where('student_id', $studentId)
+            ->first();
     }
 
     private function formatAttendanceTime(mixed $attendanceTime): ?string
@@ -332,20 +399,35 @@ class AttendanceController extends Controller
             'message' => $message,
         ], $payload);
 
+        $completedAttendanceCookie = $responsePayload['completed_attendance_cookie'] ?? null;
+        unset($responsePayload['completed_attendance_cookie']);
+
         if ($request->expectsJson() || $request->ajax()) {
             unset($responsePayload['session']);
 
-            return response()->json($responsePayload, $status);
+            $response = response()->json($responsePayload, $status);
+
+            if ($completedAttendanceCookie instanceof Cookie) {
+                $response->headers->setCookie($completedAttendanceCookie);
+            }
+
+            return $response;
         }
 
         if (! $request->hasSession()) {
             unset($responsePayload['session']);
 
-            return response()->json($responsePayload, $status);
+            $response = response()->json($responsePayload, $status);
+
+            if ($completedAttendanceCookie instanceof Cookie) {
+                $response->headers->setCookie($completedAttendanceCookie);
+            }
+
+            return $response;
         }
 
         if ($success && isset($payload['session']) && $payload['session'] instanceof LectureSession) {
-            return response()->view('student.attendance', $this->attendanceViewData(
+            $response = response()->view('student.attendance', $this->attendanceViewData(
                 session: $payload['session'],
                 remainingSeconds: 0,
                 submissionToken: null,
@@ -354,6 +436,12 @@ class AttendanceController extends Controller
                 studentNumber: $payload['student_number'] ?? null,
                 attendanceTime: $payload['attendance_time'] ?? null,
             ));
+
+            if ($completedAttendanceCookie instanceof Cookie) {
+                $response->headers->setCookie($completedAttendanceCookie);
+            }
+
+            return $response;
         }
 
         return back()
@@ -373,9 +461,34 @@ class AttendanceController extends Controller
 
     private function resolveDeviceFingerprint(Request $request): ?string
     {
-        return $request->header('X-Device-Fingerprint')
-            ?? $request->userAgent()
-            ?? null;
+        return $this->normalizeDeviceFingerprint(
+            $request->input('device_fingerprint')
+                ?? $request->header('X-Device-Fingerprint')
+                ?? $request->userAgent()
+        );
+    }
+
+    private function resolveSubmittedDeviceFingerprint(Request $request): ?string
+    {
+        return $this->normalizeDeviceFingerprint(
+            $request->input('device_fingerprint')
+                ?? $request->header('X-Device-Fingerprint')
+        );
+    }
+
+    private function normalizeDeviceFingerprint(mixed $fingerprint): ?string
+    {
+        if (! is_string($fingerprint)) {
+            return null;
+        }
+
+        $fingerprint = trim($fingerprint);
+
+        if ($fingerprint === '') {
+            return null;
+        }
+
+        return substr($fingerprint, 0, 255);
     }
 
     private function handleAttendanceSubmission(Request $request, int $sessionId)
@@ -384,6 +497,7 @@ class AttendanceController extends Controller
             'student_number' => 'required|string|max:50',
             'otp' => 'required|string|size:6',
             'submission_token' => 'required|string|max:2048',
+            'device_fingerprint' => 'nullable|string|max:255',
         ]);
 
         $session = LectureSession::query()
@@ -477,6 +591,45 @@ class AttendanceController extends Controller
             return $this->buildSubmissionResponse($request, false, __('student.not_found'), 422);
         }
 
+        $submittedDeviceFingerprint = $this->resolveSubmittedDeviceFingerprint($request);
+        $deviceFingerprint = $this->resolveDeviceFingerprint($request);
+
+        if ($submittedDeviceFingerprint) {
+            $deviceAttendance = Attendance::query()
+                ->select(['id', 'student_id', 'lecture_session_id', 'attendance_time'])
+                ->where('lecture_session_id', $sessionId)
+                ->where('device_fingerprint', $submittedDeviceFingerprint)
+                ->first();
+
+            if ($deviceAttendance && (int) $deviceAttendance->student_id !== (int) $student->id) {
+                $this->logFailedAttendanceAttempt($request, $sessionId, 'duplicate_device', $student->id);
+
+                return $this->buildSubmissionResponse(
+                    $request,
+                    false,
+                    __('student.device_already_used_for_attendance'),
+                    422
+                );
+            }
+
+            if ($deviceAttendance) {
+                $this->storeCompletedAttendanceContext($request, $session, $student, $deviceAttendance);
+
+                return $this->buildSubmissionResponse(
+                    $request,
+                    true,
+                    __('student.attendance_already_submitted'),
+                    200,
+                    [
+                        'attendance_time' => $this->formatAttendanceTime($deviceAttendance->attendance_time),
+                        'completed_attendance_cookie' => $this->makeCompletedAttendanceCookie($session, $student, $deviceAttendance),
+                        'session' => $session,
+                        'student_number' => $student->student_number,
+                    ]
+                );
+            }
+        }
+
         $attendanceTime = now();
         $inserted = DB::table('attendances')->insertOrIgnore([
             'student_id' => $student->id,
@@ -486,7 +639,7 @@ class AttendanceController extends Controller
             'attendance_method' => 'qr_scan',
             'attendance_status' => 'present',
             'ip_address' => $request->ip(),
-            'device_fingerprint' => $this->resolveDeviceFingerprint($request),
+            'device_fingerprint' => $deviceFingerprint,
             'created_at' => $attendanceTime,
             'updated_at' => $attendanceTime,
         ]);
@@ -509,6 +662,9 @@ class AttendanceController extends Controller
                 200,
                 [
                     'attendance_time' => $this->formatAttendanceTime($existingAttendance?->attendance_time),
+                    'completed_attendance_cookie' => $existingAttendance
+                        ? $this->makeCompletedAttendanceCookie($session, $student, $existingAttendance)
+                        : null,
                     'session' => $session,
                     'student_number' => $student->student_number,
                 ]
@@ -525,6 +681,16 @@ class AttendanceController extends Controller
             ]);
         }
 
+        $attendance = Attendance::query()
+            ->select(['id', 'student_id', 'lecture_session_id', 'attendance_time'])
+            ->where('lecture_session_id', $sessionId)
+            ->where('student_id', $student->id)
+            ->first();
+
+        if ($attendance) {
+            $this->storeCompletedAttendanceContext($request, $session, $student, $attendance);
+        }
+
         return $this->buildSubmissionResponse(
             $request,
             true,
@@ -532,6 +698,9 @@ class AttendanceController extends Controller
             200,
             [
                 'attendance_time' => $this->formatAttendanceTime($attendanceTime),
+                'completed_attendance_cookie' => $attendance
+                    ? $this->makeCompletedAttendanceCookie($session, $student, $attendance)
+                    : null,
                 'session' => $session,
                 'student_number' => $student->student_number,
             ]

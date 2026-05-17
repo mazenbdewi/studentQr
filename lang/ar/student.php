@@ -99,6 +99,7 @@ return [
     'absent_students' => 'الطلاب الغائبون',
     'already_attended' => 'لقد قمت بتسجيل حضورك بالفعل',
     'attendance_already_submitted' => 'تم إرسال الحضور بنجاح مسبقًا',
+    'device_already_used_for_attendance' => 'تم استخدام هذا الجهاز مسبقًا لتسجيل حضور هذه الجلسة.',
     'already_attending' => 'لديك طلب قيد المعالجة، يرجى الانتظار',
     'attendance_processing' => 'جاري معالجة طلب الحضور...',
     'please_fill_all_fields' => 'يرجى ملء جميع الحقول',

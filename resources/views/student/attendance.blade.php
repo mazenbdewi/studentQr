@@ -602,6 +602,7 @@
 <form method="POST" action="{{ route('student.attendance.store.sync', ['session' => $sessionId ?? 0]) }}" class="form-card"
     id="attendanceForm" novalidate data-completed="{{ ($attendanceCompleted ?? false) ? 'true' : 'false' }}">
     <input type="hidden" id="submission_token" name="submission_token" value="{{ $submissionToken ?? '' }}">
+    <input type="hidden" id="device_fingerprint" name="device_fingerprint" value="">
 
     <div class="field">
         <label for="student_number" class="label">
@@ -696,6 +697,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const studentNumberInput = document.getElementById('student_number');
     const otpInput = document.getElementById('otp');
     const submissionTokenInput = document.getElementById('submission_token');
+    const deviceFingerprintInput = document.getElementById('device_fingerprint');
     const connectionDot = document.getElementById('connectionDot');
     const connectionText = document.getElementById('connectionText');
     const countdownTimer = document.getElementById('countdownTimer');
@@ -722,6 +724,47 @@ document.addEventListener('DOMContentLoaded', function() {
     let pollingInterval = null;
     let countdownInterval = null;
     let remainingSeconds = initialRemainingSeconds;
+
+    function fallbackDeviceFingerprint() {
+        const source = [
+            navigator.userAgent || '',
+            navigator.platform || '',
+            navigator.language || '',
+            Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+            screen ? `${screen.width}x${screen.height}x${screen.colorDepth}` : '',
+        ].join('|');
+
+        let hash = 2166136261;
+        for (let index = 0; index < source.length; index++) {
+            hash = Math.imul(hash ^ source.charCodeAt(index), 16777619);
+        }
+
+        return `web-fallback-${(hash >>> 0).toString(16)}`;
+    }
+
+    function resolveDeviceFingerprint() {
+        const storageKey = 'student_attendance_device_id';
+
+        try {
+            let stored = localStorage.getItem(storageKey);
+
+            if (!stored) {
+                stored = self.crypto && crypto.randomUUID
+                    ? crypto.randomUUID()
+                    : `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
+                localStorage.setItem(storageKey, stored);
+            }
+
+            return stored;
+        } catch (error) {
+            return fallbackDeviceFingerprint();
+        }
+    }
+
+    if (deviceFingerprintInput) {
+        deviceFingerprintInput.value = resolveDeviceFingerprint();
+    }
 
     if (submissionCompleted && initialSuccessMessage) {
         markAttendanceCompleted(initialSuccessMessage, initialAttendanceTime);
@@ -847,13 +890,15 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('student_number', studentNumber);
             formData.append('otp', otp);
             formData.append('submission_token', submissionToken);
+            formData.append('device_fingerprint', deviceFingerprintInput ? deviceFingerprintInput.value : '');
 
             const response = await fetch('{{ route('student.attendance.store.sync', ['session' => $sessionId ?? 0]) }}', {
                 method: 'POST',
                 body: formData,
                 headers: {
                     'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-Device-Fingerprint': deviceFingerprintInput ? deviceFingerprintInput.value : ''
                 }
             });
 

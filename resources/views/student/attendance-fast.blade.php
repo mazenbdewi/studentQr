@@ -37,6 +37,7 @@
 
         <form id="attendanceForm" method="POST" action="{{ $submitUrl }}">
             <input type="hidden" name="submission_token" value="{{ $submissionToken ?? '' }}">
+            <input type="hidden" id="device_fingerprint" name="device_fingerprint" value="">
 
             <label for="student_number">{{ __('student.student_number') }}</label>
             <input id="student_number" name="student_number" type="text" inputmode="numeric" autocomplete="off" dir="ltr" required autofocus>
@@ -56,6 +57,10 @@
         const message = document.getElementById('message');
         const timer = document.getElementById('timer');
         const otp = document.getElementById('otp');
+        const studentNumber = document.getElementById('student_number');
+        const deviceFingerprint = document.getElementById('device_fingerprint');
+        const sessionId = {{ (int) ($sessionId ?? 0) }};
+        const completedKey = `attendance_completed_${sessionId}`;
         let remaining = {{ max(0, (int) ($remainingSeconds ?? 0)) }};
         let submitted = false;
 
@@ -66,12 +71,69 @@
             invalidOtp: @json(__('student.invalid_otp')),
             connection: @json(__('student.connection_error')),
             expired: @json(__('session.token_expired')),
+            completed: @json(__('student.attendance_already_submitted')),
         };
 
         function show(text, type) {
             message.textContent = text;
             message.className = `message ${type}`;
         }
+
+        function lockForm(text) {
+            submitted = true;
+            studentNumber.disabled = true;
+            otp.disabled = true;
+            button.disabled = true;
+            button.textContent = text;
+            show(text, 'success');
+        }
+
+        try {
+            if (sessionId > 0 && localStorage.getItem(completedKey)) {
+                lockForm(labels.completed);
+            }
+        } catch (error) {
+            // Storage can be unavailable in private or restricted browser modes.
+        }
+
+        function fallbackDeviceFingerprint() {
+            const source = [
+                navigator.userAgent || '',
+                navigator.platform || '',
+                navigator.language || '',
+                Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+                screen ? `${screen.width}x${screen.height}x${screen.colorDepth}` : '',
+            ].join('|');
+
+            let hash = 2166136261;
+            for (let index = 0; index < source.length; index++) {
+                hash = Math.imul(hash ^ source.charCodeAt(index), 16777619);
+            }
+
+            return `web-fallback-${(hash >>> 0).toString(16)}`;
+        }
+
+        function resolveDeviceFingerprint() {
+            const storageKey = 'student_attendance_device_id';
+
+            try {
+                let stored = localStorage.getItem(storageKey);
+
+                if (!stored) {
+                    stored = self.crypto && crypto.randomUUID
+                        ? crypto.randomUUID()
+                        : `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
+                    localStorage.setItem(storageKey, stored);
+                }
+
+                return stored;
+            } catch (error) {
+                return fallbackDeviceFingerprint();
+            }
+        }
+
+        deviceFingerprint.value = resolveDeviceFingerprint();
 
         function renderTimer() {
             const safe = Math.max(0, remaining);
@@ -99,10 +161,10 @@
             if (submitted || button.disabled) return;
 
             const formData = new FormData(form);
-            const studentNumber = String(formData.get('student_number') || '').trim();
+            const studentNumberValue = String(formData.get('student_number') || '').trim();
             const code = String(formData.get('otp') || '').trim();
 
-            if (!studentNumber || !code) {
+            if (!studentNumberValue || !code) {
                 show(labels.fill, 'error');
                 return;
             }
@@ -128,9 +190,18 @@
                 const data = await response.json().catch(() => null);
 
                 if (response.ok && data && data.success) {
-                    submitted = true;
-                    show(data.message, 'success');
-                    button.textContent = data.message;
+                    try {
+                        if (sessionId > 0) {
+                            localStorage.setItem(completedKey, JSON.stringify({
+                                student_number: studentNumberValue,
+                                completed_at: new Date().toISOString()
+                            }));
+                        }
+                    } catch (error) {
+                        // The server-side cookie remains the source of truth.
+                    }
+
+                    lockForm(data.message);
                     return;
                 }
 
