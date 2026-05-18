@@ -1,15 +1,15 @@
 <?php
 
 return [
-    'title' => 'استيراد تسجيلات المنارة',
+    'title' => 'استيراد تسجيلات الطلاب',
     'form_section' => 'ملف الاستيراد',
     'form_description' => 'ارفع ملف Excel فقط. تُقرأ بيانات التسجيل والسنة الدراسية من الملف مباشرة ولا حاجة لاختيار سنة أكاديمية أو فصل أو ترم.',
     'excel_file' => 'ملف Excel',
     'import_button' => 'استيراد التسجيلات',
     'import_button_loading' => 'جارٍ الاستيراد...',
-    'upload_loading' => 'جارٍ رفع ملف Excel',
+    'upload_loading' => 'جار رفع ملف Excel',
     'upload_loading_description' => 'يرجى الانتظار حتى يكتمل رفع الملف قبل بدء الاستيراد.',
-    'import_loading' => 'جارٍ استيراد التسجيلات',
+    'import_loading' => 'جار استيراد التسجيلات',
     'import_loading_description' => 'يتم الآن قراءة الملف وإضافة أو تحديث البيانات بدون حذف السجلات السابقة.',
     'instructions_title' => 'قواعد الاستيراد',
     'used_columns' => 'الأعمدة المستخدمة',

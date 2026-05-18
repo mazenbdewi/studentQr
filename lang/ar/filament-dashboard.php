@@ -4,7 +4,7 @@ return [
     'navigation' => [
         'daily_operations' => 'العمليات اليومية',
         'academic_data' => 'البيانات الأكاديمية',
-        'imports_exports' => 'الاستيراد والتصدير',
+        'imports_exports' => 'الاستيراد',
         'administration' => 'الإدارة',
         'settings' => 'البرنامج',
     ],
