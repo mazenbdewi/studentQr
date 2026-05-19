@@ -321,10 +321,7 @@ class LectureSessionResource extends Resource
                             'lecture_session_started'
                         );
                     })
-                    ->visible(fn (LectureSession $record) => ! $record->trashed()
-                        && auth()->user()?->hasRole('course_lecturer') !== true
-                        && $record->status === 'scheduled'
-                        && ! $record->hasReachedScheduledEnd()),
+                    ->visible(false),
 
                 \Filament\Actions\Action::make('end')
                     ->label(__('lecture-session.end_session'))

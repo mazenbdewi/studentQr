@@ -72,7 +72,7 @@ class LectureSession extends Model
             return false;
         }
 
-        if ($user->hasRole('super-admin')) {
+        if ($user->hasAnyRole(['super-admin', 'admin'])) {
             return true;
         }
 

@@ -63,7 +63,7 @@ Route::post(
 Route::get(
     '/lecture-session/{session}/qr',
     [AttendanceController::class, 'showQr']
-)->middleware(['auth', 'role:super-admin|course_lecturer'])
+)->middleware(['auth', 'role:super-admin|admin|course_lecturer'])
     ->name('teacher.lecture-session.qr');
 
 // Student routes group
@@ -144,7 +144,7 @@ Route::middleware(['auth', 'role:course_lecturer', 'pin.verified'])
 
     });
 
-Route::middleware(['auth', 'role:super-admin|course_lecturer', 'pin.verified'])
+Route::middleware(['auth', 'role:super-admin|admin|course_lecturer', 'pin.verified'])
     ->prefix('teacher')
     ->name('teacher.')
     ->group(function () {
