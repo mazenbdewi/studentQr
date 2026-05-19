@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
+use App\Models\AttendanceToken;
 use App\Models\LectureSession;
 use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
@@ -24,12 +25,12 @@ class AttendanceController extends Controller
         $session->syncLifecycleState();
 
         return response()->json([
-            'active' => $session->status === 'active' && ! $session->qr_expired,
+            'active' => $session->status === 'active' && $session->isWithinQrAvailabilityWindow(),
         ]);
     }
 
     /**
-     * Mark QR code as expired for a session and end the lecture session.
+     * Mark the current QR code as expired without ending the lecture session.
      */
     public function expireQr(LectureSession $session): JsonResponse
     {
@@ -37,19 +38,23 @@ class AttendanceController extends Controller
 
         $session->syncLifecycleState();
 
-        // If already expired, return success to avoid duplicate processing
-        if ($session->qr_expired || $session->status === 'completed') {
+        if ($session->status === 'completed' || $session->status === 'cancelled' || $session->hasReachedScheduledEnd()) {
             return response()->json([
                 'success' => true,
                 'message' => 'QR code has already been expired',
             ]);
         }
 
-        // Mark QR as expired, set status to completed, and set actual_end
+        AttendanceToken::query()
+            ->where('lecture_session_id', $session->id)
+            ->where('token_type', 'qr')
+            ->where('expires_at', '>', now())
+            ->where('is_used', false)
+            ->update(['expires_at' => now()]);
+
         $session->update([
             'qr_expired' => true,
-            'status' => 'completed',
-            'actual_end' => $session->actual_end ?? now(),
+            'qr_expires_at' => now(),
         ]);
 
         app(ActivityLogger::class)->log([
@@ -65,7 +70,7 @@ class AttendanceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'QR code has been expired and session has been ended',
+            'message' => 'QR code has been expired',
         ]);
     }
 }

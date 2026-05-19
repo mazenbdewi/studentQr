@@ -83,9 +83,45 @@ class LectureSession extends Model
     public function shouldShowQrAction(?Authenticatable $user): bool
     {
         return $this->canManageQr($user)
-            && $this->status === 'active'
-            && ! $this->qr_expired
-            && ! $this->hasReachedScheduledEnd();
+            && in_array($this->status, ['scheduled', 'active'], true)
+            && $this->isWithinQrAvailabilityWindow();
+    }
+
+    public function scheduledStartAt(): ?Carbon
+    {
+        if (! $this->session_date || ! $this->start_time) {
+            return null;
+        }
+
+        $sessionDate = $this->session_date instanceof CarbonInterface
+            ? $this->session_date->copy()
+            : Carbon::parse($this->session_date);
+
+        $startTime = $this->start_time instanceof CarbonInterface
+            ? $this->start_time->format('H:i:s')
+            : (string) $this->start_time;
+
+        return Carbon::parse($sessionDate->toDateString().' '.$startTime);
+    }
+
+    public function qrAvailableFromAt(): ?Carbon
+    {
+        return $this->scheduledStartAt()?->subMinutes(5);
+    }
+
+    public function isWithinQrAvailabilityWindow(?CarbonInterface $reference = null): bool
+    {
+        $reference ??= now();
+
+        $availableFrom = $this->qrAvailableFromAt();
+        $scheduledEndAt = $this->scheduledEndAt();
+
+        if (! $availableFrom || ! $scheduledEndAt) {
+            return false;
+        }
+
+        return $reference->greaterThanOrEqualTo($availableFrom)
+            && $reference->lessThan($scheduledEndAt);
     }
 
     public function scheduledEndAt(): ?Carbon
@@ -135,7 +171,7 @@ class LectureSession extends Model
             return false;
         }
 
-        return $this->hasExpiredQrWindow($reference) || $this->hasReachedScheduledEnd($reference);
+        return $this->hasReachedScheduledEnd($reference);
     }
 
     public function syncLifecycleState(?CarbonInterface $reference = null, bool $refresh = true): bool
@@ -150,17 +186,10 @@ class LectureSession extends Model
             return false;
         }
 
-        $scheduledEndAt = $this->scheduledEndAt();
-        $qrExpiresAt = $this->qr_expires_at instanceof CarbonInterface
-            ? $this->qr_expires_at
-            : ($this->qr_expires_at ? Carbon::parse($this->qr_expires_at) : null);
-
         $this->update([
             'status' => 'completed',
             'qr_expired' => true,
-            'actual_end' => $this->actual_end
-                ?? ($this->hasReachedScheduledEnd($reference) ? $scheduledEndAt : $qrExpiresAt)
-                ?? $reference,
+            'actual_end' => $this->actual_end ?? $this->scheduledEndAt() ?? $reference,
         ]);
 
         if ($refresh) {
@@ -178,7 +207,7 @@ class LectureSession extends Model
 
         static::query()
             ->whereNotIn('status', ['completed', 'cancelled'])
-            ->where(function (Builder $query) use ($reference, $today, $currentTime) {
+            ->where(function (Builder $query) use ($today, $currentTime) {
                 $query
                     ->where(function (Builder $query) use ($today, $currentTime) {
                         $query
@@ -188,11 +217,6 @@ class LectureSession extends Model
                                     ->whereDate('session_date', $today)
                                     ->whereTime('end_time', '<=', $currentTime);
                             });
-                    })
-                    ->orWhere(function (Builder $query) use ($reference) {
-                        $query
-                            ->whereNotNull('qr_expires_at')
-                            ->where('qr_expires_at', '<=', $reference);
                     });
             })
             ->get()

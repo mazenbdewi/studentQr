@@ -79,32 +79,6 @@ function startCountdown() {
             document.getElementById('otp-code').style.display = 'none';
             document.getElementById('floating-countdown').style.display = 'none';
 
-            // Mark QR as expired on the server so it won't be generated again on refresh
-            fetch('/teacher/session/{{ $session->id }}/expire-qr', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Content-Type': 'application/json'
-                }
-            }).then(function() {
-                // Wait 2 seconds then try to close window or redirect
-                setTimeout(function() {
-                    window.close();
-                    window.location.href =
-                        '{{ \App\Filament\Resources\LectureSessions\LectureSessionResource::getUrl("index") }}';
-                }, 2000);
-            }).catch(function(err) {
-                console.log('Failed to mark QR as expired:', err);
-                setTimeout(function() {
-                    window.close();
-                    window.location.href =
-                        '{{ \App\Filament\Resources\LectureSessions\LectureSessionResource::getUrl("index") }}';
-                }, 2000);
-            })        
-            .finally(() => {
-            
-                window.location.reload();
-            });
         }
     }, 1000);
 }
@@ -135,27 +109,6 @@ setInterval(function() {
                 document.getElementById('otp-label').style.display = 'none';
                 document.getElementById('otp-code').style.display = 'none';
                 document.getElementById('floating-countdown').style.display = 'none';
-
-                fetch('/teacher/session/{{ $session->id }}/expire-qr', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Content-Type': 'application/json'
-                    }
-                }).then(function() {
-                    setTimeout(function() {
-                        window.close();
-                        window.location.href =
-                            '{{ \App\Filament\Resources\LectureSessions\LectureSessionResource::getUrl("index") }}';
-                    }, 2000);
-                }).catch(function(err) {
-                    console.log('Failed to mark QR as expired:', err);
-                    setTimeout(function() {
-                        window.close();
-                        window.location.href =
-                            '{{ \App\Filament\Resources\LectureSessions\LectureSessionResource::getUrl("index") }}';
-                    }, 2000);
-                });
             }
         })
         .catch(function(err) {

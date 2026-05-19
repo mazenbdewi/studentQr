@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class AppSetting extends Model
 {
     public const DEFAULT_QR_REFRESH_RATE_KEY = 'default_qr_refresh_rate';
+    public const LECTURER_CAN_EDIT_LECTURE_SESSIONS_KEY = 'lecturer_can_edit_lecture_sessions';
+    public const LECTURER_CAN_DELETE_LECTURE_SESSIONS_KEY = 'lecturer_can_delete_lecture_sessions';
     public const FALLBACK_QR_REFRESH_RATE = 120;
     public const MIN_QR_REFRESH_RATE = 10;
 
@@ -63,5 +65,15 @@ class AppSetting extends Model
             self::MIN_QR_REFRESH_RATE,
             self::integer(self::DEFAULT_QR_REFRESH_RATE_KEY, self::FALLBACK_QR_REFRESH_RATE),
         );
+    }
+
+    public static function lecturerCanEditLectureSessions(): bool
+    {
+        return self::boolean(self::LECTURER_CAN_EDIT_LECTURE_SESSIONS_KEY);
+    }
+
+    public static function lecturerCanDeleteLectureSessions(): bool
+    {
+        return self::boolean(self::LECTURER_CAN_DELETE_LECTURE_SESSIONS_KEY);
     }
 }

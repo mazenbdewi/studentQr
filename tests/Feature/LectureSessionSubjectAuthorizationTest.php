@@ -3,6 +3,7 @@
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
 use App\Filament\Resources\LectureSessions\Pages\CreateLectureSession;
 use App\Filament\Resources\LectureSessions\Pages\EditLectureSession;
+use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\LectureSession;
 use App\Models\Subject;
@@ -133,6 +134,8 @@ it('prevents a lecturer from creating a lecture session for another lecturer sub
 });
 
 it('prevents a lecturer from editing a lecture session to another lecturer subject', function (): void {
+    AppSetting::putBoolean(AppSetting::LECTURER_CAN_EDIT_LECTURE_SESSIONS_KEY, true);
+
     $lecturerA = lectureSessionLecturer('lecturer-a@example.com');
     $lecturerB = lectureSessionLecturer('lecturer-b@example.com');
     $subjectA = lectureSessionSubject($lecturerA, 'A104');

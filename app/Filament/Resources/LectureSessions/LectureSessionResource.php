@@ -321,7 +321,10 @@ class LectureSessionResource extends Resource
                             'lecture_session_started'
                         );
                     })
-                    ->visible(fn (LectureSession $record) => ! $record->trashed() && $record->status === 'scheduled' && ! $record->hasReachedScheduledEnd()),
+                    ->visible(fn (LectureSession $record) => ! $record->trashed()
+                        && auth()->user()?->hasRole('course_lecturer') !== true
+                        && $record->status === 'scheduled'
+                        && ! $record->hasReachedScheduledEnd()),
 
                 \Filament\Actions\Action::make('end')
                     ->label(__('lecture-session.end_session'))
@@ -331,7 +334,7 @@ class LectureSessionResource extends Resource
                         $original = $record->getOriginal();
                         $record->syncLifecycleState();
 
-                        if ($record->status !== 'active' || $record->qr_expired) {
+                        if ($record->status !== 'active') {
                             return;
                         }
 
@@ -360,7 +363,7 @@ class LectureSessionResource extends Resource
                             ],
                         ]);
                     })
-                    ->visible(fn (LectureSession $record) => ! $record->trashed() && $record->status === 'active' && ! $record->qr_expired && ! $record->hasReachedScheduledEnd()),
+                    ->visible(fn (LectureSession $record) => ! $record->trashed() && $record->status === 'active' && ! $record->hasReachedScheduledEnd()),
 
                 ActionsAction::make('view_qr')
                     ->label(__('lecture-session.view_qr'))
@@ -374,7 +377,7 @@ class LectureSessionResource extends Resource
                     ->icon('heroicon-o-x-circle')
                     ->color('gray')
                     ->disabled()
-                    ->visible(fn (LectureSession $record) => ! $record->trashed() && ($record->status === 'completed' || $record->qr_expired || $record->hasReachedScheduledEnd())),
+                    ->visible(fn (LectureSession $record) => ! $record->trashed() && ($record->status === 'completed' || $record->status === 'cancelled' || $record->hasReachedScheduledEnd())),
 
                 ActionsAction::make('view_attendance')
                     ->label(__('attendance.view_attendance'))
@@ -386,15 +389,18 @@ class LectureSessionResource extends Resource
                     ]))
                     ->openUrlInNewTab(),
                 EditAction::make()
-                    ->visible(fn (LectureSession $record): bool => ! $record->trashed()),
-                DeleteAction::make(),
+                    ->visible(fn (LectureSession $record): bool => static::canCurrentUserEditLectureSession($record)),
+                DeleteAction::make()
+                    ->visible(fn (LectureSession $record): bool => static::canCurrentUserDeleteLectureSession($record)),
                 RestoreAction::make(),
                 ForceDeleteAction::make()
                     ->visible(fn (): bool => auth()->user()->hasRole('super-admin')),
             ])->defaultSort('session_date', 'desc')
             ->bulkActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->visible(fn (): bool => auth()->user()?->hasRole('course_lecturer') !== true
+                            || AppSetting::lecturerCanDeleteLectureSessions()),
                     RestoreBulkAction::make(),
                     ForceDeleteBulkAction::make()
                         ->visible(fn (): bool => auth()->user()->hasRole('super-admin')),
@@ -439,6 +445,52 @@ class LectureSessionResource extends Resource
     public static function canAccess(): bool
     {
         return auth()->user()->hasAnyRole(['super-admin', 'admin', 'manager', 'course_lecturer']);
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return $record instanceof LectureSession
+            && parent::canEdit($record)
+            && static::canCurrentUserEditLectureSession($record);
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return $record instanceof LectureSession
+            && parent::canDelete($record)
+            && static::canCurrentUserDeleteLectureSession($record);
+    }
+
+    public static function canCurrentUserEditLectureSession(LectureSession $record): bool
+    {
+        if ($record->trashed()) {
+            return false;
+        }
+
+        $user = auth()->user();
+
+        if ($user?->hasRole('course_lecturer')) {
+            return (int) $record->lecturer_id === (int) $user->id
+                && AppSetting::lecturerCanEditLectureSessions();
+        }
+
+        return true;
+    }
+
+    public static function canCurrentUserDeleteLectureSession(LectureSession $record): bool
+    {
+        if ($record->trashed()) {
+            return false;
+        }
+
+        $user = auth()->user();
+
+        if ($user?->hasRole('course_lecturer')) {
+            return (int) $record->lecturer_id === (int) $user->id
+                && AppSetting::lecturerCanDeleteLectureSessions();
+        }
+
+        return true;
     }
 
     public static function scopeSubjectQueryForCurrentUser(Builder $query): Builder

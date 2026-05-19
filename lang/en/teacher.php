@@ -36,7 +36,7 @@ return [
     'auto_refresh' => 'Auto refreshes every :seconds seconds',
     'verification_code' => 'Verification Code',
     'qr_expired' => 'QR Expired',
-    'qr_expired_message' => 'Session expired',
+    'qr_expired_message' => 'QR display time expired',
     'qr_expires_in' => 'Token expires in',
     'refresh' => 'Refresh',
     'seminars' => 'Seminars',

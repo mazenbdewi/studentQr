@@ -36,7 +36,7 @@ return [
     'auto_refresh' => 'يحدث تلقائياً كل :seconds ثانية',
     'verification_code' => 'رمز التحقق',
     'qr_expired' => 'انتهت صلاحية رمز QR',
-    'qr_expired_message' => 'انتهت الجلسة',
+    'qr_expired_message' => 'انتهت مدة عرض رمز QR',
     'qr_expires_in' => 'سينتهي الرمز خلال',
     'refresh' => 'تحديث',
     'seminars' => 'الندوات',

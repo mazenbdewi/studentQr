@@ -714,9 +714,10 @@ class AttendanceController extends Controller
     {
         abort_unless($session->canManageQr(auth()->user()), 403);
 
-        $session->syncLifecycleState();
+        $now = now();
+        $session->syncLifecycleState($now);
 
-        if ($session->qr_expired) {
+        if ($session->status === 'completed' || $session->status === 'cancelled' || $session->hasReachedScheduledEnd($now)) {
             return view('teacher.lecture-session-qr', [
                 'session' => $session,
                 'qr' => null,
@@ -726,8 +727,37 @@ class AttendanceController extends Controller
             ]);
         }
 
+        abort_unless($session->isWithinQrAvailabilityWindow($now), 403);
+
+        if ($session->status === 'scheduled') {
+            $original = $session->getOriginal();
+
+            $session->update([
+                'status' => 'active',
+                'actual_start' => $now,
+                'actual_end' => null,
+                'qr_expired' => false,
+            ]);
+
+            app(ActivityLogger::class)->logModelUpdated(
+                $session->fresh(),
+                $original,
+                'lecture_sessions',
+                'lecture_session_started'
+            );
+
+            $session->refresh();
+        }
+
         if ($session->status !== 'active') {
             abort(403);
+        }
+
+        if ($session->qr_expired) {
+            $session->update([
+                'actual_end' => null,
+                'qr_expired' => false,
+            ]);
         }
 
         AttendanceToken::where('lecture_session_id', $session->id)
@@ -757,6 +787,7 @@ class AttendanceController extends Controller
             $otp = random_int(100000, 999999);
             $session->update([
                 'session_otp' => $otp,
+                'qr_expired' => false,
                 'qr_started_at' => now(),
                 'qr_expires_at' => $expiresAt,
             ]);

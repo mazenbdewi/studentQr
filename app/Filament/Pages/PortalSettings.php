@@ -62,6 +62,8 @@ class PortalSettings extends Page implements HasForms
         $this->form->fill([
             'qr_base_url' => AppSetting::value('qr_base_url'),
             'default_qr_refresh_rate' => AppSetting::defaultQrRefreshRate(),
+            'lecturer_can_edit_lecture_sessions' => AppSetting::lecturerCanEditLectureSessions(),
+            'lecturer_can_delete_lecture_sessions' => AppSetting::lecturerCanDeleteLectureSessions(),
             'enable_pin_login' => AppSetting::boolean(PinLoginService::SETTING_KEY),
         ]);
     }
@@ -87,6 +89,14 @@ class PortalSettings extends Page implements HasForms
                             ->minValue(AppSetting::MIN_QR_REFRESH_RATE)
                             ->required()
                             ->suffix(__('lecture-session.seconds')),
+                        Toggle::make('lecturer_can_edit_lecture_sessions')
+                            ->label(__('settings.lecturer_can_edit_lecture_sessions'))
+                            ->helperText(__('settings.lecturer_can_edit_lecture_sessions_help'))
+                            ->inline(false),
+                        Toggle::make('lecturer_can_delete_lecture_sessions')
+                            ->label(__('settings.lecturer_can_delete_lecture_sessions'))
+                            ->helperText(__('settings.lecturer_can_delete_lecture_sessions_help'))
+                            ->inline(false),
                     ]),
                 Section::make(__('settings.security_section_title'))
                     ->description(__('settings.security_section_description'))
@@ -112,6 +122,8 @@ class PortalSettings extends Page implements HasForms
         $data = $this->form->getState();
         $oldQrBaseUrl = AppSetting::value('qr_base_url');
         $oldDefaultQrRefreshRate = AppSetting::defaultQrRefreshRate();
+        $oldLecturerCanEditLectureSessions = AppSetting::lecturerCanEditLectureSessions();
+        $oldLecturerCanDeleteLectureSessions = AppSetting::lecturerCanDeleteLectureSessions();
         $oldPinLoginEnabled = AppSetting::boolean(PinLoginService::SETTING_KEY);
         $qrBaseUrl = filled($data['qr_base_url'] ?? null)
             ? rtrim((string) $data['qr_base_url'], '/')
@@ -120,21 +132,29 @@ class PortalSettings extends Page implements HasForms
             AppSetting::MIN_QR_REFRESH_RATE,
             (int) ($data['default_qr_refresh_rate'] ?? AppSetting::FALLBACK_QR_REFRESH_RATE),
         );
+        $lecturerCanEditLectureSessions = (bool) ($data['lecturer_can_edit_lecture_sessions'] ?? false);
+        $lecturerCanDeleteLectureSessions = (bool) ($data['lecturer_can_delete_lecture_sessions'] ?? false);
         $pinLoginEnabled = (bool) ($data['enable_pin_login'] ?? false);
 
         AppSetting::put('qr_base_url', $qrBaseUrl);
         AppSetting::put(AppSetting::DEFAULT_QR_REFRESH_RATE_KEY, (string) $defaultQrRefreshRate);
+        AppSetting::putBoolean(AppSetting::LECTURER_CAN_EDIT_LECTURE_SESSIONS_KEY, $lecturerCanEditLectureSessions);
+        AppSetting::putBoolean(AppSetting::LECTURER_CAN_DELETE_LECTURE_SESSIONS_KEY, $lecturerCanDeleteLectureSessions);
         AppSetting::putBoolean(PinLoginService::SETTING_KEY, $pinLoginEnabled);
 
         app(ActivityLogger::class)->logSettingsChange(
             [
                 'qr_base_url' => $oldQrBaseUrl,
                 'default_qr_refresh_rate' => $oldDefaultQrRefreshRate,
+                'lecturer_can_edit_lecture_sessions' => $oldLecturerCanEditLectureSessions,
+                'lecturer_can_delete_lecture_sessions' => $oldLecturerCanDeleteLectureSessions,
                 'enable_pin_login' => $oldPinLoginEnabled,
             ],
             [
                 'qr_base_url' => $qrBaseUrl,
                 'default_qr_refresh_rate' => $defaultQrRefreshRate,
+                'lecturer_can_edit_lecture_sessions' => $lecturerCanEditLectureSessions,
+                'lecturer_can_delete_lecture_sessions' => $lecturerCanDeleteLectureSessions,
                 'enable_pin_login' => $pinLoginEnabled,
             ],
             'portal_settings_saved'

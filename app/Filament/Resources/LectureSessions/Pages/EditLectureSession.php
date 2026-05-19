@@ -20,6 +20,7 @@ class EditLectureSession extends EditRecord
         return [
             ViewAction::make(),
             DeleteAction::make()
+                ->visible(fn (): bool => LectureSessionResource::canCurrentUserDeleteLectureSession($this->getRecord()))
                 ->after(fn () => app(ActivityLogger::class)->logModelDeleted($this->getRecord(), 'lecture_sessions', 'lecture_session_deleted')),
             RestoreAction::make(),
             ForceDeleteAction::make()
