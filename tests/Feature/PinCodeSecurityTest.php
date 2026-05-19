@@ -313,7 +313,7 @@ it('requires a fresh pin verification after pin changes in an active session', f
         ->post(route('pin.verify'), [
             'pin_code' => '123456',
         ])
-        ->assertRedirect('/teacher');
+        ->assertRedirect('/admin');
 
     $this->put(route('teacher.profile.pin.update'), [
         'current_password' => 'password',
@@ -323,7 +323,7 @@ it('requires a fresh pin verification after pin changes in an active session', f
     ])
         ->assertSessionHasNoErrors();
 
-    $this->get('/teacher')
+    $this->get('/admin')
         ->assertRedirect(route('pin.verify.form'));
 });
 

@@ -127,7 +127,7 @@ Route::middleware(['auth', 'role:course_lecturer', 'pin.verified'])
     ->name('teacher.')
     ->group(function () {
 
-        Route::get('/', [App\Http\Controllers\Teacher\DashboardController::class, 'index'])
+        Route::redirect('/', '/admin')
             ->name('dashboard');
 
         Route::get('/profile', [App\Http\Controllers\Teacher\ProfileController::class, 'edit'])
@@ -204,7 +204,7 @@ Route::get('/', function () {
 
         return match (true) {
             $user->hasAnyRole(['super-admin', 'admin']) => redirect('/admin'),
-            $user->hasRole('course_lecturer') => redirect('/teacher'),
+            $user->hasRole('course_lecturer') => redirect('/admin'),
             $user->hasRole('manager') => redirect('/manager'),
             default => redirect('/login')
         };

@@ -7,7 +7,6 @@ use App\Filament\Resources\Users\UserResource;
 use App\Imports\UsersImport;
 use App\Services\ActivityLogger;
 use Filament\Actions\Action;
-use Filament\Actions\CreateAction;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
@@ -22,6 +21,12 @@ class ListUsers extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('create_user')
+                ->label(__('user.create_individual'))
+                ->icon('heroicon-o-user-plus')
+                ->color('primary')
+                ->url(fn (): string => UserResource::getUrl('create')),
+
             Action::make('download_template')
                 ->label(__('user.template_download'))
                 ->icon('heroicon-o-arrow-down-tray')
@@ -117,7 +122,6 @@ class ListUsers extends ListRecords
                     }
                 }),
 
-            CreateAction::make(),
         ];
     }
 

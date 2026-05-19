@@ -220,7 +220,7 @@ class CustomLoginController extends Controller
     {
         return match (true) {
             $user->hasAnyRole(['super-admin', 'admin']) => '/admin',
-            $user->hasRole('course_lecturer') => '/teacher',
+            $user->hasRole('course_lecturer') => '/admin',
             $user->hasRole('manager') => '/manager',
             $user->hasRole('student') => '/student',
             default => '/login',

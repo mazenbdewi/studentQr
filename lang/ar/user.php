@@ -33,6 +33,7 @@ return [
     'singular' => 'مستخدم',
     'plural' => 'المستخدمون',
     'create' => 'إضافة',
+    'create_individual' => 'إضافة مستخدم',
     'create_title' => 'إضافة مستخدم',
     'record_title' => 'سجل مستخدم',
     

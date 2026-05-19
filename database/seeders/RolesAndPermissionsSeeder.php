@@ -10,6 +10,8 @@ use Spatie\Permission\Models\Role;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
+    private const DEFAULT_PASSWORD = '123';
+
     public function run(): void
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -39,17 +41,6 @@ class RolesAndPermissionsSeeder extends Seeder
         );
 
         $this->createUser(
-            email: 'ali@uni.edu',
-            role: 'manager',
-            attributes: [
-                'name' => 'Ali',
-                'role' => 'attendance_monitor',
-                'type' => 'manager',
-                'student_number' => 'S12345',
-            ],
-        );
-
-        $this->createUser(
             email: 'ahmed@uni.edu',
             role: 'course_lecturer',
             attributes: [
@@ -65,15 +56,20 @@ class RolesAndPermissionsSeeder extends Seeder
 
     private function createUser(string $email, string $role, array $attributes): void
     {
-        $user = User::withTrashed()->updateOrCreate(
-            ['email' => $email],
-            [
-                ...$attributes,
-                'password' => Hash::make('123'),
-                'status' => 'active',
-                'is_active' => true,
-            ],
-        );
+        $user = User::withTrashed()->firstOrNew(['email' => $email]);
+        $isNewUser = ! $user->exists;
+
+        $user->fill([
+            ...$attributes,
+            'status' => 'active',
+            'is_active' => true,
+        ]);
+
+        if ($isNewUser) {
+            $user->password = Hash::make(self::DEFAULT_PASSWORD);
+        }
+
+        $user->save();
 
         if ($user->trashed()) {
             $user->restore();
