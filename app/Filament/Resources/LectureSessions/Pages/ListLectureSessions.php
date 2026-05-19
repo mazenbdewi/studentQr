@@ -11,14 +11,35 @@ use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Filament\Notifications\Notification;
 
 class ListLectureSessions extends ListRecords
 {
     protected static string $resource = LectureSessionResource::class;
+
+    public function getTabs(): array
+    {
+        $now = now();
+
+        return [
+            'today' => Tab::make(__('lecture-session.tab_today'))
+                ->icon('heroicon-o-calendar-days')
+                ->query(fn (Builder $query): Builder => static::applyTodayTabQuery($query, $now)),
+
+            'completed' => Tab::make(__('lecture-session.tab_completed'))
+                ->icon('heroicon-o-check-circle')
+                ->query(fn (Builder $query): Builder => static::applyCompletedTabQuery($query, $now)),
+
+            'upcoming' => Tab::make(__('lecture-session.tab_upcoming'))
+                ->icon('heroicon-o-clock')
+                ->query(fn (Builder $query): Builder => static::applyUpcomingTabQuery($query, $now)),
+        ];
+    }
 
     protected function getHeaderActions(): array
     {
@@ -219,6 +240,47 @@ class ListLectureSessions extends ListRecords
 
             CreateAction::make(),
         ];
+    }
+
+    protected static function applyTodayTabQuery(Builder $query, Carbon $reference): Builder
+    {
+        return $query
+            ->whereDate('session_date', $reference->toDateString())
+            ->orderBy('start_time');
+    }
+
+    protected static function applyCompletedTabQuery(Builder $query, Carbon $reference): Builder
+    {
+        return $query
+            ->where(function (Builder $query) use ($reference): void {
+                $query
+                    ->where('status', 'completed')
+                    ->orWhereDate('session_date', '<', $reference->toDateString())
+                    ->orWhere(function (Builder $query) use ($reference): void {
+                        $query
+                            ->whereDate('session_date', $reference->toDateString())
+                            ->whereTime('end_time', '<=', $reference->format('H:i:s'));
+                    });
+            })
+            ->orderByDesc('session_date')
+            ->orderByDesc('end_time');
+    }
+
+    protected static function applyUpcomingTabQuery(Builder $query, Carbon $reference): Builder
+    {
+        return $query
+            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->where(function (Builder $query) use ($reference): void {
+                $query
+                    ->whereDate('session_date', '>', $reference->toDateString())
+                    ->orWhere(function (Builder $query) use ($reference): void {
+                        $query
+                            ->whereDate('session_date', $reference->toDateString())
+                            ->whereTime('start_time', '>', $reference->format('H:i:s'));
+                    });
+            })
+            ->orderBy('session_date')
+            ->orderBy('start_time');
     }
 
     protected static function weekdayOptions(): array
