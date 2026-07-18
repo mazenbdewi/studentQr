@@ -67,7 +67,6 @@ class ManaraEnrollmentImport extends Page implements HasForms
         return $schema
             ->components([
                 Section::make(__('manara-import.form_section'))
-                    ->description(__('manara-import.form_description'))
                     ->schema([
                         FileUpload::make('file')
                             ->label(__('manara-import.excel_file'))
@@ -76,6 +75,8 @@ class ManaraEnrollmentImport extends Page implements HasForms
                                 'application/vnd.ms-excel',
                             ])
                             ->maxSize(51200)
+                            ->live()
+                            ->afterStateUpdated(fn () => $this->resetResults())
                             ->required(),
                     ])
                     ->columns(1),
@@ -90,8 +91,7 @@ class ManaraEnrollmentImport extends Page implements HasForms
         $file = $state['file'] ?? null;
         $fileName = basename((string) $file);
         $sanitizedFile = null;
-        $this->summary = null;
-        $this->errorsUrl = null;
+        $this->resetResults();
 
         try {
             $this->prepareLongRunningImport();
@@ -159,6 +159,12 @@ class ManaraEnrollmentImport extends Page implements HasForms
                 $sanitizer->deleteTemporaryFile($sanitizedFile);
             }
         }
+    }
+
+    private function resetResults(): void
+    {
+        $this->summary = null;
+        $this->errorsUrl = null;
     }
 
     private function localPathForUploadedFile(string $file): string

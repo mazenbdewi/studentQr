@@ -2,6 +2,7 @@
 
 use App\Filament\Pages\ManaraEnrollmentImport;
 use App\Imports\ManaraStudentEnrollmentsImport;
+use App\Models\AcademicTerm;
 use App\Models\Department;
 use App\Models\Enrollment;
 use App\Models\Faculty;
@@ -39,6 +40,7 @@ it('imports Manara enrollment rows with theoretical and practical sections idemp
             'imported_rows' => 3,
             'skipped_rows' => 0,
             'created_students' => 3,
+            'created_terms' => 1,
             'created_colleges' => 1,
             'created_specializations' => 1,
             'created_subjects' => 1,
@@ -49,6 +51,7 @@ it('imports Manara enrollment rows with theoretical and practical sections idemp
         ]);
 
         $subject = Subject::query()->where('code', 'ARC101')->firstOrFail();
+        $academicTerm = AcademicTerm::query()->where('canonical_name', 'الفصل الصيفي 2025/2026')->firstOrFail();
 
         expect($subject->sections()->orderBy('code')->pluck('section_type', 'code')->all())->toBe([
             'P1' => Subject::TYPE_PRACTICAL,
@@ -79,6 +82,7 @@ it('imports Manara enrollment rows with theoretical and practical sections idemp
             ->and($both->practicalSection?->code)->toBe('P2')
             ->and($both->registration_date?->toDateString())->toBe('2026-04-01')
             ->and($both->semester)->toBeNull()
+            ->and($both->academic_term_id)->toBe($academicTerm->id)
             ->and($both->year)->toBe(3);
 
         Excel::import(new ManaraStudentEnrollmentsImport(), $path);
@@ -86,6 +90,7 @@ it('imports Manara enrollment rows with theoretical and practical sections idemp
         expect(Student::query()->count())->toBe(3)
             ->and(Subject::query()->count())->toBe(1)
             ->and(SubjectSection::query()->count())->toBe(4)
+            ->and(SubjectSection::query()->where('academic_term_id', $academicTerm->id)->count())->toBe(4)
             ->and(Enrollment::query()->count())->toBe(3);
     } finally {
         @unlink($path);
@@ -111,6 +116,84 @@ it('skips Manara rows with no theoretical or practical section', function (): vo
             ->and($import->getErrors()[0]['error_message'])->toContain('At least one theoretical or practical section code is required')
             ->and(Student::query()->count())->toBe(0)
             ->and(Subject::query()->count())->toBe(0)
+            ->and(Enrollment::query()->count())->toBe(0);
+    } finally {
+        @unlink($path);
+    }
+});
+
+it('treats zero sections as empty and imports a practical-only P1 without creating T0 or P0', function (): void {
+    $path = manaraWorkbookPath([
+        manaraRow('2026010', 'طالب عملي', 'كلية الهندسة', 'هندسة المعلوماتية', 'مخبر', 'LAB101', '01/04/2026', 0, 1),
+        manaraRow('2026011', 'طالب بلا شعبة', 'كلية الهندسة', 'هندسة المعلوماتية', 'مخبر', 'LAB101', '01/04/2026', '0.0', '0'),
+    ]);
+
+    try {
+        $import = new ManaraStudentEnrollmentsImport();
+        Excel::import($import, $path);
+
+        $enrollment = Enrollment::query()->firstOrFail();
+
+        expect($import->getSummary())->toMatchArray([
+            'total_rows' => 2,
+            'imported_rows' => 1,
+            'failed_rows' => 1,
+        ])
+            ->and($enrollment->theoretical_section_id)->toBeNull()
+            ->and($enrollment->practicalSection?->code)->toBe('P1')
+            ->and(SubjectSection::query()->whereIn('code', ['T0', 'P0'])->exists())->toBeFalse();
+    } finally {
+        @unlink($path);
+    }
+});
+
+it('merges separate theoretical and practical rows for the same student subject and term', function (): void {
+    $path = manaraWorkbookPath([
+        manaraRow('2026012', 'طالب شعبتين', 'كلية الهندسة', 'هندسة المعلوماتية', 'برمجة', 'PRG201', '01/04/2026', 1, 0),
+        manaraRow('2026012', 'طالب شعبتين', 'كلية الهندسة', 'هندسة المعلوماتية', 'برمجة', 'PRG201', '01/04/2026', 0, 1),
+    ]);
+
+    try {
+        Excel::import(new ManaraStudentEnrollmentsImport(), $path);
+        $enrollment = Enrollment::query()->firstOrFail();
+
+        expect(Enrollment::query()->count())->toBe(1)
+            ->and($enrollment->theoreticalSection?->code)->toBe('T1')
+            ->and($enrollment->practicalSection?->code)->toBe('P1');
+    } finally {
+        @unlink($path);
+    }
+});
+
+it('keeps enrollments and section codes separate across academic terms', function (): void {
+    $path = manaraWorkbookPath([
+        manaraRow('2026013', 'طالب فصلين', 'كلية الهندسة', 'هندسة المعلوماتية', 'خوارزميات', 'ALG101', '01/04/2026', 1, null, academicTerm: 'الفصل الأول 2025/2026'),
+        manaraRow('2026013', 'طالب فصلين', 'كلية الهندسة', 'هندسة المعلوماتية', 'خوارزميات', 'ALG101', '01/07/2026', 1, null, academicTerm: 'الفصل الصيفي 2025/2026'),
+    ]);
+
+    try {
+        Excel::import(new ManaraStudentEnrollmentsImport(), $path);
+
+        expect(AcademicTerm::query()->count())->toBe(2)
+            ->and(Enrollment::query()->count())->toBe(2)
+            ->and(SubjectSection::query()->where('code', 'T1')->count())->toBe(2)
+            ->and(Subject::query()->count())->toBe(1);
+    } finally {
+        @unlink($path);
+    }
+});
+
+it('blocks the apply importer when the academic term heading is missing', function (): void {
+    $path = manaraWorkbookPath([
+        manaraRow('2026014', 'طالب بلا فصل', 'كلية الهندسة', 'هندسة المعلوماتية', 'شبكات', 'NET101', '01/04/2026', 1, null),
+    ], includeAcademicTermHeading: false);
+
+    try {
+        expect(fn () => Excel::import(new ManaraStudentEnrollmentsImport(), $path))
+            ->toThrow(RuntimeException::class);
+
+        expect(AcademicTerm::query()->count())->toBe(0)
+            ->and(Student::query()->count())->toBe(0)
             ->and(Enrollment::query()->count())->toBe(0);
     } finally {
         @unlink($path);
@@ -186,7 +269,7 @@ it('repairs xlsx cells marked numeric while containing section text before impor
         manaraRow('2026009', 'طالب ملف غير سليم', 'كلية الهندسة', 'هندسة طبية', 'تشريح', 'BIO101', '01/04/2026', 'T1', 'P1'),
     ]);
 
-    makeManaraSectionCellsInvalidNumeric($path, ['I2' => 'T1', 'J2' => 'P1']);
+    makeManaraSectionCellsInvalidNumeric($path, ['J2' => 'T1', 'K2' => 'P1']);
 
     try {
         $sanitizedPath = app(XlsxNumericCellSanitizer::class)->sanitizeToTemporaryFile($path);
@@ -225,7 +308,7 @@ it('downloads Manara import error files through the admin route', function (): v
         ->assertDownload($fileName);
 });
 
-function manaraWorkbookPath(array $rows): string
+function manaraWorkbookPath(array $rows, bool $includeAcademicTermHeading = true): string
 {
     $headings = [
         'م',
@@ -236,6 +319,7 @@ function manaraWorkbookPath(array $rows): string
         'اسم المقرر',
         'رمز المقرر',
         'تاريخ التسجيل',
+        'الفصل الدراسي',
         'رمز الفئة النظرية',
         'رمز الفئة العملية',
         'عبئ المقرر',
@@ -243,6 +327,17 @@ function manaraWorkbookPath(array $rows): string
         'مستوى المقرر',
         'سعة الفئة النظرية',
     ];
+
+    if (! $includeAcademicTermHeading) {
+        $termIndex = array_search('الفصل الدراسي', $headings, true);
+        unset($headings[$termIndex]);
+        $headings = array_values($headings);
+        $rows = array_map(function (array $row) use ($termIndex): array {
+            unset($row[$termIndex]);
+
+            return array_values($row);
+        }, $rows);
+    }
 
     $spreadsheet = new Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
@@ -269,6 +364,7 @@ function manaraRow(
     mixed $theoreticalSection,
     mixed $practicalSection,
     mixed $courseLevel = null,
+    mixed $academicTerm = 'الفصل الصيفي 2025/2026',
 ): array {
     return [
         null,
@@ -279,6 +375,7 @@ function manaraRow(
         $subjectName,
         $subjectCode,
         $registrationDate,
+        $academicTerm,
         $theoreticalSection,
         $practicalSection,
         null,

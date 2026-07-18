@@ -6,11 +6,17 @@
     </style>
 
     <div
-        x-data="{ uploading: false, progress: 0 }"
-        x-on:livewire-upload-start.window="uploading = true; progress = 0"
-        x-on:livewire-upload-progress.window="progress = $event.detail.progress || progress"
-        x-on:livewire-upload-finish.window="uploading = false; progress = 100"
-        x-on:livewire-upload-error.window="uploading = false"
+        x-data="{
+            uploading: false,
+            uploadReady: false,
+            uploadFailed: false,
+            progress: 0,
+        }"
+        x-on:livewire-upload-start.window="uploading = true; uploadReady = false; uploadFailed = false; progress = 0"
+        x-on:livewire-upload-progress.window="progress = Math.min(100, Math.max(0, Number($event.detail.progress ?? 0)))"
+        x-on:livewire-upload-finish.window="uploading = false; uploadReady = true; uploadFailed = false; progress = 100"
+        x-on:livewire-upload-error.window="uploading = false; uploadReady = false; uploadFailed = true; progress = 0"
+        x-on:livewire-upload-cancel.window="uploading = false; uploadReady = false; uploadFailed = false; progress = 0"
         class="space-y-6"
     >
         <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -53,17 +59,10 @@
         >
             <div class="flex items-center gap-3">
                 <x-filament::loading-indicator class="h-5 w-5 text-primary-600 dark:text-primary-300" />
-
-                <div class="min-w-0 flex-1">
-                    <div class="text-sm font-medium text-primary-900 dark:text-primary-100">
-                        {{ __('manara-import.upload_loading') }}
-                    </div>
-                    <div class="mt-1 text-sm text-primary-700 dark:text-primary-200">
-                        {{ __('manara-import.upload_loading_description') }}
-                    </div>
+                <div class="min-w-0 flex-1 text-sm font-medium text-primary-900 dark:text-primary-100">
+                    <span>{{ __('manara-import.upload_loading') }}</span>
+                    <span x-text="`${progress}%`"></span>
                 </div>
-
-                <div class="text-sm font-semibold text-primary-800 dark:text-primary-100" x-text="`${progress}%`"></div>
             </div>
 
             <div class="mt-3 h-2 overflow-hidden rounded-full bg-primary-100 dark:bg-primary-900">
@@ -75,25 +74,39 @@
         </div>
 
         <div
+            x-cloak
+            x-show="uploadReady && ! uploading"
+            x-transition.opacity
+            class="rounded-lg border border-success-200 bg-success-50 p-4 text-sm font-semibold text-success-800 dark:border-success-800 dark:bg-success-950 dark:text-success-200"
+        >
+            {{ __('manara-import.upload_success') }}
+        </div>
+
+        <div
+            x-cloak
+            x-show="uploadFailed"
+            x-transition.opacity
+            class="rounded-lg border border-danger-200 bg-danger-50 p-4 text-sm font-semibold text-danger-800 dark:border-danger-800 dark:bg-danger-950 dark:text-danger-200"
+        >
+            {{ __('manara-import.upload_failed') }}
+        </div>
+
+        <div
             wire:loading.delay.class.remove="hidden"
             wire:loading.delay.class="flex"
             wire:target="import"
             class="hidden items-center gap-3 rounded-lg border border-warning-200 bg-warning-50 p-4 shadow-sm dark:border-warning-800 dark:bg-warning-950"
         >
             <x-filament::loading-indicator class="h-5 w-5 text-warning-600 dark:text-warning-300" />
-
-            <div>
-                <div class="text-sm font-medium text-warning-900 dark:text-warning-100">
-                    {{ __('manara-import.import_loading') }}
-                </div>
-                <div class="mt-1 text-sm text-warning-700 dark:text-warning-200">
-                    {{ __('manara-import.import_loading_description') }}
-                </div>
+            <div class="text-sm font-medium text-warning-900 dark:text-warning-100">
+                {{ __('manara-import.import_loading') }}
             </div>
         </div>
 
         <form wire:submit="import" class="space-y-4">
-            {{ $this->form }}
+            <fieldset wire:loading.attr="disabled" wire:target="import">
+                {{ $this->form }}
+            </fieldset>
 
             <div class="flex justify-end">
                 <x-filament::button
@@ -101,7 +114,7 @@
                     icon="heroicon-o-arrow-up-tray"
                     wire:target="import"
                     wire:loading.attr="disabled"
-                    x-bind:disabled="uploading"
+                    x-bind:disabled="uploading || ! uploadReady"
                 >
                     <span wire:loading.remove wire:target="import">
                         {{ __('manara-import.import_button') }}
@@ -132,6 +145,16 @@
                             <div class="mt-1 text-xl font-semibold text-gray-950 dark:text-white">{{ $summary[$key] ?? 0 }}</div>
                         </div>
                     @endforeach
+                </div>
+
+                <div @class([
+                    'mt-4 rounded-md border p-4 text-sm font-semibold',
+                    'border-success-200 bg-success-50 text-success-800 dark:border-success-800 dark:bg-success-950 dark:text-success-200' => ($summary['zero_sections_created'] ?? 0) === 0,
+                    'border-danger-200 bg-danger-50 text-danger-800 dark:border-danger-800 dark:bg-danger-950 dark:text-danger-200' => ($summary['zero_sections_created'] ?? 0) !== 0,
+                ])>
+                    {{ ($summary['zero_sections_created'] ?? 0) === 0
+                        ? __('manara-import.no_zero_sections_created')
+                        : __('manara-import.zero_sections_created_warning', ['count' => $summary['zero_sections_created']]) }}
                 </div>
             </div>
         @endif

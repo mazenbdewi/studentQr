@@ -11,6 +11,7 @@ class SubjectSection extends Model
 {
     protected $fillable = [
         'subject_id',
+        'academic_term_id',
         'lecturer_id',
         'section_type',
         'code',
@@ -21,6 +22,7 @@ class SubjectSection extends Model
     ];
 
     protected $casts = [
+        'academic_term_id' => 'integer',
         'capacity' => 'integer',
         'lecturer_id' => 'integer',
         'section_number' => 'integer',
@@ -49,6 +51,11 @@ class SubjectSection extends Model
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class);
+    }
+
+    public function academicTerm(): BelongsTo
+    {
+        return $this->belongsTo(AcademicTerm::class);
     }
 
     public function lecturer(): BelongsTo

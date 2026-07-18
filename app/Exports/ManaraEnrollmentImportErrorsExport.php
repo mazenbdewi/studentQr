@@ -17,6 +17,9 @@ class ManaraEnrollmentImportErrorsExport implements FromCollection, WithColumnWi
             $error['row_number'] ?? null,
             $error['student_university_number'] ?? null,
             $error['subject_code'] ?? null,
+            $error['academic_term'] ?? null,
+            $error['theoretical_section'] ?? null,
+            $error['practical_section'] ?? null,
             $error['error_message'] ?? null,
         ]);
     }
@@ -27,6 +30,9 @@ class ManaraEnrollmentImportErrorsExport implements FromCollection, WithColumnWi
             'Row number',
             'Student university number',
             'Subject code',
+            'Academic term',
+            'Theoretical section source value',
+            'Practical section source value',
             'Error message',
         ];
     }
@@ -37,7 +43,10 @@ class ManaraEnrollmentImportErrorsExport implements FromCollection, WithColumnWi
             'A' => 14,
             'B' => 26,
             'C' => 20,
-            'D' => 90,
+            'D' => 32,
+            'E' => 20,
+            'F' => 20,
+            'G' => 90,
         ];
     }
 }
