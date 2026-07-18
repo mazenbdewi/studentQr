@@ -48,7 +48,7 @@ return [
     'failed' => 'Import failed',
     'summary_title' => 'Import summary',
     'download_errors' => 'Download errors file',
-    'no_zero_sections_created' => 'Zero-like values were ignored and no T0 or P0 section was created.',
+    'no_zero_sections_created' => 'Zero-like values were ignored.',
     'zero_sections_created_warning' => 'Warning: :count T0/P0 sections were created.',
     'summary_labels' => [
         'total_rows' => 'Total rows',

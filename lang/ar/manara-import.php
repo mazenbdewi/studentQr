@@ -48,7 +48,7 @@ return [
     'failed' => 'فشل الاستيراد',
     'summary_title' => 'ملخص الاستيراد',
     'download_errors' => 'تحميل ملف الأخطاء',
-    'no_zero_sections_created' => 'تم تجاهل القيم الصفرية بنجاح، ولم يتم إنشاء أي شعبة T0 أو P0.',
+    'no_zero_sections_created' => 'تم تجاهل القيم الصفرية بنجاح.',
     'zero_sections_created_warning' => 'تحذير: تم إنشاء :count شعبة T0/P0.',
     'summary_labels' => [
         'total_rows' => 'إجمالي الأسطر',

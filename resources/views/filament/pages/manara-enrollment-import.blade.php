@@ -8,15 +8,17 @@
     <div
         x-data="{
             uploading: false,
-            uploadReady: false,
+            uploadReady: $wire.entangle('uploadReady'),
+            verifyingUpload: false,
             uploadFailed: false,
-            progress: 0,
+            uploadProgress: 0,
         }"
-        x-on:livewire-upload-start.window="uploading = true; uploadReady = false; uploadFailed = false; progress = 0"
-        x-on:livewire-upload-progress.window="progress = Math.min(100, Math.max(0, Number($event.detail.progress ?? 0)))"
-        x-on:livewire-upload-finish.window="uploading = false; uploadReady = true; uploadFailed = false; progress = 100"
-        x-on:livewire-upload-error.window="uploading = false; uploadReady = false; uploadFailed = true; progress = 0"
-        x-on:livewire-upload-cancel.window="uploading = false; uploadReady = false; uploadFailed = false; progress = 0"
+        x-on:livewire-upload-start.window="uploading = true; uploadReady = false; verifyingUpload = false; uploadFailed = false; uploadProgress = 0"
+        x-on:livewire-upload-progress.window="uploadProgress = Math.min(100, Math.max(0, Number($event.detail.progress ?? 0)))"
+        x-on:livewire-upload-finish.window="uploading = false; uploadReady = true; verifyingUpload = true; uploadFailed = false; uploadProgress = 100; $wire.verifyUploadedFileReady()"
+        x-on:livewire-upload-error.window="uploading = false; uploadReady = false; verifyingUpload = false; uploadFailed = true; uploadProgress = 0"
+        x-on:livewire-upload-cancel.window="uploading = false; uploadReady = false; verifyingUpload = false; uploadFailed = false; uploadProgress = 0"
+        x-on:manara-upload-state.window="uploadReady = Boolean($event.detail.ready); verifyingUpload = false; if (! uploadReady) { uploading = false; uploadProgress = 0 }"
         class="space-y-6"
     >
         <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -61,14 +63,14 @@
                 <x-filament::loading-indicator class="h-5 w-5 text-primary-600 dark:text-primary-300" />
                 <div class="min-w-0 flex-1 text-sm font-medium text-primary-900 dark:text-primary-100">
                     <span>{{ __('manara-import.upload_loading') }}</span>
-                    <span x-text="`${progress}%`"></span>
+                    <span x-text="`${uploadProgress}%`"></span>
                 </div>
             </div>
 
             <div class="mt-3 h-2 overflow-hidden rounded-full bg-primary-100 dark:bg-primary-900">
                 <div
                     class="h-full rounded-full bg-primary-600 transition-all duration-300 dark:bg-primary-300"
-                    x-bind:style="`width: ${progress}%`"
+                    x-bind:style="`width: ${uploadProgress}%`"
                 ></div>
             </div>
         </div>
@@ -114,7 +116,7 @@
                     icon="heroicon-o-arrow-up-tray"
                     wire:target="import"
                     wire:loading.attr="disabled"
-                    x-bind:disabled="uploading || ! uploadReady"
+                    x-bind:disabled="uploading || verifyingUpload || ! uploadReady"
                 >
                     <span wire:loading.remove wire:target="import">
                         {{ __('manara-import.import_button') }}

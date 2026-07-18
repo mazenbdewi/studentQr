@@ -12,6 +12,7 @@ use App\Models\SubjectSection;
 use App\Models\User;
 use App\Support\XlsxNumericCellSanitizer;
 use Filament\Facades\Filament;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
@@ -262,6 +263,47 @@ it('does not require academic year or semester on the Manara import page', funct
         ->assertHasNoFormErrors(['semester', 'year'])
         ->assertSee(__('manara-import.upload_loading'))
         ->assertSee(__('manara-import.import_loading'));
+});
+
+it('tracks a valid upload through removal and replacement without invoking import', function (): void {
+    $path = manaraWorkbookPath([
+        manaraRow('2026999', 'طالب رفع', 'كلية الهندسة', 'هندسة المعلوماتية', 'برمجة', 'UPL101', '01/07/2026', 1, null),
+    ]);
+    $user = User::factory()->create([
+        'email' => 'manara-upload-admin@example.com',
+        'role' => 'super_admin',
+        'type' => 'admin',
+        'status' => 'active',
+    ]);
+    $user->assignRole('super-admin');
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+    try {
+        $component = Livewire::actingAs($user)->test(ManaraEnrollmentImport::class);
+
+        expect($component->get('uploadReady'))->toBeFalse();
+
+        $component
+            ->set('data.file', [UploadedFile::fake()->createWithContent('enrollments.xlsx', file_get_contents($path))])
+            ->call('verifyUploadedFileReady');
+
+        expect($component->get('uploadReady'))->toBeTrue()
+            ->and($component->get('data.file'))->toBeArray()->not->toBeEmpty();
+
+        $component
+            ->set('data.file', [])
+            ->call('verifyUploadedFileReady');
+
+        expect($component->get('uploadReady'))->toBeFalse();
+
+        $component
+            ->set('data.file', [UploadedFile::fake()->createWithContent('replacement.xlsx', file_get_contents($path))])
+            ->call('verifyUploadedFileReady');
+
+        expect($component->get('uploadReady'))->toBeTrue();
+    } finally {
+        @unlink($path);
+    }
 });
 
 it('repairs xlsx cells marked numeric while containing section text before import', function (): void {

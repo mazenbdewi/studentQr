@@ -18,6 +18,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Maatwebsite\Excel\Facades\Excel;
 use Throwable;
 
@@ -36,6 +37,8 @@ class ManaraEnrollmentImport extends Page implements HasForms
     public ?array $summary = null;
 
     public ?string $errorsUrl = null;
+
+    public bool $uploadReady = false;
 
     public static function canAccess(): bool
     {
@@ -76,12 +79,17 @@ class ManaraEnrollmentImport extends Page implements HasForms
                             ])
                             ->maxSize(51200)
                             ->live()
-                            ->afterStateUpdated(fn () => $this->resetResults())
+                            ->afterStateUpdated(fn (mixed $state) => $this->handleUploadedFileStateChanged($state))
                             ->required(),
                     ])
                     ->columns(1),
             ])
             ->statePath('data');
+    }
+
+    public function verifyUploadedFileReady(): void
+    {
+        $this->setUploadReadyState($this->data['file'] ?? null);
     }
 
     public function import(): void
@@ -165,6 +173,39 @@ class ManaraEnrollmentImport extends Page implements HasForms
     {
         $this->summary = null;
         $this->errorsUrl = null;
+    }
+
+    private function handleUploadedFileStateChanged(mixed $state): void
+    {
+        $this->resetResults();
+        $this->setUploadReadyState($state);
+    }
+
+    private function setUploadReadyState(mixed $state): void
+    {
+        $this->uploadReady = $this->hasValidUploadedFile($state);
+        $this->dispatch('manara-upload-state', ready: $this->uploadReady);
+    }
+
+    private function hasValidUploadedFile(mixed $state): bool
+    {
+        if ($state instanceof TemporaryUploadedFile) {
+            return $state->isValid() && $state->exists();
+        }
+
+        if (is_array($state)) {
+            foreach ($state as $file) {
+                if ($this->hasValidUploadedFile($file)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return is_string($state)
+            && $state !== ''
+            && is_file($this->localPathForUploadedFile($state));
     }
 
     private function localPathForUploadedFile(string $file): string
