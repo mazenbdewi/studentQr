@@ -14,10 +14,13 @@ class Subject extends Model
     use SoftDeletes;
 
     public const TYPE_THEORETICAL = 'theoretical';
+
     public const TYPE_PRACTICAL = 'practical';
 
     public const SEMESTER_FIRST = 'first';
+
     public const SEMESTER_SECOND = 'second';
+
     public const SEMESTER_SUMMER = 'summer';
 
     protected $fillable = [
@@ -120,6 +123,7 @@ class Subject extends Model
         return $this->belongsTo(User::class, 'lecturer_id')->withTrashed();
     }
 
+    /** @return BelongsTo<Department, $this> */
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class)->withTrashed();

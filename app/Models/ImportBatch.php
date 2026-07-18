@@ -30,6 +30,7 @@ class ImportBatch extends Model
         'deduplication_key',
         'import_type',
         'source_filename',
+        'source_file_path',
         'source_fingerprint',
         'source_import_batch_id',
         'status',
@@ -93,6 +94,7 @@ class ImportBatch extends Model
             && $this->imported_rows > 0;
     }
 
+    /** @return BelongsTo<ImportBatch, $this> */
     public function sourceImportBatch(): BelongsTo
     {
         return $this->belongsTo(self::class, 'source_import_batch_id');
@@ -103,6 +105,7 @@ class ImportBatch extends Model
         return $this->hasMany(self::class, 'source_import_batch_id');
     }
 
+    /** @return BelongsToMany<AcademicTerm, $this> */
     public function academicTerms(): BelongsToMany
     {
         return $this->belongsToMany(AcademicTerm::class, 'import_batch_academic_term')
@@ -112,6 +115,12 @@ class ImportBatch extends Model
     public function scheduleSlots(): HasMany
     {
         return $this->hasMany(SubjectSectionScheduleSlot::class);
+    }
+
+    /** @return HasMany<ScheduleImportRow, $this> */
+    public function scheduleImportRows(): HasMany
+    {
+        return $this->hasMany(ScheduleImportRow::class);
     }
 
     public function creator(): BelongsTo

@@ -10,7 +10,7 @@ use Normalizer;
 class WeeklyScheduleRowNormalizer
 {
     /** @var array<string, string> */
-    private const COLUMN_MAP = [
+    private const REQUIRED_COLUMN_MAP = [
         'رمز الشعبة' => 'subject_code',
         'نوع الفئة' => 'section_type',
         'رمز الفئة' => 'section_number',
@@ -18,6 +18,14 @@ class WeeklyScheduleRowNormalizer
         'اسم القاعة' => 'hall_name',
         'سعة الفئة' => 'section_capacity',
         'عدد الطلاب' => 'expected_student_count',
+    ];
+
+    /** @var array<string, string> */
+    private const OPTIONAL_COLUMN_MAP = [
+        'اسم المقرر الأساسي' => 'subject_name',
+        'كلية المقرر الأساسي' => 'subject_faculty',
+        'محصور بالكليات' => 'restricted_faculties',
+        'محصور بالاختصاصات' => 'restricted_departments',
     ];
 
     /** @var array<string, int> */
@@ -46,8 +54,10 @@ class WeeklyScheduleRowNormalizer
         foreach (array_values($headings) as $index => $heading) {
             $normalized = $this->normalizeHeading($heading);
 
-            if (isset(self::COLUMN_MAP[$normalized])) {
-                $this->columnIndexes[self::COLUMN_MAP[$normalized]] = $index;
+            $columnMap = self::REQUIRED_COLUMN_MAP + self::OPTIONAL_COLUMN_MAP;
+
+            if (isset($columnMap[$normalized])) {
+                $this->columnIndexes[$columnMap[$normalized]] = $index;
             }
 
             if (isset(self::WEEKDAYS[$normalized])) {
@@ -57,7 +67,7 @@ class WeeklyScheduleRowNormalizer
 
         $missing = [];
 
-        foreach (self::COLUMN_MAP as $heading => $field) {
+        foreach (self::REQUIRED_COLUMN_MAP as $heading => $field) {
             if (! array_key_exists($field, $this->columnIndexes)) {
                 $missing[] = $heading;
             }
@@ -93,6 +103,10 @@ class WeeklyScheduleRowNormalizer
         $row['section_number_source'] = $row['section_number'] ?? null;
         $row['teacher_name_source'] = $row['teacher_name'] ?? null;
         $row['hall_name_source'] = $row['hall_name'] ?? null;
+        $row['subject_name_source'] = $row['subject_name'] ?? null;
+        $row['subject_faculty_source'] = $row['subject_faculty'] ?? null;
+        $row['restricted_faculties_source'] = $row['restricted_faculties'] ?? null;
+        $row['restricted_departments_source'] = $row['restricted_departments'] ?? null;
 
         $row['subject_code'] = $this->normalizeText($row['subject_code'] ?? null);
         $row['subject_code_key'] = $this->normalizeKey($row['subject_code']);
@@ -107,6 +121,11 @@ class WeeklyScheduleRowNormalizer
         $row['hall_name_key'] = $this->normalizeKey($row['hall_name']);
         $row['section_capacity'] = $this->normalizeNonNegativeInteger($row['section_capacity'] ?? null);
         $row['expected_student_count'] = $this->normalizeNonNegativeInteger($row['expected_student_count'] ?? null);
+        $row['subject_name'] = $this->normalizeText($row['subject_name'] ?? null);
+        $row['subject_name_key'] = $this->normalizeKey($row['subject_name']);
+        $row['subject_faculty'] = $this->normalizeText($row['subject_faculty'] ?? null);
+        $row['restricted_faculties'] = $this->normalizeText($row['restricted_faculties'] ?? null);
+        $row['restricted_departments'] = $this->normalizeText($row['restricted_departments'] ?? null);
 
         return $row;
     }

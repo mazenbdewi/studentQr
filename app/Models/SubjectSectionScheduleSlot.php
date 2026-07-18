@@ -49,11 +49,13 @@ class SubjectSectionScheduleSlot extends Model
         return $this->belongsTo(SubjectSection::class);
     }
 
+    /** @return BelongsTo<Lecturer, $this> */
     public function lecturer(): BelongsTo
     {
         return $this->belongsTo(Lecturer::class);
     }
 
+    /** @return BelongsTo<Hall, $this> */
     public function hall(): BelongsTo
     {
         return $this->belongsTo(Hall::class)->withTrashed();

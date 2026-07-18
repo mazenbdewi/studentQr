@@ -8,6 +8,7 @@ use App\Exports\Templates\SubjectsTemplateExport;
 use App\Http\Controllers\Admin\DatabaseBackupDownloadController;
 use App\Http\Controllers\Admin\ManaraEnrollmentImportErrorDownloadController;
 use App\Http\Controllers\Admin\ManaraScheduleImportErrorDownloadController;
+use App\Http\Controllers\Admin\ScheduleImportReconciliationExportController;
 use App\Http\Controllers\Admin\UserGuideDownloadController;
 use Illuminate\Support\Facades\Route;
 use Maatwebsite\Excel\Facades\Excel;
@@ -54,3 +55,8 @@ Route::middleware(['auth', 'role:super-admin|admin', 'pin.verified'])
     ->get('/admin/manara-schedule-import/errors/{fileName}', ManaraScheduleImportErrorDownloadController::class)
     ->where('fileName', 'manara-schedule-errors-[0-9]{8}-[0-9]{6}-[A-Fa-f0-9-]{36}\.xlsx')
     ->name('admin.manara-schedule-import.errors.download');
+
+Route::middleware(['auth', 'pin.verified'])
+    ->get('/admin/schedule-import-reconciliation/{batch}/export', ScheduleImportReconciliationExportController::class)
+    ->whereUuid('batch')
+    ->name('admin.schedule-import-reconciliation.export');

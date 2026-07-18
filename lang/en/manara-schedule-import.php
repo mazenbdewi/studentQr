@@ -22,6 +22,7 @@ return [
     'failed' => 'Weekly schedule import failed',
     'summary_title' => 'Weekly schedule import result',
     'download_errors' => 'Download error report',
+    'open_reconciliation' => 'Open reconciliation report',
     'continue_from_enrollments' => 'Continue to the related weekly schedule import',
     'summary_labels' => [
         'source_enrollment_batch' => 'Source enrollment batch',

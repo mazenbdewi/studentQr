@@ -3,7 +3,11 @@
 namespace App\Providers;
 
 use App\Http\Responses\Filament\LoginResponse;
+use App\Models\ScheduleImportIssue;
+use App\Models\ScheduleImportRow;
 use App\Policies\ActivityPolicy;
+use App\Policies\ScheduleImportIssuePolicy;
+use App\Policies\ScheduleImportRowPolicy;
 use BezhanSalleh\FilamentShield\Facades\FilamentShield;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
 use Filament\Tables\Columns\Column;
@@ -21,6 +25,8 @@ class AppServiceProvider extends ServiceProvider
 {
     protected array $policies = [
         Activity::class => ActivityPolicy::class,
+        ScheduleImportRow::class => ScheduleImportRowPolicy::class,
+        ScheduleImportIssue::class => ScheduleImportIssuePolicy::class,
     ];
 
     public function register(): void

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -27,14 +28,15 @@ class Department extends Model
             }
 
             do {
-                $code = 'DEP-' . Str::upper(Str::random(8));
+                $code = 'DEP-'.Str::upper(Str::random(8));
             } while (self::query()->where('code', $code)->exists());
 
             $department->code = $code;
         });
     }
 
-    public function faculty()
+    /** @return BelongsTo<Faculty, $this> */
+    public function faculty(): BelongsTo
     {
         return $this->belongsTo(Faculty::class)->withTrashed();
     }

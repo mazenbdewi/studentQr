@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Exports\ManaraScheduleImportErrorsExport;
 use App\Imports\WeeklyScheduleImport;
+use App\Services\ScheduleImportReconciliationBuilder;
 use App\Support\XlsxNumericCellSanitizer;
 use BackedEnum;
 use Filament\Facades\Filament;
@@ -39,6 +40,8 @@ class ManaraScheduleImport extends Page implements HasForms
     public ?string $errorsUrl = null;
 
     public ?string $sourceBatchUuid = null;
+
+    public ?string $reconciliationUrl = null;
 
     public bool $uploadReady = false;
 
@@ -102,9 +105,11 @@ class ManaraScheduleImport extends Page implements HasForms
 
     public function import(): void
     {
+        $uploadedFile = $this->firstUploadedFile($this->data['file'] ?? null);
+        $originalFilename = $uploadedFile?->getClientOriginalName();
         $state = $this->form->getState();
         $file = $state['file'] ?? null;
-        $fileName = basename((string) $file);
+        $fileName = $originalFilename ?: basename((string) $file);
         $sanitizedFile = null;
         $this->resetResults();
 
@@ -128,9 +133,20 @@ class ManaraScheduleImport extends Page implements HasForms
                 $this->sourceBatchUuid,
                 Filament::auth()->id(),
                 $sourceFingerprint,
+                (string) $file,
             );
             $this->summary = $import->getSummary();
             $batch = $import->getBatch();
+
+            if ($batch) {
+                app(ScheduleImportReconciliationBuilder::class)->build(
+                    $batch,
+                    $uploadedFilePath,
+                    $fileName,
+                    (string) $file,
+                );
+                $this->reconciliationUrl = ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid]);
+            }
 
             if ($import->getErrors() !== [] && $batch) {
                 $errorPath = 'import-errors/manara-schedule-errors-'.now()->format('Ymd-His').'-'.$batch->uuid.'.xlsx';
@@ -175,6 +191,24 @@ class ManaraScheduleImport extends Page implements HasForms
     {
         $this->summary = null;
         $this->errorsUrl = null;
+        $this->reconciliationUrl = null;
+    }
+
+    private function firstUploadedFile(mixed $state): ?TemporaryUploadedFile
+    {
+        if ($state instanceof TemporaryUploadedFile) {
+            return $state;
+        }
+
+        if (is_array($state)) {
+            foreach ($state as $file) {
+                if ($file instanceof TemporaryUploadedFile) {
+                    return $file;
+                }
+            }
+        }
+
+        return null;
     }
 
     private function handleUploadedFileStateChanged(mixed $state): void

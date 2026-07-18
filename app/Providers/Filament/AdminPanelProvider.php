@@ -8,6 +8,7 @@ use App\Filament\Pages\DatabaseBackups;
 use App\Filament\Pages\ManaraEnrollmentImport;
 use App\Filament\Pages\ManaraScheduleImport;
 use App\Filament\Pages\PortalSettings;
+use App\Filament\Pages\ScheduleImportReconciliationReport;
 use App\Filament\Pages\UserGuide;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\AuditLogs\AuditLogResource;
@@ -81,6 +82,7 @@ class AdminPanelProvider extends PanelProvider
                 Dashboard::class,
                 ManaraEnrollmentImport::class,
                 ManaraScheduleImport::class,
+                ScheduleImportReconciliationReport::class,
                 PortalSettings::class,
                 UserGuide::class,
                 DatabaseBackups::class,

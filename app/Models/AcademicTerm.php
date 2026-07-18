@@ -33,4 +33,10 @@ class AcademicTerm extends Model
     {
         return $this->hasMany(SubjectSectionScheduleSlot::class);
     }
+
+    /** @return HasMany<ScheduleImportRow, $this> */
+    public function scheduleImportRows(): HasMany
+    {
+        return $this->hasMany(ScheduleImportRow::class);
+    }
 }

@@ -69,11 +69,18 @@
             <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 class="text-base font-semibold text-gray-950 dark:text-white">{{ __('manara-schedule-import.summary_title') }}</h2>
-                    @if ($errorsUrl)
-                        <x-filament::button tag="a" :href="$errorsUrl" target="_blank" color="danger" icon="heroicon-o-arrow-down-tray">
-                            {{ __('manara-schedule-import.download_errors') }}
-                        </x-filament::button>
-                    @endif
+                    <div class="flex flex-wrap gap-2">
+                        @if ($reconciliationUrl)
+                            <x-filament::button tag="a" :href="$reconciliationUrl" color="warning" icon="heroicon-o-clipboard-document-check">
+                                {{ __('manara-schedule-import.open_reconciliation') }}
+                            </x-filament::button>
+                        @endif
+                        @if ($errorsUrl)
+                            <x-filament::button tag="a" :href="$errorsUrl" target="_blank" color="danger" icon="heroicon-o-arrow-down-tray">
+                                {{ __('manara-schedule-import.download_errors') }}
+                            </x-filament::button>
+                        @endif
+                    </div>
                 </div>
 
                 <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

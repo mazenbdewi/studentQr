@@ -24,6 +24,12 @@ class ManaraScheduleImportErrorsExport implements FromCollection, WithColumnWidt
             $error['weekday'] ?? null,
             $error['time_range'] ?? null,
             $error['error_message'] ?? null,
+            $error['issue_type'] ?? null,
+            $error['severity'] ?? null,
+            $error['resolution_status'] ?? null,
+            $error['resolved_subject'] ?? null,
+            $error['resolved_section'] ?? null,
+            $error['resolution_note'] ?? null,
         ]);
     }
 
@@ -40,6 +46,12 @@ class ManaraScheduleImportErrorsExport implements FromCollection, WithColumnWidt
             'Weekday',
             'Time range source value',
             'Error or warning',
+            'Issue category',
+            'Severity',
+            'Resolution status',
+            'Selected replacement subject',
+            'Selected replacement section',
+            'Resolution note',
         ];
     }
 
@@ -56,6 +68,12 @@ class ManaraScheduleImportErrorsExport implements FromCollection, WithColumnWidt
             'H' => 18,
             'I' => 24,
             'J' => 90,
+            'K' => 28,
+            'L' => 16,
+            'M' => 24,
+            'N' => 28,
+            'O' => 28,
+            'P' => 45,
         ];
     }
 }

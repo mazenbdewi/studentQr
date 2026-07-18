@@ -22,6 +22,7 @@ return [
     'failed' => 'فشل استيراد الجدول الأسبوعي',
     'summary_title' => 'نتيجة استيراد الجدول الأسبوعي',
     'download_errors' => 'تنزيل تقرير الأخطاء',
+    'open_reconciliation' => 'فتح تقرير المراجعة',
     'continue_from_enrollments' => 'متابعة إلى استيراد الجدول الأسبوعي المرتبط',
     'summary_labels' => [
         'source_enrollment_batch' => 'دفعة تسجيل الطلاب المصدر',

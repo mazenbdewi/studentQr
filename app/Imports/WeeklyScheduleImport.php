@@ -59,6 +59,7 @@ class WeeklyScheduleImport
         ?string $sourceBatchUuid = null,
         int|string|null $createdBy = null,
         ?string $sourceFingerprint = null,
+        ?string $sourceFilePath = null,
     ): void {
         $this->resetState();
         $rows = $this->readRows($path);
@@ -107,6 +108,7 @@ class WeeklyScheduleImport
         $this->batch->fill([
             'import_type' => ImportBatch::TYPE_WEEKLY_SCHEDULE,
             'source_filename' => basename($sourceFilename),
+            'source_file_path' => $sourceFilePath,
             'source_fingerprint' => $sourceFingerprint,
             'source_import_batch_id' => $sourceBatch->id,
             'status' => ImportBatch::STATUS_PROCESSING,

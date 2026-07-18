@@ -1,0 +1,40 @@
+<?php
+
+return [
+    'title' => 'Schedule Import Reconciliation Report',
+    'batch' => 'Import batch',
+    'academic_term' => 'Academic term',
+    'action_completed' => 'Reconciliation action saved',
+    'tabs' => [
+        'needs_attention' => 'Needs attention',
+        'warnings' => 'Warnings',
+        'excluded' => 'Unscheduled or excluded',
+        'successful' => 'Imported successfully',
+    ],
+    'fields' => [
+        'row' => 'Excel row',
+        'subject_code' => 'Source subject code',
+        'subject_name' => 'Source subject name',
+        'section_type' => 'Source section type',
+        'section_number' => 'Source section number',
+        'normalized_section' => 'Normalized section code',
+        'expected_students' => 'Expected students',
+        'lecturer' => 'Original lecturer',
+        'hall' => 'Original hall',
+        'weekdays' => 'Source weekdays and times',
+        'academic_term' => 'Resolved academic term',
+        'issue_type' => 'Issue category',
+        'reason' => 'Reason',
+        'status' => 'Reconciliation status',
+        'suggestions' => 'Diagnostic suggestions',
+        'note' => 'Decision note',
+    ],
+    'actions' => [
+        'link' => 'Link existing subject and section',
+        'ignore' => 'Ignore for this batch',
+        'acknowledge' => 'Acknowledge warning',
+        'unscheduled' => 'Accept without weekly slot',
+        'retry' => 'Retry this row',
+        'export' => 'Export reconciliation report',
+    ],
+];

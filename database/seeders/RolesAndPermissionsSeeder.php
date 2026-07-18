@@ -5,8 +5,9 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\PermissionRegistrar;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -19,6 +20,20 @@ class RolesAndPermissionsSeeder extends Seeder
         foreach (['super-admin', 'admin', 'manager', 'course_lecturer'] as $role) {
             Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
+
+        $reconciliationPermissions = collect([
+            'view schedule-import reconciliation',
+            'resolve schedule-import issues',
+            'ignore schedule-import issues',
+            'retry schedule-import rows',
+            'export schedule-import reconciliation',
+        ])->map(fn (string $name) => Permission::firstOrCreate([
+            'name' => $name,
+            'guard_name' => 'web',
+        ]));
+
+        Role::findByName('admin', 'web')->givePermissionTo($reconciliationPermissions);
+        Role::findByName('super-admin', 'web')->givePermissionTo($reconciliationPermissions);
 
         $this->createUser(
             email: 'super@admin.com',
