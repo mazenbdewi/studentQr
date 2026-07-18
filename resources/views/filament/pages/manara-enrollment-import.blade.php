@@ -158,6 +158,18 @@
                         ? __('manara-import.no_zero_sections_created')
                         : __('manara-import.zero_sections_created_warning', ['count' => $summary['zero_sections_created']]) }}
                 </div>
+
+                @if ($completedBatchUuid)
+                    <div class="mt-4 flex justify-end">
+                        <x-filament::button
+                            tag="a"
+                            :href="\App\Filament\Pages\ManaraScheduleImport::getUrl(['source_batch' => $completedBatchUuid])"
+                            icon="heroicon-o-calendar-days"
+                        >
+                            {{ __('manara-schedule-import.continue_from_enrollments') }}
+                        </x-filament::button>
+                    </div>
+                @endif
             </div>
         @endif
     </div>

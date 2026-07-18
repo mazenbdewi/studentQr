@@ -6,6 +6,7 @@ use Andreia\FilamentNordTheme\FilamentNordThemePlugin;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\DatabaseBackups;
 use App\Filament\Pages\ManaraEnrollmentImport;
+use App\Filament\Pages\ManaraScheduleImport;
 use App\Filament\Pages\PortalSettings;
 use App\Filament\Pages\UserGuide;
 use App\Filament\Resources\Attendances\AttendanceResource;
@@ -79,6 +80,7 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
                 ManaraEnrollmentImport::class,
+                ManaraScheduleImport::class,
                 PortalSettings::class,
                 UserGuide::class,
                 DatabaseBackups::class,

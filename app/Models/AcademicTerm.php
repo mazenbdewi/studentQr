@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AcademicTerm extends Model
@@ -20,5 +21,16 @@ class AcademicTerm extends Model
     public function subjectSections(): HasMany
     {
         return $this->hasMany(SubjectSection::class);
+    }
+
+    public function importBatches(): BelongsToMany
+    {
+        return $this->belongsToMany(ImportBatch::class, 'import_batch_academic_term')
+            ->withPivot('row_count');
+    }
+
+    public function scheduleSlots(): HasMany
+    {
+        return $this->hasMany(SubjectSectionScheduleSlot::class);
     }
 }

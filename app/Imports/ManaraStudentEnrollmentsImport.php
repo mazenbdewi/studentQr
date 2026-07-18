@@ -23,7 +23,7 @@ use PhpOffice\PhpSpreadsheet\Cell\StringValueBinder;
 use RuntimeException;
 use Throwable;
 
-class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEachRow, WithChunkReading, SkipsEmptyRows, WithCustomValueBinder
+class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEachRow, SkipsEmptyRows, WithChunkReading, WithCustomValueBinder
 {
     private ManaraEnrollmentRowNormalizer $rowNormalizer;
 
@@ -70,9 +70,12 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
 
     private array $errors = [];
 
+    /** @var array<int, int> */
+    private array $importedAcademicTermRowCounts = [];
+
     public function __construct()
     {
-        $academicTermNormalizer = new AcademicTermNormalizer();
+        $academicTermNormalizer = new AcademicTermNormalizer;
         $this->rowNormalizer = new ManaraEnrollmentRowNormalizer($academicTermNormalizer);
         $this->warmCaches();
     }
@@ -115,7 +118,7 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
         }
 
         try {
-            DB::transaction(function () use ($data): void {
+            $academicTerm = DB::transaction(function () use ($data): AcademicTerm {
                 $academicTerm = $this->resolveAcademicTerm($data);
                 $faculty = $this->resolveFaculty($data['faculty_name']);
                 $department = $this->resolveDepartment($faculty, $data['department_name']);
@@ -148,9 +151,13 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
                     $practicalSection,
                     $data,
                 );
+
+                return $academicTerm;
             });
 
             $this->summary['imported_rows']++;
+            $this->importedAcademicTermRowCounts[$academicTerm->id] =
+                ($this->importedAcademicTermRowCounts[$academicTerm->id] ?? 0) + 1;
         } catch (Throwable $exception) {
             report($exception);
             $this->addError($rowNumber, $data, [
@@ -173,6 +180,12 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
     public function getErrors(): array
     {
         return $this->errors;
+    }
+
+    /** @return array<int, int> */
+    public function getImportedAcademicTermRowCounts(): array
+    {
+        return $this->importedAcademicTermRowCounts;
     }
 
     private function warmCaches(): void

@@ -2,10 +2,8 @@
 
 namespace App\Filament\Pages;
 
-use App\Exports\ManaraEnrollmentImportErrorsExport;
-use App\Imports\ManaraStudentEnrollmentsImport;
-use App\Models\ImportBatch;
-use App\Services\ActivityLogger;
+use App\Exports\ManaraScheduleImportErrorsExport;
+use App\Imports\WeeklyScheduleImport;
 use App\Support\XlsxNumericCellSanitizer;
 use BackedEnum;
 use Filament\Facades\Filament;
@@ -24,15 +22,15 @@ use Maatwebsite\Excel\Facades\Excel;
 use Throwable;
 
 /** @property-read Schema $form */
-class ManaraEnrollmentImport extends Page implements HasForms
+class ManaraScheduleImport extends Page implements HasForms
 {
     use InteractsWithForms;
 
-    protected static ?string $slug = 'manara-enrollment-import';
+    protected static ?string $slug = 'manara-schedule-import';
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::ArrowUpTray;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::CalendarDays;
 
-    protected string $view = 'filament.pages.manara-enrollment-import';
+    protected string $view = 'filament.pages.manara-schedule-import';
 
     public ?array $data = [];
 
@@ -40,9 +38,16 @@ class ManaraEnrollmentImport extends Page implements HasForms
 
     public ?string $errorsUrl = null;
 
+    public ?string $sourceBatchUuid = null;
+
     public bool $uploadReady = false;
 
-    public ?string $completedBatchUuid = null;
+    public function mount(): void
+    {
+        $sourceBatch = request()->query('source_batch');
+        $this->sourceBatchUuid = is_string($sourceBatch) && $sourceBatch !== '' ? $sourceBatch : null;
+        $this->form->fill();
+    }
 
     public static function canAccess(): bool
     {
@@ -56,27 +61,27 @@ class ManaraEnrollmentImport extends Page implements HasForms
 
     public static function getNavigationLabel(): string
     {
-        return __('manara-import.title');
+        return __('manara-schedule-import.title');
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 5;
+        return 6;
     }
 
     public function getTitle(): string
     {
-        return __('manara-import.title');
+        return __('manara-schedule-import.title');
     }
 
     public function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                Section::make(__('manara-import.form_section'))
+                Section::make(__('manara-schedule-import.form_section'))
                     ->schema([
                         FileUpload::make('file')
-                            ->label(__('manara-import.excel_file'))
+                            ->label(__('manara-schedule-import.excel_file'))
                             ->acceptedFileTypes([
                                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                                 'application/vnd.ms-excel',
@@ -85,8 +90,7 @@ class ManaraEnrollmentImport extends Page implements HasForms
                             ->live()
                             ->afterStateUpdated(fn (mixed $state) => $this->handleUploadedFileStateChanged($state))
                             ->required(),
-                    ])
-                    ->columns(1),
+                    ]),
             ])
             ->statePath('data');
     }
@@ -99,126 +103,64 @@ class ManaraEnrollmentImport extends Page implements HasForms
     public function import(): void
     {
         $state = $this->form->getState();
-        $startedAt = now();
         $file = $state['file'] ?? null;
         $fileName = basename((string) $file);
         $sanitizedFile = null;
-        $batch = null;
         $this->resetResults();
 
         try {
             $this->prepareLongRunningImport();
-
             $uploadedFilePath = $this->localPathForUploadedFile((string) $file);
             $sourceFingerprint = hash_file('sha256', $uploadedFilePath);
 
             if ($sourceFingerprint === false) {
-                throw new \RuntimeException('تعذر حساب بصمة ملف التسجيل المرفوع.');
+                throw new \RuntimeException('تعذر حساب بصمة ملف الجدول المرفوع.');
             }
 
-            $batch = ImportBatch::query()->firstOrNew([
-                'deduplication_key' => ImportBatch::deduplicationKey(
-                    ImportBatch::TYPE_ENROLLMENTS,
-                    $sourceFingerprint,
-                ),
-            ]);
-            $batch->fill([
-                'import_type' => ImportBatch::TYPE_ENROLLMENTS,
-                'source_filename' => $fileName,
-                'source_fingerprint' => $sourceFingerprint,
-                'source_import_batch_id' => null,
-                'status' => ImportBatch::STATUS_PROCESSING,
-                'total_rows' => 0,
-                'imported_rows' => 0,
-                'rejected_rows' => 0,
-                'summary' => null,
-                'error_file_path' => null,
-                'started_at' => $startedAt,
-                'completed_at' => null,
-                'created_by' => Filament::auth()->id(),
-            ])->save();
-
-            $import = new ManaraStudentEnrollmentsImport;
             $sanitizer = app(XlsxNumericCellSanitizer::class);
-            $sanitizedFile = $sanitizer->sanitizeToTemporaryFile($uploadedFilePath);
-
-            Excel::import($import, $sanitizedFile);
-
+            $sanitizedFile = $sanitizer->sanitizeToTemporaryFile(
+                $uploadedFilePath,
+            );
+            $import = app(WeeklyScheduleImport::class);
+            $import->import(
+                $sanitizedFile,
+                $fileName,
+                $this->sourceBatchUuid,
+                Filament::auth()->id(),
+                $sourceFingerprint,
+            );
             $this->summary = $import->getSummary();
+            $batch = $import->getBatch();
 
-            if ($import->getErrors() !== []) {
-                $errorPath = 'import-errors/manara-enrollment-errors-'.now()->format('Ymd-His').'.xlsx';
-                Excel::store(new ManaraEnrollmentImportErrorsExport($import->getErrors()), $errorPath, 'public');
+            if ($import->getErrors() !== [] && $batch) {
+                $errorPath = 'import-errors/manara-schedule-errors-'.now()->format('Ymd-His').'-'.$batch->uuid.'.xlsx';
+                Excel::store(new ManaraScheduleImportErrorsExport($import->getErrors()), $errorPath, 'public');
+                $batch->update(['error_file_path' => $errorPath]);
+            } else {
+                $errorPath = $batch?->error_file_path;
+            }
+
+            if (filled($errorPath)) {
                 $this->errorsUrl = route(
-                    'admin.manara-enrollment-import.errors.download',
-                    ['fileName' => basename($errorPath)],
+                    'admin.manara-schedule-import.errors.download',
+                    ['fileName' => basename((string) $errorPath)],
                     false,
                 );
             }
 
-            $termSync = [];
-
-            foreach ($import->getImportedAcademicTermRowCounts() as $academicTermId => $rowCount) {
-                $termSync[$academicTermId] = ['row_count' => $rowCount];
-            }
-
-            $batch->academicTerms()->sync($termSync);
-            $batch->update([
-                'status' => ((int) $this->summary['failed_rows']) > 0
-                    ? ImportBatch::STATUS_COMPLETED_WITH_ERRORS
-                    : ImportBatch::STATUS_COMPLETED,
-                'total_rows' => (int) $this->summary['total_rows'],
-                'imported_rows' => (int) $this->summary['imported_rows'],
-                'rejected_rows' => (int) $this->summary['failed_rows'],
-                'summary' => $this->summary,
-                'error_file_path' => $errorPath ?? null,
-                'completed_at' => now(),
-            ]);
-            $this->completedBatchUuid = $batch->uuid;
-
-            app(ActivityLogger::class)->logImportSummary(
-                'students',
-                'manara_enrollment_import',
-                $fileName,
-                (int) $this->summary['total_rows'],
-                (int) $this->summary['imported_rows'],
-                (int) $this->summary['failed_rows'],
-                $startedAt->toIso8601String(),
-                now()->toIso8601String(),
-                ['summary' => $this->summary],
-            );
-
             Notification::make()
-                ->title(__('manara-import.completed'))
-                ->body(__('manara-import.completed_body', [
-                    'imported' => $this->summary['imported_rows'],
-                    'failed' => $this->summary['failed_rows'],
+                ->title(__('manara-schedule-import.completed'))
+                ->body(__('manara-schedule-import.completed_body', [
+                    'imported' => $this->summary['imported_rows'] ?? 0,
+                    'rejected' => $this->summary['rejected_rows'] ?? 0,
                 ]))
                 ->success()
                 ->send();
         } catch (Throwable $exception) {
             report($exception);
 
-            $batch?->update([
-                'status' => ImportBatch::STATUS_FAILED,
-                'completed_at' => now(),
-                'summary' => ['error' => $exception->getMessage()],
-            ]);
-
-            app(ActivityLogger::class)->logImportSummary(
-                'students',
-                'manara_enrollment_import',
-                $fileName,
-                0,
-                0,
-                1,
-                $startedAt->toIso8601String(),
-                now()->toIso8601String(),
-                ['status' => 'failed', 'error' => $exception->getMessage()],
-            );
-
             Notification::make()
-                ->title(__('manara-import.failed'))
+                ->title(__('manara-schedule-import.failed'))
                 ->body($exception->getMessage())
                 ->danger()
                 ->send();
@@ -233,7 +175,6 @@ class ManaraEnrollmentImport extends Page implements HasForms
     {
         $this->summary = null;
         $this->errorsUrl = null;
-        $this->completedBatchUuid = null;
     }
 
     private function handleUploadedFileStateChanged(mixed $state): void
@@ -245,7 +186,7 @@ class ManaraEnrollmentImport extends Page implements HasForms
     private function setUploadReadyState(mixed $state): void
     {
         $this->uploadReady = $this->hasValidUploadedFile($state);
-        $this->dispatch('manara-upload-state', ready: $this->uploadReady);
+        $this->dispatch('schedule-upload-state', ready: $this->uploadReady);
     }
 
     private function hasValidUploadedFile(mixed $state): bool
