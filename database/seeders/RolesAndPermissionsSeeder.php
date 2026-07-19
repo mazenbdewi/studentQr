@@ -23,7 +23,14 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $reconciliationPermissions = collect([
             'view schedule-import reconciliation',
-            'resolve schedule-import issues',
+            'resolve schedule-import subject mapping',
+            'resolve schedule-import section mapping',
+            'assign schedule-import weekly time',
+            'assign schedule-import lecturer',
+            'create schedule-import lecturer identity',
+            'assign schedule-import hall',
+            'create schedule-import hall',
+            'resolve schedule-import conflict',
             'ignore schedule-import issues',
             'retry schedule-import rows',
             'export schedule-import reconciliation',
@@ -33,7 +40,6 @@ class RolesAndPermissionsSeeder extends Seeder
         ]));
 
         Role::findByName('admin', 'web')->givePermissionTo($reconciliationPermissions);
-        Role::findByName('super-admin', 'web')->givePermissionTo($reconciliationPermissions);
 
         $weeklySchedulePermissions = collect([
             'view weekly schedule',

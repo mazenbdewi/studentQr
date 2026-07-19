@@ -615,8 +615,7 @@ class WeeklyScheduleImport
         $hall = Hall::query()->create([
             'code' => $candidate['hall_name'],
             'name' => $candidate['hall_name'],
-            // The current schema requires a floor. Zero is the established unknown-floor sentinel.
-            'floor' => 0,
+            'floor' => null,
             'is_active' => true,
         ]);
         $this->halls[$key][$hall->id] = $hall;

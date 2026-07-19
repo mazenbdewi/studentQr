@@ -2,37 +2,129 @@
 
 namespace App\Services;
 
-use App\Models\Hall;
-use App\Models\Lecturer;
-use App\Models\ScheduleImportIssue;
+use App\Models\ScheduleImportRow;
+use App\Models\ScheduleImportRowTimeOverride;
 use App\Models\SubjectSectionScheduleSlot;
-use App\Models\User;
 use App\Support\WeeklyScheduleRowNormalizer;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use RuntimeException;
 
 class ScheduleImportRowRetryService
 {
-    public function __construct(private readonly WeeklyScheduleRowNormalizer $normalizer) {}
+    public function __construct(
+        private readonly WeeklyScheduleRowNormalizer $normalizer,
+        private readonly WeeklyScheduleSlotConflictDetector $conflictDetector,
+    ) {}
 
-    public function retry(ScheduleImportIssue $issue): array
+    public function retryRow(ScheduleImportRow $row): array
     {
-        $issue->loadMissing(['importRow.importBatch', 'resolvedSubject', 'resolvedSubjectSection']);
-        $row = $issue->importRow;
-        $subject = $issue->resolvedSubject;
-        $section = $issue->resolvedSubjectSection;
+        $row->loadMissing(['resolvedSubject', 'resolvedSubjectSection', 'timeOverrides']);
+        $subject = $row->resolvedSubject;
+        $section = $row->resolvedSubjectSection;
 
         if (! $subject || ! $section) {
-            throw new RuntimeException('يجب اختيار مقرر وشعبة صالحين قبل إعادة المعالجة.');
+            throw new RuntimeException(__('schedule-import-reconciliation.validation.subject_section_required'));
         }
 
-        if ($section->subject_id !== $subject->id || $section->academic_term_id !== $row->academic_term_id) {
-            throw new RuntimeException('الشعبة المختارة لا تنتمي للمقرر والفصل الدراسي المرتبطين.');
+        if ((int) $section->subject_id !== (int) $subject->id || (int) $section->academic_term_id !== (int) $row->academic_term_id) {
+            throw new RuntimeException(__('schedule-import-reconciliation.validation.section_scope'));
         }
 
-        $payload = $row->normalized_payload;
+        $lecturerResult = $this->fillIdentity($row, 'lecturer_id', $row->resolved_lecturer_id);
+        $hallResult = $this->fillIdentity($row, 'hall_id', $row->resolved_hall_id);
+        $candidates = $this->candidates($row);
+        $created = [];
+        $existing = [];
+        $conflicts = [...$lecturerResult['conflicts'], ...$hallResult['conflicts']];
+
+        foreach ($candidates as $candidate) {
+            $exact = $this->conflictDetector->exactSlot($row, $candidate, lock: true);
+
+            if ($exact) {
+                $metadataConflicts = $this->metadataConflicts($exact, $candidate);
+
+                if ($metadataConflicts !== []) {
+                    $conflicts[] = [
+                        'type' => 'metadata',
+                        'slot_id' => $exact->id,
+                        'fields' => $metadataConflicts,
+                    ];
+
+                    continue;
+                }
+
+                $this->fillSlotMetadata($exact, $candidate);
+                $existing[] = $exact->id;
+
+                continue;
+            }
+
+            $overlaps = $this->conflictDetector->conflicts($row, $candidate, lock: true);
+
+            if ($overlaps !== []) {
+                $conflicts = [...$conflicts, ...$overlaps];
+
+                continue;
+            }
+
+            $slot = SubjectSectionScheduleSlot::query()->create([
+                'import_batch_id' => $row->import_batch_id,
+                'academic_term_id' => $row->academic_term_id,
+                'subject_id' => $subject->id,
+                'subject_section_id' => $section->id,
+                'lecturer_id' => $candidate['lecturer_id'],
+                'hall_id' => $candidate['hall_id'],
+                'weekday' => $candidate['weekday'],
+                'start_time' => $candidate['start_time'],
+                'end_time' => $candidate['end_time'],
+                'section_capacity' => $candidate['section_capacity'],
+                'expected_student_count' => $candidate['expected_student_count'],
+                'raw_teacher_name' => $row->normalized_payload['teacher_name_source'] ?? null,
+                'raw_hall_name' => $row->normalized_payload['hall_name_source'] ?? null,
+            ]);
+            $created[] = $slot->id;
+        }
+
+        $importResult = $row->import_result ?? [];
+        $importResult['reconciliation_slot_ids'] = collect([
+            ...($importResult['reconciliation_slot_ids'] ?? []),
+            ...$created,
+            ...$existing,
+        ])->map(fn (mixed $id): int => (int) $id)->unique()->values()->all();
+        $row->update(['import_result' => $importResult]);
+
+        return [
+            'status' => $conflicts === [] ? ($created === [] ? 'already_applied' : 'completed') : 'conflict',
+            'created_slot_ids' => $created,
+            'already_existing_slot_ids' => $existing,
+            'updated_lecturer_slot_ids' => $lecturerResult['updated_slot_ids'],
+            'updated_hall_slot_ids' => $hallResult['updated_slot_ids'],
+            'lecturer_conflicts' => $lecturerResult['conflicts'],
+            'hall_conflicts' => $hallResult['conflicts'],
+            'conflicts' => $conflicts,
+            'slot_changes' => [...$lecturerResult['slot_changes'], ...$hallResult['slot_changes']],
+        ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function candidates(ScheduleImportRow $row): array
+    {
+        if ($row->timeOverrides->isNotEmpty()) {
+            return $row->timeOverrides->map(fn (ScheduleImportRowTimeOverride $override): array => [
+                'subject_section_id' => $row->resolved_subject_section_id,
+                'weekday' => $override->weekday,
+                'start_time' => $override->start_time,
+                'end_time' => $override->end_time,
+                'lecturer_id' => $override->lecturer_id ?? $row->resolved_lecturer_id,
+                'hall_id' => $override->hall_id ?? $row->resolved_hall_id,
+                'section_capacity' => $override->section_capacity ?? $row->resolved_section_capacity,
+                'expected_student_count' => $override->expected_student_count ?? $row->resolved_expected_student_count,
+            ])->all();
+        }
+
         $candidates = [];
 
-        foreach (($payload['weekday_values'] ?? []) as $weekday => $sourceTime) {
+        foreach (($row->normalized_payload['weekday_values'] ?? []) as $weekday => $sourceTime) {
             if ($this->normalizer->isMissingValue($sourceTime)) {
                 continue;
             }
@@ -44,158 +136,117 @@ class ScheduleImportRowRetryService
             }
 
             if ($time) {
-                $candidates[] = ['weekday' => (int) $weekday, ...$time];
+                $candidates[] = [
+                    'subject_section_id' => $row->resolved_subject_section_id,
+                    'weekday' => (int) $weekday,
+                    ...$time,
+                    'lecturer_id' => $row->resolved_lecturer_id,
+                    'hall_id' => $row->resolved_hall_id,
+                    'section_capacity' => $row->resolved_section_capacity ?? ($row->normalized_payload['section_capacity'] ?? null),
+                    'expected_student_count' => $row->resolved_expected_student_count ?? ($row->normalized_payload['expected_student_count'] ?? null),
+                ];
             }
         }
 
-        if ($candidates === []) {
-            throw new RuntimeException('لا يحتوي السطر على موعد أسبوعي صالح لإعادة المعالجة.');
+        if ($candidates === [] && ! $row->issues()->where('resolution_status', 'intentionally_unscheduled')->exists()) {
+            throw new RuntimeException(__('schedule-import-reconciliation.validation.time_required'));
         }
 
-        $missingCandidates = [];
-        $alreadyExists = [];
+        return $candidates;
+    }
+
+    private function fillIdentity(ScheduleImportRow $row, string $column, ?int $selectedId): array
+    {
+        if (! $selectedId) {
+            return ['updated_slot_ids' => [], 'conflicts' => [], 'slot_changes' => []];
+        }
+
+        $updated = [];
         $conflicts = [];
+        $changes = [];
 
-        foreach ($candidates as $candidate) {
-            $slot = SubjectSectionScheduleSlot::query()->with(['lecturer', 'hall'])->where([
-                'academic_term_id' => $row->academic_term_id,
-                'subject_section_id' => $section->id,
-                'weekday' => $candidate['weekday'],
-                'start_time' => $candidate['start_time'],
-                'end_time' => $candidate['end_time'],
-            ])->first();
+        foreach ($this->relatedSlots($row) as $slot) {
+            $current = $slot->{$column};
 
-            if (! $slot) {
-                $missingCandidates[] = $candidate;
+            if ($current === null) {
+                $candidate = [
+                    'subject_section_id' => $slot->subject_section_id,
+                    'weekday' => $slot->weekday,
+                    'start_time' => $slot->start_time,
+                    'end_time' => $slot->end_time,
+                    'lecturer_id' => $column === 'lecturer_id' ? $selectedId : $slot->lecturer_id,
+                    'hall_id' => $column === 'hall_id' ? $selectedId : $slot->hall_id,
+                ];
+                $overlaps = $this->conflictDetector->conflicts($row, $candidate, $slot->id, lock: true);
 
-                continue;
-            }
+                if ($overlaps !== []) {
+                    $conflicts[] = ['slot_id' => $slot->id, 'field' => $column, 'overlaps' => $overlaps];
 
-            if ($this->slotConflicts($slot, $payload)) {
-                $conflicts[] = ['slot_id' => $slot->id, ...$candidate];
-            } else {
-                $alreadyExists[] = $slot->id;
-            }
-        }
+                    continue;
+                }
 
-        $created = [];
-
-        if ($missingCandidates !== []) {
-            $lecturer = $this->resolveLecturer($payload);
-            $hall = $this->resolveHall($payload);
-
-            foreach ($missingCandidates as $candidate) {
-                $slot = SubjectSectionScheduleSlot::query()->create([
-                    'import_batch_id' => $row->import_batch_id,
-                    'academic_term_id' => $row->academic_term_id,
-                    'subject_id' => $subject->id,
-                    'subject_section_id' => $section->id,
-                    'lecturer_id' => $lecturer?->id,
-                    'hall_id' => $hall?->id,
-                    'weekday' => $candidate['weekday'],
-                    'start_time' => $candidate['start_time'],
-                    'end_time' => $candidate['end_time'],
-                    'section_capacity' => $payload['section_capacity'] ?? null,
-                    'expected_student_count' => $payload['expected_student_count'] ?? null,
-                    'raw_teacher_name' => $payload['teacher_name_source'] ?? null,
-                    'raw_hall_name' => $payload['hall_name_source'] ?? null,
-                ]);
-                $created[] = $slot->id;
+                $before = $this->slotSnapshot($slot);
+                $slot->update([$column => $selectedId]);
+                $updated[] = $slot->id;
+                $changes[] = ['before' => $before, 'after' => $this->slotSnapshot($slot->fresh())];
+            } elseif ((int) $current !== $selectedId) {
+                $conflicts[] = ['slot_id' => $slot->id, 'field' => $column, 'current_id' => (int) $current, 'selected_id' => $selectedId];
             }
         }
 
+        return ['updated_slot_ids' => $updated, 'conflicts' => $conflicts, 'slot_changes' => $changes];
+    }
+
+    /** @return EloquentCollection<int, SubjectSectionScheduleSlot> */
+    private function relatedSlots(ScheduleImportRow $row): EloquentCollection
+    {
+        $ids = $row->relatedScheduleSlotIds();
+
+        if ($ids === []) {
+            return new EloquentCollection;
+        }
+
+        $slots = SubjectSectionScheduleSlot::query()->whereIn('id', $ids)->where('academic_term_id', $row->academic_term_id)->lockForUpdate()->orderBy('id')->get();
+
+        if ($slots->count() !== count($ids)) {
+            throw new RuntimeException(__('schedule-import-reconciliation.validation.slot_relation_invalid'));
+        }
+
+        return $slots;
+    }
+
+    private function metadataConflicts(SubjectSectionScheduleSlot $slot, array $candidate): array
+    {
+        return collect(['lecturer_id', 'hall_id', 'section_capacity', 'expected_student_count'])
+            ->filter(fn (string $field): bool => $slot->{$field} !== null && $candidate[$field] !== null && (int) $slot->{$field} !== (int) $candidate[$field])
+            ->values()
+            ->all();
+    }
+
+    private function fillSlotMetadata(SubjectSectionScheduleSlot $slot, array $candidate): void
+    {
+        $updates = [];
+
+        foreach (['lecturer_id', 'hall_id', 'section_capacity', 'expected_student_count'] as $field) {
+            if ($slot->{$field} === null && $candidate[$field] !== null) {
+                $updates[$field] = $candidate[$field];
+            }
+        }
+
+        if ($updates !== []) {
+            $slot->update($updates);
+        }
+    }
+
+    private function slotSnapshot(SubjectSectionScheduleSlot $slot): array
+    {
         return [
-            'created_slot_ids' => $created,
-            'already_existing_slot_ids' => $alreadyExists,
-            'conflicts' => $conflicts,
-            'status' => $conflicts === [] ? 'completed' : 'completed_with_conflicts',
+            'id' => $slot->id,
+            'lecturer_id' => $slot->lecturer_id,
+            'hall_id' => $slot->hall_id,
+            'weekday' => $slot->weekday,
+            'start_time' => $slot->start_time,
+            'end_time' => $slot->end_time,
         ];
-    }
-
-    private function slotConflicts(SubjectSectionScheduleSlot $slot, array $payload): bool
-    {
-        $teacherKey = $this->normalizer->normalizeKey($payload['teacher_name'] ?? null);
-        $existingTeacherKey = $this->normalizer->normalizeKey($slot->lecturer?->canonical_name ?: $slot->lecturer?->name);
-        $hallKey = $this->normalizer->normalizeKey($payload['hall_name'] ?? null);
-        $existingHallKeys = array_filter([
-            $this->normalizer->normalizeKey($slot->hall?->name),
-            $this->normalizer->normalizeKey($slot->hall?->code),
-        ]);
-
-        return ($teacherKey !== '' && $existingTeacherKey !== '' && $teacherKey !== $existingTeacherKey)
-            || ($hallKey !== '' && $existingHallKeys !== [] && ! in_array($hallKey, $existingHallKeys, true))
-            || (($payload['section_capacity'] ?? null) !== null && $slot->section_capacity !== null && (int) $payload['section_capacity'] !== $slot->section_capacity)
-            || (($payload['expected_student_count'] ?? null) !== null && $slot->expected_student_count !== null && (int) $payload['expected_student_count'] !== $slot->expected_student_count);
-    }
-
-    private function resolveLecturer(array $payload): ?Lecturer
-    {
-        $name = $payload['teacher_name'] ?? null;
-        $key = $this->normalizer->normalizeKey($name);
-
-        if ($key === '') {
-            return null;
-        }
-
-        $matches = Lecturer::query()->get()->filter(fn (Lecturer $lecturer): bool => $this->normalizer->normalizeKey($lecturer->canonical_name ?: $lecturer->name) === $key)->values();
-
-        if ($matches->count() > 1) {
-            throw new RuntimeException('اسم المدرس يطابق أكثر من هوية؛ لم يتم الاختيار تلقائياً.');
-        }
-
-        if ($matches->count() === 1) {
-            return $matches->sole();
-        }
-
-        $users = User::query()->where(function ($query): void {
-            $query->where('role', 'course_lecturer')
-                ->orWhereHas('roles', fn ($roles) => $roles->where('name', 'course_lecturer'));
-        })->get()->filter(fn (User $user): bool => $this->normalizer->normalizeKey($user->name) === $key)->values();
-
-        if ($users->count() > 1) {
-            throw new RuntimeException('اسم المدرس يطابق أكثر من حساب مدرس؛ لم يتم الاختيار تلقائياً.');
-        }
-
-        return Lecturer::query()->create([
-            'user_id' => $users->first()?->id,
-            'name' => $name,
-            'canonical_name' => $key,
-            'lecturer_id' => null,
-            'email' => null,
-            'is_active' => true,
-        ]);
-    }
-
-    private function resolveHall(array $payload): ?Hall
-    {
-        $name = $payload['hall_name'] ?? null;
-        $key = $this->normalizer->normalizeKey($name);
-
-        if ($key === '') {
-            return null;
-        }
-
-        $matches = Hall::withTrashed()->get()->filter(fn (Hall $hall): bool => in_array($key, [
-            $this->normalizer->normalizeKey($hall->name),
-            $this->normalizer->normalizeKey($hall->code),
-        ], true))->values();
-
-        if ($matches->count() > 1) {
-            throw new RuntimeException('اسم القاعة يطابق أكثر من قاعة؛ لم يتم الاختيار تلقائياً.');
-        }
-
-        if ($matches->count() === 1) {
-            $hall = $matches->sole();
-            $hall->restore();
-
-            return $hall;
-        }
-
-        return Hall::query()->create([
-            'code' => $name,
-            'name' => $name,
-            'floor' => 0,
-            'is_active' => true,
-        ]);
     }
 }

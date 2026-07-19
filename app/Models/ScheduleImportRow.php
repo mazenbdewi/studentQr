@@ -39,6 +39,15 @@ class ScheduleImportRow extends Model
         'original_import_status',
         'current_reconciliation_status',
         'import_result',
+        'resolved_subject_id',
+        'resolved_subject_section_id',
+        'resolved_lecturer_id',
+        'resolved_hall_id',
+        'resolved_section_capacity',
+        'resolved_expected_student_count',
+        'resolution_payload',
+        'resolution_updated_by',
+        'resolution_updated_at',
     ];
 
     protected $casts = [
@@ -46,6 +55,10 @@ class ScheduleImportRow extends Model
         'source_payload' => 'array',
         'normalized_payload' => 'array',
         'import_result' => 'array',
+        'resolved_section_capacity' => 'integer',
+        'resolved_expected_student_count' => 'integer',
+        'resolution_payload' => 'array',
+        'resolution_updated_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -99,5 +112,54 @@ class ScheduleImportRow extends Model
     public function issues(): HasMany
     {
         return $this->hasMany(ScheduleImportIssue::class);
+    }
+
+    /** @return BelongsTo<Subject, $this> */
+    public function resolvedSubject(): BelongsTo
+    {
+        return $this->belongsTo(Subject::class, 'resolved_subject_id')->withTrashed();
+    }
+
+    /** @return BelongsTo<SubjectSection, $this> */
+    public function resolvedSubjectSection(): BelongsTo
+    {
+        return $this->belongsTo(SubjectSection::class, 'resolved_subject_section_id');
+    }
+
+    /** @return BelongsTo<Lecturer, $this> */
+    public function resolvedLecturer(): BelongsTo
+    {
+        return $this->belongsTo(Lecturer::class, 'resolved_lecturer_id');
+    }
+
+    /** @return BelongsTo<Hall, $this> */
+    public function resolvedHall(): BelongsTo
+    {
+        return $this->belongsTo(Hall::class, 'resolved_hall_id')->withTrashed();
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function resolutionUpdater(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolution_updated_by')->withTrashed();
+    }
+
+    /** @return HasMany<ScheduleImportRowTimeOverride, $this> */
+    public function timeOverrides(): HasMany
+    {
+        return $this->hasMany(ScheduleImportRowTimeOverride::class);
+    }
+
+    /** @return array<int, int> */
+    public function relatedScheduleSlotIds(): array
+    {
+        return collect([
+            ...($this->import_result['slot_ids'] ?? []),
+            ...($this->import_result['reconciliation_slot_ids'] ?? []),
+        ])->filter(fn (mixed $id): bool => is_numeric($id))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 }

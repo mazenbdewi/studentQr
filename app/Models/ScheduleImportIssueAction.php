@@ -11,6 +11,24 @@ class ScheduleImportIssueAction extends Model
 
     public const ACTION_LINK = 'link';
 
+    public const ACTION_LINK_SUBJECT = 'link_subject';
+
+    public const ACTION_LINK_SECTION = 'link_section';
+
+    public const ACTION_ASSIGN_WEEKLY_TIME = 'assign_weekly_time';
+
+    public const ACTION_ASSIGN_LECTURER = 'assign_lecturer';
+
+    public const ACTION_CREATE_LECTURER = 'create_lecturer_identity';
+
+    public const ACTION_ASSIGN_HALL = 'assign_hall';
+
+    public const ACTION_CREATE_HALL = 'create_hall';
+
+    public const ACTION_RESOLVE_CONFLICT = 'resolve_conflict';
+
+    public const ACTION_KEEP_UNRESOLVED = 'keep_unresolved';
+
     public const ACTION_IGNORE = 'ignore';
 
     public const ACTION_ACKNOWLEDGE = 'acknowledge';
@@ -48,6 +66,15 @@ class ScheduleImportIssueAction extends Model
         static::creating(function (self $action): void {
             if (! in_array($action->action, [
                 self::ACTION_LINK,
+                self::ACTION_LINK_SUBJECT,
+                self::ACTION_LINK_SECTION,
+                self::ACTION_ASSIGN_WEEKLY_TIME,
+                self::ACTION_ASSIGN_LECTURER,
+                self::ACTION_CREATE_LECTURER,
+                self::ACTION_ASSIGN_HALL,
+                self::ACTION_CREATE_HALL,
+                self::ACTION_RESOLVE_CONFLICT,
+                self::ACTION_KEEP_UNRESOLVED,
                 self::ACTION_IGNORE,
                 self::ACTION_ACKNOWLEDGE,
                 self::ACTION_INTENTIONALLY_UNSCHEDULE,

@@ -1,5 +1,6 @@
 <x-filament-panels::page>
     @php($counts = $this->tabCounts())
+    @php($summary = $this->remediationSummary())
 
     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         @foreach ($this->tabLabels() as $key => $label)
@@ -17,6 +18,18 @@
             </button>
         @endforeach
     </div>
+
+    <section aria-label="{{ __('schedule-import-reconciliation.summary_title') }}">
+        <h2 class="mb-3 text-base font-semibold text-gray-950 dark:text-white">{{ __('schedule-import-reconciliation.summary_title') }}</h2>
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            @foreach (__('schedule-import-reconciliation.summary') as $key => $label)
+                <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ $label }}</div>
+                    <div class="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{{ $summary[$key] ?? 0 }}</div>
+                </div>
+            @endforeach
+        </div>
+    </section>
 
     <div class="rounded-lg border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
         <span class="font-semibold">{{ __('schedule-import-reconciliation.batch') }}:</span>

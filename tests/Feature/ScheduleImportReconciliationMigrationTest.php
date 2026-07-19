@@ -1,8 +1,10 @@
 <?php
 
+use App\Models\Hall;
 use App\Models\ScheduleImportIssue;
 use App\Models\ScheduleImportIssueAction;
 use App\Models\ScheduleImportRow;
+use App\Models\ScheduleImportRowTimeOverride;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Schema;
 
@@ -31,6 +33,35 @@ it('uses row-derived batch provenance and sheet-aware row uniqueness', function 
         expect(ScheduleImportRow::query()->count())->toBe(2)
             ->and(Schema::hasColumn('schedule_import_issues', 'import_batch_id'))->toBeFalse()
             ->and(Schema::hasColumn('schedule_import_issue_actions', 'import_batch_id'))->toBeFalse();
+    } finally {
+        @unlink($path);
+    }
+});
+
+it('provides canonical row fields, unique multi-time overrides, and nullable hall floors', function (): void {
+    $path = reconciliationWorkbook([]);
+
+    try {
+        [$term, , $batch] = reconciliationSource($path);
+        $row = ScheduleImportRow::query()->create([
+            'import_batch_id' => $batch->id, 'academic_term_id' => $term->id, 'source_sheet_name' => 'Schedule',
+            'source_row_number' => 2, 'row_fingerprint' => hash('sha256', 'schema-row'), 'source_payload' => [], 'normalized_payload' => [],
+            'original_import_status' => ScheduleImportRow::ORIGINAL_REJECTED, 'current_reconciliation_status' => ScheduleImportRow::STATUS_UNRESOLVED,
+        ]);
+        $attributes = ['schedule_import_row_id' => $row->id, 'weekday' => 6, 'start_time' => '08:30:00', 'end_time' => '10:30:00'];
+        ScheduleImportRowTimeOverride::query()->create($attributes);
+
+        expect(Schema::hasColumns('schedule_import_rows', [
+            'resolved_subject_id', 'resolved_subject_section_id', 'resolved_lecturer_id', 'resolved_hall_id',
+            'resolved_section_capacity', 'resolved_expected_student_count', 'resolution_payload', 'resolution_updated_by', 'resolution_updated_at',
+        ]))->toBeTrue()
+            ->and(fn () => ScheduleImportRowTimeOverride::query()->create($attributes))->toThrow(QueryException::class);
+
+        $hall = Hall::query()->create(['code' => 'NULL-FLOOR', 'name' => 'قاعة بلا دور', 'floor' => null, 'is_active' => true]);
+        expect($hall->fresh()->floor)->toBeNull()
+            ->and(__('hall.not_specified'))->toBe('غير محدد')
+            ->and(file_get_contents(app_path('Filament/Resources/Halls/Tables/HallsTable.php')))->toContain("->placeholder(__('hall.not_specified'))")
+            ->and(file_get_contents(app_path('Filament/Resources/Halls/Schemas/HallInfolist.php')))->toContain("->placeholder(__('hall.not_specified'))");
     } finally {
         @unlink($path);
     }

@@ -9,7 +9,7 @@ return [
         'The schedule is associated automatically with a completed enrollment batch; no academic term is selected manually.',
         'Only existing subjects and term-specific sections are matched. This import does not create subjects or sections.',
         'Imported times are recurring weekly slots and do not create dated lecture sessions.',
-        'New halls use floor 0 to represent an unknown floor because the current hall schema requires a value.',
+        'New halls leave the floor unspecified when it is absent from the file.',
     ],
     'upload_loading' => 'Uploading file...',
     'upload_success' => 'File uploaded successfully',

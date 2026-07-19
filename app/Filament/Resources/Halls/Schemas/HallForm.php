@@ -22,8 +22,8 @@ class HallForm
 
                 TextInput::make('floor')
                     ->label(__('hall.floor'))
-                    ->required()
-                    ->numeric(),
+                    ->numeric()
+                    ->placeholder(__('hall.not_specified')),
 
                 Toggle::make('is_active')
                     ->label(__('hall.is_active'))

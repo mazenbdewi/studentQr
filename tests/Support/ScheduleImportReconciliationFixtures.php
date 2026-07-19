@@ -23,11 +23,12 @@ function reconciliationWorkbook(array $rows, string $sheetName = 'Schedule'): st
     return $path;
 }
 
-function reconciliationSource(string $path, string $status = ImportBatch::STATUS_COMPLETED_WITH_ERRORS, string $type = ImportBatch::TYPE_WEEKLY_SCHEDULE): array
+function reconciliationSource(string $path, string $status = ImportBatch::STATUS_COMPLETED_WITH_ERRORS, string $type = ImportBatch::TYPE_WEEKLY_SCHEDULE, string $suffix = ''): array
 {
+    $termName = 'الفصل الصيفي 2025/2026'.($suffix !== '' ? " {$suffix}" : '');
     $term = AcademicTerm::query()->create([
-        'display_name' => 'الفصل الصيفي 2025/2026',
-        'canonical_name' => 'الفصل الصيفي 2025/2026',
+        'display_name' => $termName,
+        'canonical_name' => $termName,
     ]);
     $source = ImportBatch::query()->create([
         'deduplication_key' => hash('sha256', 'reconciliation-source-'.uniqid()),
@@ -51,7 +52,7 @@ function reconciliationSource(string $path, string $status = ImportBatch::STATUS
     ]);
     $batch->academicTerms()->attach($term->id, ['row_count' => 1]);
     $subject = Subject::query()->create([
-        'code' => 'SCH101',
+        'code' => 'SCH101'.$suffix,
         'name' => 'مقرر الجدولة',
         'subject_type' => Subject::TYPE_THEORETICAL,
         'is_active' => true,

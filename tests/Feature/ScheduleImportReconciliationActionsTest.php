@@ -29,7 +29,7 @@ it('enforces permission and term-safe mapping while appending audit history', fu
             'reason_ar' => 'الشعبة مفقودة', 'resolution_status' => ScheduleImportIssue::STATUS_UNRESOLVED,
         ]);
         $adminRole = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
-        $permission = Permission::firstOrCreate(['name' => 'resolve schedule-import issues', 'guard_name' => 'web']);
+        $permission = Permission::firstOrCreate(['name' => 'resolve schedule-import section mapping', 'guard_name' => 'web']);
         $adminRole->givePermissionTo($permission);
         $admin = User::factory()->create(['role' => 'attendance_monitor', 'type' => 'admin']);
         $admin->assignRole($adminRole);
@@ -44,10 +44,14 @@ it('enforces permission and term-safe mapping while appending audit history', fu
         app(ScheduleImportReconciliationService::class)->link($issue, $subject->id, $section->id, $admin, 'ربط مؤكد');
         $action = ScheduleImportIssueAction::query()->sole();
         expect($issue->fresh()->resolution_status)->toBe(ScheduleImportIssue::STATUS_RESOLVED)
+            ->and($row->fresh()->resolved_subject_id)->toBe($subject->id)
+            ->and($row->fresh()->resolved_subject_section_id)->toBe($section->id)
+            ->and($issue->fresh()->resolved_subject_id)->toBeNull()
+            ->and($issue->fresh()->resolved_subject_section_id)->toBeNull()
             ->and($row->fresh()->current_reconciliation_status)->toBe(ScheduleImportRow::STATUS_UNRESOLVED)
             ->and($action->actor_user_id)->toBe($admin->id)
             ->and($action->new_state['actor']['name'])->toBe($admin->name)
-            ->and($action->new_state['subject']['code'])->toBe('SCH101')
+            ->and($action->new_state['resolution']['subject']['code'])->toBe('SCH101')
             ->and($action->note)->toBe('ربط مؤكد');
     } finally {
         @unlink($path);
