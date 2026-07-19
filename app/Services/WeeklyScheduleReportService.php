@@ -118,6 +118,7 @@ class WeeklyScheduleReportService
         $excluded = fn (ScheduleImportRow $row): bool => in_array($row->current_reconciliation_status, [
             ScheduleImportRow::STATUS_IGNORED,
             ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED,
+            ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE,
         ], true);
 
         return [
@@ -142,6 +143,7 @@ class WeeklyScheduleReportService
             'no_weekly_time' => $this->countRowsWithIssueTypes($rows, [ScheduleImportIssue::TYPE_NO_WEEKLY_TIME]),
             'unscheduled' => $rows->filter(fn (ScheduleImportRow $row): bool => $row->original_import_status === ScheduleImportRow::ORIGINAL_UNSCHEDULED
                 || $row->current_reconciliation_status === ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED
+                || $row->current_reconciliation_status === ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE
                 || $row->issues->contains('issue_type', ScheduleImportIssue::TYPE_NO_WEEKLY_TIME))->count(),
         ];
     }

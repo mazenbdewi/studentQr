@@ -264,6 +264,7 @@ class WeeklySchedule extends Page implements HasTable
             ->whereNotIn('current_reconciliation_status', [
                 ScheduleImportRow::STATUS_IGNORED,
                 ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED,
+                ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE,
             ])
             ->whereHas('issues', fn (Builder $issues): Builder => $issues->whereIn('resolution_status', [
                 ScheduleImportIssue::STATUS_UNRESOLVED,

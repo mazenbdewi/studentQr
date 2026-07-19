@@ -10,7 +10,7 @@ use Spatie\Permission\Models\Permission;
 
 require_once __DIR__.'/../Support/ScheduleImportReconciliationFixtures.php';
 
-it('shows four mutually exclusive counted tabs and excludes intentionally unscheduled rows from success', function (): void {
+it('shows four mutually exclusive counted tabs and excludes batch-schedule exclusions from success', function (): void {
     $path = reconciliationWorkbook([]);
 
     try {
@@ -18,7 +18,7 @@ it('shows four mutually exclusive counted tabs and excludes intentionally unsche
         $statuses = [
             [ScheduleImportRow::STATUS_UNRESOLVED, ScheduleImportIssue::SEVERITY_ERROR, ScheduleImportIssue::STATUS_UNRESOLVED],
             [ScheduleImportRow::STATUS_UNRESOLVED, ScheduleImportIssue::SEVERITY_WARNING, ScheduleImportIssue::STATUS_UNRESOLVED],
-            [ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED, ScheduleImportIssue::SEVERITY_WARNING, ScheduleImportIssue::STATUS_INTENTIONALLY_UNSCHEDULED],
+            [ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE, ScheduleImportIssue::SEVERITY_WARNING, ScheduleImportIssue::STATUS_RESOLVED],
             [ScheduleImportRow::STATUS_RESOLVED, null, null],
         ];
 
@@ -28,6 +28,8 @@ it('shows four mutually exclusive counted tabs and excludes intentionally unsche
                 'source_row_number' => $index + 2, 'row_fingerprint' => hash('sha256', "page-row-{$index}"), 'source_payload' => [], 'normalized_payload' => [],
                 'original_import_status' => $index === 3 ? ScheduleImportRow::ORIGINAL_IMPORTED : ScheduleImportRow::ORIGINAL_REJECTED,
                 'current_reconciliation_status' => $rowStatus,
+                'excluded_from_weekly_schedule_at' => $index === 2 ? now() : null,
+                'exclusion_note' => $index === 2 ? 'مشروع بلا موعد أسبوعي ثابت' : null,
             ]);
 
             if ($severity) {
@@ -51,7 +53,7 @@ it('shows four mutually exclusive counted tabs and excludes intentionally unsche
             'excluded' => 1,
             'successful' => 1,
         ]);
-        $component->assertSee('يحتاج معالجة')->assertSee('بلا موعد أو مستبعد')->assertSee('مستورد بنجاح');
+        $component->assertSee('يحتاج معالجة')->assertSee('مستبعد من برنامج الدوام')->assertSee('مستورد بنجاح');
     } finally {
         @unlink($path);
     }

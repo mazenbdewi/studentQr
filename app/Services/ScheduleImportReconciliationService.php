@@ -17,6 +17,7 @@ use App\Support\WeeklyScheduleRowNormalizer;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class ScheduleImportReconciliationService
@@ -202,6 +203,7 @@ class ScheduleImportReconciliationService
 
         return DB::transaction(function () use ($row, $entries, $actor, $note): array {
             $locked = $this->lockRow($row);
+            $this->assertNotExcludedFromWeeklySchedule($locked);
             $this->ensureOptionalIdentityIssues($locked);
             [$subject, $section] = $this->canonicalCatalog($locked);
 
@@ -317,15 +319,131 @@ class ScheduleImportReconciliationService
         return $this->changeIssueStatus($issue, $actor, ScheduleImportIssue::STATUS_RESOLVED, ScheduleImportIssueAction::ACTION_ACKNOWLEDGE, $note);
     }
 
-    public function intentionallyUnscheduled(ScheduleImportIssue $issue, User $actor, ?string $note = null): ScheduleImportIssue
+    /** @return array<string, mixed> */
+    public function excludeFromBatchSchedule(ScheduleImportIssue $issue, User $actor, string $note): array
     {
-        Gate::forUser($actor)->authorize('assignWeeklyTime', $issue);
+        Gate::forUser($actor)->authorize('excludeFromBatchSchedule', $issue);
 
         if ($issue->issue_type !== ScheduleImportIssue::TYPE_NO_WEEKLY_TIME) {
             throw new RuntimeException(__('schedule-import-reconciliation.validation.no_time_only'));
         }
 
-        return $this->changeIssueStatus($issue, $actor, ScheduleImportIssue::STATUS_INTENTIONALLY_UNSCHEDULED, ScheduleImportIssueAction::ACTION_INTENTIONALLY_UNSCHEDULE, $note);
+        $note = trim($note);
+
+        if (Str::length($note) < 5 || Str::length($note) > 500) {
+            throw new RuntimeException(__('schedule-import-reconciliation.validation.exclusion_note_length'));
+        }
+
+        return DB::transaction(function () use ($issue, $actor, $note): array {
+            $lockedRow = $this->lockRow($issue->importRow()->firstOrFail());
+            $lockedIssue = $lockedRow->issues->firstWhere('id', $issue->id);
+
+            if (! $lockedIssue) {
+                throw new RuntimeException(__('schedule-import-reconciliation.validation.issue_not_found'));
+            }
+
+            if ($lockedRow->isExcludedFromWeeklySchedule()) {
+                return [
+                    'status' => 'already_applied',
+                    'source_row_number' => $lockedRow->source_row_number,
+                    'exclusion_note' => $lockedRow->exclusion_note,
+                    'created_slot_ids' => [],
+                ];
+            }
+
+            if ($lockedRow->timeOverrides->isNotEmpty() || $lockedRow->relatedScheduleSlotIds() !== []) {
+                throw new RuntimeException(__('schedule-import-reconciliation.validation.schedule_decision_review_required'));
+            }
+
+            if ($this->workflow->hasUnresolvedIssue($lockedRow, [...ScheduleImportIssueWorkflow::SUBJECT_ISSUES, ...ScheduleImportIssueWorkflow::SECTION_ISSUES])) {
+                throw new RuntimeException(__('schedule-import-reconciliation.validation.resolve_catalog_issues_first'));
+            }
+
+            if (! in_array($lockedIssue->resolution_status, [
+                ScheduleImportIssue::STATUS_UNRESOLVED,
+                ScheduleImportIssue::STATUS_RETRY_FAILED,
+            ], true)) {
+                throw new RuntimeException(__('schedule-import-reconciliation.validation.issue_not_found'));
+            }
+
+            $before = $this->rowSnapshot($lockedRow, $actor);
+            $excludedAt = now();
+            $subject = $this->resolutionContext->effectiveSubject($lockedRow);
+            $section = $this->resolutionContext->effectiveSubjectSection($lockedRow);
+
+            if (! $subject || ! $section) {
+                throw new RuntimeException(__('schedule-import-reconciliation.validation.subject_section_required'));
+            }
+
+            $lockedRow->update($this->resolutionUpdate($actor, [
+                'excluded_from_weekly_schedule_at' => $excludedAt,
+                'excluded_from_weekly_schedule_by' => $actor->id,
+                'exclusion_note' => $note,
+            ]));
+            $lockedIssue->update($this->issueUpdate(
+                ScheduleImportIssue::STATUS_RESOLVED,
+                ScheduleImportIssueAction::ACTION_EXCLUDE_FROM_BATCH_SCHEDULE,
+                $actor,
+                $note,
+            ));
+            $notApplicableIssues = $lockedRow->issues
+                ->whereIn('issue_type', [
+                    ScheduleImportIssue::TYPE_LECTURER_MISSING,
+                    ScheduleImportIssue::TYPE_HALL_MISSING,
+                ])
+                ->filter(fn (ScheduleImportIssue $rowIssue): bool => in_array($rowIssue->resolution_status, [
+                    ScheduleImportIssue::STATUS_UNRESOLVED,
+                    ScheduleImportIssue::STATUS_RETRY_FAILED,
+                ], true));
+            $notApplicableReason = __('schedule-import-reconciliation.exclusion.not_applicable_reason');
+
+            foreach ($notApplicableIssues as $notApplicableIssue) {
+                $notApplicableIssue->update($this->issueUpdate(
+                    ScheduleImportIssue::STATUS_RESOLVED,
+                    ScheduleImportIssue::RESOLUTION_ACTION_NOT_APPLICABLE_DUE_TO_BATCH_EXCLUSION,
+                    $actor,
+                    $notApplicableReason,
+                ));
+            }
+
+            $remainingWarnings = $lockedRow->issues
+                ->filter(fn (ScheduleImportIssue $rowIssue): bool => $rowIssue->severity === ScheduleImportIssue::SEVERITY_WARNING
+                    && in_array($rowIssue->resolution_status, [ScheduleImportIssue::STATUS_UNRESOLVED, ScheduleImportIssue::STATUS_RETRY_FAILED], true))
+                ->pluck('issue_type')
+                ->values()
+                ->all();
+            $result = [
+                'status' => 'applied',
+                'batch' => ['id' => $lockedRow->import_batch_id, 'uuid' => $lockedRow->importBatch()->value('uuid')],
+                'source_row_number' => $lockedRow->source_row_number,
+                'subject' => ['id' => $subject->id, 'code' => $subject->code, 'name' => $subject->name],
+                'section' => ['id' => $section->id, 'code' => $section->code],
+                'previous_issue_status' => collect($before['issues'])->firstWhere('id', $lockedIssue->id)['status'] ?? ScheduleImportIssue::STATUS_UNRESOLVED,
+                'new_issue_status' => ScheduleImportIssue::STATUS_RESOLVED,
+                'actor' => ['id' => $actor->id, 'name' => $actor->name],
+                'exclusion_note' => $note,
+                'excluded_at' => $excludedAt->toISOString(),
+                'no_slot_created' => true,
+                'created_slot_ids' => [],
+                'not_applicable_issue_outcomes' => $notApplicableIssues->map(fn (ScheduleImportIssue $rowIssue): array => [
+                    'issue_type' => $rowIssue->issue_type,
+                    'outcome' => ScheduleImportIssue::RESOLUTION_ACTION_NOT_APPLICABLE_DUE_TO_BATCH_EXCLUSION,
+                    'reason' => $notApplicableReason,
+                ])->values()->all(),
+                'remaining_unresolved_warnings' => $remainingWarnings,
+            ];
+            $this->finishAction(
+                $lockedRow,
+                collect([$lockedIssue, ...$notApplicableIssues]),
+                ScheduleImportIssueAction::ACTION_EXCLUDE_FROM_BATCH_SCHEDULE,
+                $actor,
+                $before,
+                $result,
+                $note,
+            );
+
+            return $result;
+        });
     }
 
     public function resolveConflict(ScheduleImportRow $row, string $decision, User $actor, ?string $note = null): array
@@ -362,6 +480,7 @@ class ScheduleImportReconciliationService
 
         return DB::transaction(function () use ($row, $actor, $note): array {
             $locked = $this->lockRow($row);
+            $this->assertNotExcludedFromWeeklySchedule($locked);
             $this->ensureOptionalIdentityIssues($locked);
             [$subject, $section] = $this->canonicalCatalog($locked);
 
@@ -792,7 +911,9 @@ class ScheduleImportReconciliationService
 
     private function rowSnapshot(ScheduleImportRow $row, User $actor): array
     {
-        $row->load(['issues', 'resolvedSubject', 'resolvedSubjectSection', 'resolvedLecturer', 'resolvedHall', 'timeOverrides', 'academicTerm']);
+        $row->load(['issues', 'resolvedSubject', 'resolvedSubjectSection', 'resolvedLecturer', 'resolvedHall', 'timeOverrides', 'academicTerm', 'excludedFromWeeklyScheduleBy']);
+        $subject = $this->resolutionContext->effectiveSubject($row);
+        $section = $this->resolutionContext->effectiveSubjectSection($row);
         $lecturerResolution = $this->resolutionContext->effectiveLecturerResolution($row);
         $hallResolution = $this->resolutionContext->effectiveHallResolution($row);
         $lecturer = $this->resolutionContext->effectiveLecturer($row);
@@ -800,11 +921,13 @@ class ScheduleImportReconciliationService
 
         return [
             'row_id' => $row->id,
+            'import_batch_id' => $row->import_batch_id,
+            'source_row_number' => $row->source_row_number,
             'actor' => ['id' => $actor->id, 'name' => $actor->name],
             'academic_term' => ['id' => $row->academic_term_id, 'name' => $row->academicTerm?->display_name],
             'resolution' => [
-                'subject' => $row->resolvedSubject ? ['id' => $row->resolvedSubject->id, 'code' => $row->resolvedSubject->code, 'name' => $row->resolvedSubject->name] : null,
-                'section' => $row->resolvedSubjectSection ? ['id' => $row->resolvedSubjectSection->id, 'code' => $row->resolvedSubjectSection->code] : null,
+                'subject' => $subject ? ['id' => $subject->id, 'code' => $subject->code, 'name' => $subject->name] : null,
+                'section' => $section ? ['id' => $section->id, 'code' => $section->code] : null,
                 'lecturer' => $lecturer ? ['id' => $lecturer->id, 'name' => $lecturer->name, 'source' => $lecturerResolution['source']] : null,
                 'hall' => $hall ? ['id' => $hall->id, 'code' => $hall->code, 'name' => $hall->name, 'source' => $hallResolution['source']] : null,
                 'lecturer_context' => $lecturerResolution,
@@ -813,6 +936,12 @@ class ScheduleImportReconciliationService
                 'expected_student_count' => $row->resolved_expected_student_count,
                 'payload' => $row->resolution_payload,
             ],
+            'batch_schedule_exclusion' => $row->isExcludedFromWeeklySchedule() ? [
+                'excluded_at' => $row->excluded_from_weekly_schedule_at?->toISOString(),
+                'excluded_by' => $row->excludedFromWeeklyScheduleBy ? ['id' => $row->excludedFromWeeklyScheduleBy->id, 'name' => $row->excludedFromWeeklyScheduleBy->name] : null,
+                'note' => $row->exclusion_note,
+                'no_slot_created' => $row->relatedScheduleSlotIds() === [],
+            ] : null,
             'time_overrides' => $row->timeOverrides->map(fn (ScheduleImportRowTimeOverride $override): array => [
                 'id' => $override->id,
                 'weekday' => $override->weekday,
@@ -860,6 +989,7 @@ class ScheduleImportReconciliationService
         $hasSlotEvidence = $row->relatedScheduleSlotIds() !== [];
         $status = match (true) {
             $hasOpenError || $hasOpenWarning => ScheduleImportRow::STATUS_UNRESOLVED,
+            $row->isExcludedFromWeeklySchedule() => ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE,
             $issues->contains('resolution_status', ScheduleImportIssue::STATUS_INTENTIONALLY_UNSCHEDULED) => ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED,
             $issues->isNotEmpty() && $issues->every(fn (ScheduleImportIssue $issue): bool => $issue->resolution_status === ScheduleImportIssue::STATUS_IGNORED) => ScheduleImportRow::STATUS_IGNORED,
             $hasSlotEvidence => ScheduleImportRow::STATUS_RESOLVED,
@@ -938,6 +1068,13 @@ class ScheduleImportReconciliationService
             'resolved_by' => $actor->id,
             'resolved_at' => now(),
         ];
+    }
+
+    private function assertNotExcludedFromWeeklySchedule(ScheduleImportRow $row): void
+    {
+        if ($row->isExcludedFromWeeklySchedule()) {
+            throw new RuntimeException(__('schedule-import-reconciliation.validation.exclusion_review_required'));
+        }
     }
 
     private function assertValidIdentity(string $value): void

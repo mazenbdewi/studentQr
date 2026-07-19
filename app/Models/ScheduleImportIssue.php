@@ -22,6 +22,8 @@ class ScheduleImportIssue extends Model
 
     public const STATUS_RETRY_FAILED = 'retry_failed';
 
+    public const RESOLUTION_ACTION_NOT_APPLICABLE_DUE_TO_BATCH_EXCLUSION = 'not_applicable_due_to_batch_exclusion';
+
     public const TYPE_SUBJECT_NOT_FOUND = 'subject_not_found';
 
     public const TYPE_SUBJECT_NOT_UNIQUE = 'subject_not_unique';

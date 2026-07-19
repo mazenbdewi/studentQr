@@ -36,6 +36,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Facades\Schema;
 
 class ScheduleImportReconciliationReport extends Page implements HasTable
 {
@@ -124,7 +125,10 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
                     ->label(__('schedule-import-reconciliation.fields.reason'))
                     ->state(fn (ScheduleImportRow $record): string => $record->issues->whereIn('resolution_status', [ScheduleImportIssue::STATUS_UNRESOLVED, ScheduleImportIssue::STATUS_RETRY_FAILED])->pluck('reason_ar')->unique()->implode(' | '))
                     ->wrap(),
-                TextColumn::make('current_reconciliation_status')->label(__('schedule-import-reconciliation.fields.status'))->badge(),
+                TextColumn::make('current_reconciliation_status')
+                    ->label(__('schedule-import-reconciliation.fields.status'))
+                    ->formatStateUsing(fn (string $state): string => __('schedule-import-reconciliation.statuses.'.$state))
+                    ->badge(),
                 TextColumn::make('issues.suggested_matches')
                     ->label(__('schedule-import-reconciliation.fields.suggestions'))
                     ->state(fn (ScheduleImportRow $record): string => $record->issues->flatMap(fn (ScheduleImportIssue $issue): array => $issue->suggested_matches ?? [])->map(fn (array $candidate): string => ($candidate['subject']['code'] ?? '').' — '.($candidate['subject']['name'] ?? '').' — '.collect([$candidate['subject']['faculty'] ?? null, $candidate['subject']['department'] ?? null])->filter()->implode(' / '))->filter()->unique()->implode(' | '))
@@ -136,7 +140,7 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
                 $this->lecturerAction(),
                 $this->hallAction(),
                 $this->weeklyTimeAction(),
-                $this->unscheduledAction(),
+                $this->exclusionAction(),
                 $this->ignoreAction(),
                 $this->conflictAction(),
                 $this->retryAction(),
@@ -357,16 +361,27 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
             });
     }
 
-    private function unscheduledAction(): Action
+    private function exclusionAction(): Action
     {
-        return Action::make('unscheduled')
-            ->label(__('schedule-import-reconciliation.actions.unscheduled'))
-            ->visible(fn (ScheduleImportRow $record): bool => $this->canIssue($record, 'assignWeeklyTime', [ScheduleImportIssue::TYPE_NO_WEEKLY_TIME]))
+        return Action::make('exclude-from-batch-schedule')
+            ->label(__('schedule-import-reconciliation.actions.exclude_from_batch_schedule'))
+            ->visible(fn (ScheduleImportRow $record): bool => $this->canIssue($record, 'excludeFromBatchSchedule', [ScheduleImportIssue::TYPE_NO_WEEKLY_TIME]))
+            ->disabled(fn (ScheduleImportRow $record): bool => $this->dependency($record, 'exclude') !== null)
+            ->tooltip(fn (ScheduleImportRow $record): ?string => $this->dependency($record, 'exclude'))
             ->requiresConfirmation()
-            ->form([Textarea::make('note')->label(__('schedule-import-reconciliation.fields.note'))->required()])
+            ->modalHeading(__('schedule-import-reconciliation.exclusion.title'))
+            ->modalDescription(__('schedule-import-reconciliation.exclusion.explanation'))
+            ->form([
+                Textarea::make('exclusion_note')
+                    ->label(__('schedule-import-reconciliation.fields.exclusion_reason'))
+                    ->helperText(__('schedule-import-reconciliation.exclusion.examples'))
+                    ->required()
+                    ->minLength(5)
+                    ->maxLength(500),
+            ])
             ->action(function (ScheduleImportRow $record, array $data): void {
                 $issue = app(ScheduleImportIssueWorkflow::class)->unresolvedIssues($record, [ScheduleImportIssue::TYPE_NO_WEEKLY_TIME])->firstOrFail();
-                app(ScheduleImportReconciliationService::class)->intentionallyUnscheduled($issue, Filament::auth()->user(), $data['note']);
+                app(ScheduleImportReconciliationService::class)->excludeFromBatchSchedule($issue, Filament::auth()->user(), (string) $data['exclusion_note']);
                 $this->successNotification();
             });
     }
@@ -426,7 +441,14 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
             ->label(__('schedule-import-reconciliation.actions.details'))
             ->icon(Heroicon::Eye)
             ->modalContent(fn (ScheduleImportRow $record) => view('filament.components.schedule-import-row-details', [
-                'row' => $record->load(['resolvedSubject', 'resolvedSubjectSection', 'resolvedLecturer', 'resolvedHall', 'timeOverrides']),
+                'row' => $record->load([
+                    'resolvedSubject',
+                    'resolvedSubjectSection',
+                    'resolvedLecturer',
+                    'resolvedHall',
+                    'timeOverrides',
+                    ...(Schema::hasColumn('schedule_import_rows', 'excluded_from_weekly_schedule_by') ? ['excludedFromWeeklyScheduleBy'] : []),
+                ]),
                 'relatedSlots' => $this->relatedSlots($record),
             ]))
             ->modalSubmitAction(false);
@@ -437,7 +459,20 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
         return Action::make('history')
             ->label(__('schedule-import-reconciliation.actions.history'))
             ->icon(Heroicon::Clock)
-            ->modalContent(fn (ScheduleImportRow $record) => view('filament.components.schedule-import-action-history', ['actions' => $record->issues()->with('actions.actor')->get()->flatMap->actions->sortByDesc('performed_at')]))
+            ->modalContent(function (ScheduleImportRow $record) {
+                $issues = $record->issues()->with('actions.actor')->get();
+                $actions = $issues
+                    ->flatMap(function (ScheduleImportIssue $issue) {
+                        return $issue->actions->map(function ($action) use ($issue) {
+                            $action->setRelation('issue', $issue);
+
+                            return $action;
+                        });
+                    })
+                    ->sortByDesc('performed_at');
+
+                return view('filament.components.schedule-import-action-history', ['actions' => $actions]);
+            })
             ->modalSubmitAction(false);
     }
 
@@ -449,7 +484,7 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
 
         return match ($tab) {
             'needs_attention' => $query
-                ->whereNotIn('current_reconciliation_status', [ScheduleImportRow::STATUS_IGNORED, ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED])
+                ->whereNotIn('current_reconciliation_status', [ScheduleImportRow::STATUS_IGNORED, ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED, ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE])
                 ->where(function (Builder $needsAttention) use ($blocking, $warnings): void {
                     $needsAttention
                         ->whereHas('issues', $blocking)
@@ -459,8 +494,8 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
                                 ->whereDoesntHave('issues', $warnings);
                         });
                 }),
-            'warnings' => $query->whereNotIn('current_reconciliation_status', [ScheduleImportRow::STATUS_IGNORED, ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED])->whereDoesntHave('issues', $blocking)->whereHas('issues', $warnings),
-            'excluded' => $query->whereIn('current_reconciliation_status', [ScheduleImportRow::STATUS_IGNORED, ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED]),
+            'warnings' => $query->whereNotIn('current_reconciliation_status', [ScheduleImportRow::STATUS_IGNORED, ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED, ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE])->whereDoesntHave('issues', $blocking)->whereHas('issues', $warnings),
+            'excluded' => $query->whereIn('current_reconciliation_status', [ScheduleImportRow::STATUS_IGNORED, ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED, ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE]),
             'successful' => $query
                 ->where('current_reconciliation_status', ScheduleImportRow::STATUS_RESOLVED)
                 ->whereDoesntHave('issues', fn (Builder $issueQuery): Builder => $issueQuery->whereIn('resolution_status', [ScheduleImportIssue::STATUS_UNRESOLVED, ScheduleImportIssue::STATUS_RETRY_FAILED]))

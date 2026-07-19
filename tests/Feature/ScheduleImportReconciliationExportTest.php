@@ -27,10 +27,10 @@ it('exports issue classification, resolution, mapping, actor, and retry fields',
         $export = new ScheduleImportReconciliationExport($batch);
         $exported = $export->collection()->sole();
 
-        expect($export->headings())->toContain('Issue category', 'Severity', 'Resolution status', 'Selected subject', 'Selected section', 'Resolution note', 'Retry result')
-            ->and($exported[12])->toBe(ScheduleImportIssue::TYPE_SUBJECT_NOT_FOUND)
-            ->and($exported[17])->toBe('SCH101')
-            ->and($exported[18])->toBe('T1');
+        expect($export->headings())->toContain('Batch schedule outcome', 'Exclusion reason', 'Excluded by', 'Excluded at', 'Issue category', 'Severity', 'Resolution status', 'Selected subject', 'Selected section', 'Resolution note', 'Retry result')
+            ->and($exported[16])->toBe(ScheduleImportIssue::TYPE_SUBJECT_NOT_FOUND)
+            ->and($exported[21])->toBe('SCH101')
+            ->and($exported[22])->toBe('T1');
     } finally {
         @unlink($path);
     }

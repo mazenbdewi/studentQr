@@ -26,6 +26,8 @@ class ScheduleImportRow extends Model
 
     public const STATUS_INTENTIONALLY_UNSCHEDULED = 'intentionally_unscheduled';
 
+    public const STATUS_EXCLUDED_FROM_BATCH_SCHEDULE = 'excluded_from_batch_schedule';
+
     public const STATUS_RETRY_FAILED = 'retry_failed';
 
     protected $fillable = [
@@ -48,6 +50,9 @@ class ScheduleImportRow extends Model
         'resolution_payload',
         'resolution_updated_by',
         'resolution_updated_at',
+        'excluded_from_weekly_schedule_at',
+        'excluded_from_weekly_schedule_by',
+        'exclusion_note',
     ];
 
     protected $casts = [
@@ -59,6 +64,7 @@ class ScheduleImportRow extends Model
         'resolved_expected_student_count' => 'integer',
         'resolution_payload' => 'array',
         'resolution_updated_at' => 'datetime',
+        'excluded_from_weekly_schedule_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -92,6 +98,7 @@ class ScheduleImportRow extends Model
             self::STATUS_RESOLVED,
             self::STATUS_IGNORED,
             self::STATUS_INTENTIONALLY_UNSCHEDULED,
+            self::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE,
             self::STATUS_RETRY_FAILED,
         ];
     }
@@ -142,6 +149,17 @@ class ScheduleImportRow extends Model
     public function resolutionUpdater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'resolution_updated_by')->withTrashed();
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function excludedFromWeeklyScheduleBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'excluded_from_weekly_schedule_by')->withTrashed();
+    }
+
+    public function isExcludedFromWeeklySchedule(): bool
+    {
+        return ($this->getAttributes()['excluded_from_weekly_schedule_at'] ?? null) !== null;
     }
 
     /** @return HasMany<ScheduleImportRowTimeOverride, $this> */

@@ -35,6 +35,8 @@ class ScheduleImportIssueAction extends Model
 
     public const ACTION_INTENTIONALLY_UNSCHEDULE = 'intentionally_unschedule';
 
+    public const ACTION_EXCLUDE_FROM_BATCH_SCHEDULE = 'exclude_from_batch_schedule';
+
     public const ACTION_RETRY = 'retry';
 
     protected $fillable = [
@@ -78,6 +80,7 @@ class ScheduleImportIssueAction extends Model
                 self::ACTION_IGNORE,
                 self::ACTION_ACKNOWLEDGE,
                 self::ACTION_INTENTIONALLY_UNSCHEDULE,
+                self::ACTION_EXCLUDE_FROM_BATCH_SCHEDULE,
                 self::ACTION_RETRY,
             ], true)) {
                 throw new \InvalidArgumentException('Unsupported schedule reconciliation action.');

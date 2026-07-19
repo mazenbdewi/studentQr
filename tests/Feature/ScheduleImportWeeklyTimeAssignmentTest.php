@@ -194,7 +194,7 @@ it('creates a slot without optional identities and keeps their warnings open', f
     }
 });
 
-it('keeps weekly time lecturer hall and unscheduled actions parallel after catalog resolution', function (): void {
+it('keeps weekly time lecturer hall and batch exclusion actions parallel after catalog resolution', function (): void {
     [$path, , $batch, , , $row] = weeklyTimeRow(withCanonicalResolution: false);
 
     try {
@@ -205,7 +205,7 @@ it('keeps weekly time lecturer hall and unscheduled actions parallel after catal
         $component = Livewire::actingAs($super)->test(ScheduleImportReconciliationReport::class, ['batch' => $batch->uuid]);
         $component->call('selectTab', 'warnings');
 
-        foreach (['assign-weekly-time', 'assign-lecturer', 'assign-hall', 'unscheduled'] as $actionName) {
+        foreach (['assign-weekly-time', 'assign-lecturer', 'assign-hall', 'exclude-from-batch-schedule'] as $actionName) {
             $instance = $component->instance();
             $instance->mountTableAction($actionName, (string) $row->id);
             $action = $instance->getMountedTableAction();

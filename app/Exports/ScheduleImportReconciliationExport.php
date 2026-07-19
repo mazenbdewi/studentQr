@@ -6,6 +6,7 @@ use App\Models\ImportBatch;
 use App\Models\ScheduleImportIssue;
 use App\Models\ScheduleImportRow;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 
@@ -17,7 +18,13 @@ class ScheduleImportReconciliationExport implements FromCollection, WithHeadings
     {
         return ScheduleImportRow::query()
             ->where('import_batch_id', $this->batch->id)
-            ->with(['academicTerm', 'issues.resolvedSubject', 'issues.resolvedSubjectSection', 'issues.resolver'])
+            ->with([
+                'academicTerm',
+                'issues.resolvedSubject',
+                'issues.resolvedSubjectSection',
+                'issues.resolver',
+                ...(Schema::hasColumn('schedule_import_rows', 'excluded_from_weekly_schedule_by') ? ['excludedFromWeeklyScheduleBy'] : []),
+            ])
             ->orderBy('source_row_number')
             ->get()
             ->flatMap(function (ScheduleImportRow $row): array {
@@ -40,6 +47,10 @@ class ScheduleImportReconciliationExport implements FromCollection, WithHeadings
                         $source['hall_name'] ?? null,
                         json_encode($source['weekday_values'] ?? [], JSON_UNESCAPED_UNICODE),
                         $row->academicTerm->display_name,
+                        $row->isExcludedFromWeeklySchedule() ? 'excluded_from_batch_schedule' : null,
+                        $row->isExcludedFromWeeklySchedule() ? $row->exclusion_note : null,
+                        $row->isExcludedFromWeeklySchedule() ? $row->excludedFromWeeklyScheduleBy?->name : null,
+                        $row->isExcludedFromWeeklySchedule() ? $row->excluded_from_weekly_schedule_at?->toDateTimeString() : null,
                         $issue?->issue_type,
                         $issue?->severity,
                         $issue?->reason_ar,
@@ -62,7 +73,8 @@ class ScheduleImportReconciliationExport implements FromCollection, WithHeadings
             'Source sheet', 'Excel row number', 'Source subject code', 'Source subject name',
             'Source section type', 'Source section number', 'Normalized section code',
             'Expected student count', 'Original lecturer name', 'Original hall name',
-            'Source weekday/time values', 'Academic term', 'Issue category', 'Severity',
+            'Source weekday/time values', 'Academic term', 'Batch schedule outcome',
+            'Exclusion reason', 'Excluded by', 'Excluded at', 'Issue category', 'Severity',
             'Arabic reason', 'Resolution status', 'Resolution action', 'Selected subject',
             'Selected section', 'Resolution note', 'Resolved by', 'Resolved at', 'Retry result',
         ];

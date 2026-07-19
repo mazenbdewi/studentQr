@@ -34,9 +34,13 @@ class ScheduleImportReconciliationSummaryService
             'conflicts' => $this->countTypes($issues, ScheduleImportIssueWorkflow::CONFLICT_ISSUES, $unresolved),
             'resolved_issues' => (clone $issues)->where('resolution_status', ScheduleImportIssue::STATUS_RESOLVED)->count(),
             'ignored_issues' => (clone $issues)->where('resolution_status', ScheduleImportIssue::STATUS_IGNORED)->count(),
-            'intentionally_unscheduled_rows' => ScheduleImportRow::query()
+            'excluded_from_batch_schedule_rows' => ScheduleImportRow::query()
                 ->where('import_batch_id', $batchId)
-                ->where('current_reconciliation_status', ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED)
+                ->whereIn('current_reconciliation_status', [
+                    ScheduleImportRow::STATUS_IGNORED,
+                    ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED,
+                    ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE,
+                ])
                 ->count(),
             'reconciliation_created_slots' => $createdSlotIds->count(),
         ];

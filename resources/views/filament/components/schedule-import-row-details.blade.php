@@ -21,6 +21,18 @@
         </dl>
     </section>
 
+    @if ($row->isExcludedFromWeeklySchedule())
+        <section class="rounded-lg border border-warning-300 bg-warning-50 p-4 dark:border-warning-500/40 dark:bg-warning-500/10">
+            <h3 class="font-semibold text-warning-900 dark:text-warning-100">{{ __('schedule-import-reconciliation.statuses.excluded_from_batch_schedule') }}</h3>
+            <p class="mt-2 text-warning-800 dark:text-warning-200">{{ __('schedule-import-reconciliation.exclusion.explanation') }}</p>
+            <dl class="mt-3 grid gap-2 sm:grid-cols-2">
+                <div><dt class="font-medium">{{ __('schedule-import-reconciliation.fields.exclusion_reason') }}</dt><dd>{{ $row->exclusion_note }}</dd></div>
+                <div><dt class="font-medium">{{ __('schedule-import-reconciliation.fields.excluded_by') }}</dt><dd>{{ $row->excludedFromWeeklyScheduleBy?->name ?? __('hall.not_specified') }}</dd></div>
+                <div><dt class="font-medium">{{ __('schedule-import-reconciliation.fields.excluded_at') }}</dt><dd>{{ $row->excluded_from_weekly_schedule_at?->format('Y-m-d H:i:s') }}</dd></div>
+            </dl>
+        </section>
+    @endif
+
     <section>
         <h3 class="font-semibold text-gray-950 dark:text-white">{{ __('schedule-import-reconciliation.fields.canonical_resolution') }}</h3>
         <div class="mt-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">

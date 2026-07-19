@@ -42,6 +42,11 @@ class ScheduleImportIssuePolicy
         return $user->can(self::IGNORE);
     }
 
+    public function excludeFromBatchSchedule(User $user, ScheduleImportIssue $issue): bool
+    {
+        return $user->can(self::IGNORE);
+    }
+
     public function resolveSubjectMapping(User $user, ScheduleImportIssue $issue): bool
     {
         return $user->can(self::RESOLVE_SUBJECT_MAPPING);

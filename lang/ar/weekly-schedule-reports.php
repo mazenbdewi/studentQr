@@ -33,7 +33,7 @@ return [
         'unscheduled' => 'صفوف غير مجدولة',
     ],
     'reconciliation' => [
-        'needs_attention' => 'تحتاج معالجة', 'warnings' => 'تحذيرات', 'excluded' => 'مستبعدة / غير مجدولة عمدًا',
+        'needs_attention' => 'تحتاج معالجة', 'warnings' => 'تحذيرات', 'excluded' => 'مستبعدة من برنامج دوام الدفعة',
         'successful' => 'مستوردة بنجاح', 'missing_subjects' => 'مواد مفقودة', 'missing_sections' => 'شعب مفقودة',
         'missing_lecturers' => 'مدرسون مفقودون', 'missing_halls' => 'قاعات مفقودة',
         'no_weekly_time' => 'لا يوجد وقت أسبوعي', 'unscheduled' => 'غير مجدولة',

@@ -19,6 +19,10 @@ class ScheduleImportRowRetryService
 
     public function retryRow(ScheduleImportRow $row): array
     {
+        if ($row->isExcludedFromWeeklySchedule()) {
+            throw new RuntimeException(__('schedule-import-reconciliation.validation.exclusion_review_required'));
+        }
+
         $row->loadMissing(['issues', 'resolvedSubject', 'resolvedSubjectSection', 'timeOverrides']);
         $subject = $this->resolutionContext->effectiveSubject($row);
         $section = $this->resolutionContext->effectiveSubjectSection($row);

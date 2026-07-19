@@ -432,6 +432,7 @@ class ScheduleImportReconciliationBuilder
             'resolved_errors' => (clone $issues)->where('severity', ScheduleImportIssue::SEVERITY_ERROR)->where('resolution_status', ScheduleImportIssue::STATUS_RESOLVED)->count(),
             'ignored_rows' => (clone $rows)->where('current_reconciliation_status', ScheduleImportRow::STATUS_IGNORED)->count(),
             'intentionally_unscheduled_rows' => (clone $rows)->where('current_reconciliation_status', ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED)->count(),
+            'excluded_from_batch_schedule_rows' => (clone $rows)->where('current_reconciliation_status', ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE)->count(),
             'newly_created_slots' => 0,
             'remaining_warnings' => (clone $issues)->where('severity', ScheduleImportIssue::SEVERITY_WARNING)->where('resolution_status', ScheduleImportIssue::STATUS_UNRESOLVED)->count(),
         ];

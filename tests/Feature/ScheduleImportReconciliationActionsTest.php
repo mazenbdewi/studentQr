@@ -58,15 +58,16 @@ it('enforces permission and term-safe mapping while appending audit history', fu
     }
 });
 
-it('keeps intentionally unscheduled rows separate and creates no slot', function (): void {
+it('keeps rows excluded from the batch schedule separate and creates no slot', function (): void {
     $path = reconciliationWorkbook([]);
 
     try {
-        [$term, , $batch] = reconciliationSource($path);
+        [$term, , $batch, $subject, $section] = reconciliationSource($path);
         $row = ScheduleImportRow::query()->create([
             'import_batch_id' => $batch->id, 'academic_term_id' => $term->id, 'source_sheet_name' => 'Schedule',
-            'source_row_number' => 2, 'row_fingerprint' => hash('sha256', 'row2'), 'source_payload' => [], 'normalized_payload' => [],
+            'source_row_number' => 2, 'row_fingerprint' => hash('sha256', 'row2'), 'source_payload' => [], 'normalized_payload' => ['subject_code_key' => strtolower($subject->code), 'section_code' => 'T1', 'section_type' => 'T'],
             'original_import_status' => ScheduleImportRow::ORIGINAL_UNSCHEDULED, 'current_reconciliation_status' => ScheduleImportRow::STATUS_UNRESOLVED,
+            'resolved_subject_id' => $subject->id, 'resolved_subject_section_id' => $section->id,
         ]);
         $issue = ScheduleImportIssue::query()->create([
             'schedule_import_row_id' => $row->id, 'deduplication_key' => hash('sha256', 'no-time'),
@@ -74,11 +75,11 @@ it('keeps intentionally unscheduled rows separate and creates no slot', function
             'reason_ar' => 'لا موعد', 'resolution_status' => ScheduleImportIssue::STATUS_UNRESOLVED,
         ]);
         $super = User::factory()->create(['role' => 'super_admin', 'type' => 'admin']);
-        app(ScheduleImportReconciliationService::class)->intentionallyUnscheduled($issue, $super, 'مشروع تخرج');
+        app(ScheduleImportReconciliationService::class)->excludeFromBatchSchedule($issue, $super, 'مشروع تخرج بلا موعد أسبوعي ثابت');
 
-        expect($row->fresh()->current_reconciliation_status)->toBe(ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED)
+        expect($row->fresh()->current_reconciliation_status)->toBe(ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE)
             ->and(App\Models\SubjectSectionScheduleSlot::query()->count())->toBe(0)
-            ->and(ScheduleImportIssueAction::query()->sole()->action)->toBe(ScheduleImportIssueAction::ACTION_INTENTIONALLY_UNSCHEDULE);
+            ->and(ScheduleImportIssueAction::query()->sole()->action)->toBe(ScheduleImportIssueAction::ACTION_EXCLUDE_FROM_BATCH_SCHEDULE);
     } finally {
         @unlink($path);
     }

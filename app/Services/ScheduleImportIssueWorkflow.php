@@ -86,11 +86,23 @@ class ScheduleImportIssueWorkflow
 
     public function dependencyMessage(ScheduleImportRow $row, string $action): ?string
     {
+        if ($action === 'time' && $row->isExcludedFromWeeklySchedule()) {
+            return __('schedule-import-reconciliation.dependencies.exclusion_review_required');
+        }
+
+        if ($action === 'exclude' && ($row->timeOverrides()->exists() || $row->relatedScheduleSlotIds() !== [])) {
+            return __('schedule-import-reconciliation.dependencies.schedule_decision_review_required');
+        }
+
+        if ($action === 'exclude' && $this->hasUnresolvedIssue($row, [...self::SUBJECT_ISSUES, ...self::SECTION_ISSUES])) {
+            return __('schedule-import-reconciliation.dependencies.resolve_catalog_issues_first');
+        }
+
         if ($action !== 'subject' && ! $this->subjectResolved($row)) {
             return __('schedule-import-reconciliation.dependencies.subject_first');
         }
 
-        if (in_array($action, ['lecturer', 'hall', 'time', 'retry'], true) && ! $this->sectionResolved($row)) {
+        if (in_array($action, ['lecturer', 'hall', 'time', 'exclude', 'retry'], true) && ! $this->sectionResolved($row)) {
             return __('schedule-import-reconciliation.dependencies.section_first');
         }
 
