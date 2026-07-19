@@ -50,6 +50,8 @@ return [
         'time_overrides' => 'المواعيد الأسبوعية اليدوية',
         'related_schedule_slots' => 'المواعيد الأسبوعية المرتبطة بالسطر',
         'actions_history' => 'سجل الإجراءات',
+        'optional_metadata' => 'بيانات اختيارية',
+        'optional' => 'اختياري',
     ],
     'actions' => [
         'link' => 'ربط بمقرر وشعبة موجودين',
@@ -90,6 +92,9 @@ return [
         'lecturer_first' => 'يجب معالجة حالة المدرس أولًا.',
         'hall_first' => 'يجب معالجة حالة القاعة أولًا.',
         'resolve_issues_first' => 'أكمل الإجراءات السابقة قبل إعادة معالجة الصف.',
+    ],
+    'notices' => [
+        'optional_identities' => 'يمكن حفظ الموعد الآن وإسناد المدرس أو القاعة لاحقًا.',
     ],
     'summary' => [
         'unresolved_subjects' => 'مشكلات مواد غير محلولة',

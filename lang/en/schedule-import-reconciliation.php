@@ -40,6 +40,8 @@ return [
         'canonical_resolution' => 'Canonical row resolution', 'time_overrides' => 'Manual weekly times',
         'related_schedule_slots' => 'Weekly slots related to the row',
         'actions_history' => 'Action history',
+        'optional_metadata' => 'Optional metadata',
+        'optional' => 'Optional',
     ],
     'actions' => [
         'link' => 'Link existing subject and section',
@@ -56,6 +58,7 @@ return [
     'conflict_decisions' => ['approve' => 'Approve this row', 'ignore' => 'Ignore this row for this batch', 'keep' => 'Keep unresolved'],
     'required_actions' => ['subject' => 'Select subject and section', 'section' => 'Select section', 'lecturer' => 'Select lecturer', 'hall' => 'Select hall', 'time' => 'Set weekday and time', 'conflict' => 'Review conflict', 'retry' => 'Retry row'],
     'dependencies' => ['subject_first' => 'Link the subject first.', 'section_first' => 'Link the section first.', 'lecturer_first' => 'Resolve the lecturer first.', 'hall_first' => 'Resolve the hall first.', 'resolve_issues_first' => 'Complete prior actions before retrying the row.'],
+    'notices' => ['optional_identities' => 'You can save the time now and assign the lecturer or hall later.'],
     'summary' => ['unresolved_subjects' => 'Unresolved subject issues', 'unresolved_sections' => 'Unresolved section issues', 'rows_without_time' => 'Rows without time', 'missing_lecturers' => 'Missing lecturers', 'missing_halls' => 'Missing halls', 'conflicts' => 'Conflicts', 'resolved_issues' => 'Resolved issues', 'ignored_issues' => 'Ignored issues', 'intentionally_unscheduled_rows' => 'Intentionally unscheduled rows', 'reconciliation_created_slots' => 'Slots created by reconciliation'],
     'conflict_types' => ['section' => 'Section conflict', 'lecturer' => 'Lecturer conflict', 'hall' => 'Hall conflict'],
     'validation' => [

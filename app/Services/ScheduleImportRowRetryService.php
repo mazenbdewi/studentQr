@@ -14,13 +14,14 @@ class ScheduleImportRowRetryService
     public function __construct(
         private readonly WeeklyScheduleRowNormalizer $normalizer,
         private readonly WeeklyScheduleSlotConflictDetector $conflictDetector,
+        private readonly ScheduleImportRowResolutionContext $resolutionContext,
     ) {}
 
     public function retryRow(ScheduleImportRow $row): array
     {
-        $row->loadMissing(['resolvedSubject', 'resolvedSubjectSection', 'timeOverrides']);
-        $subject = $row->resolvedSubject;
-        $section = $row->resolvedSubjectSection;
+        $row->loadMissing(['issues', 'resolvedSubject', 'resolvedSubjectSection', 'timeOverrides']);
+        $subject = $this->resolutionContext->effectiveSubject($row);
+        $section = $this->resolutionContext->effectiveSubjectSection($row);
 
         if (! $subject || ! $section) {
             throw new RuntimeException(__('schedule-import-reconciliation.validation.subject_section_required'));
@@ -32,7 +33,7 @@ class ScheduleImportRowRetryService
 
         $lecturerResult = $this->fillIdentity($row, 'lecturer_id', $row->resolved_lecturer_id);
         $hallResult = $this->fillIdentity($row, 'hall_id', $row->resolved_hall_id);
-        $candidates = $this->candidates($row);
+        $candidates = $this->candidates($row, $section->id);
         $created = [];
         $existing = [];
         $conflicts = [...$lecturerResult['conflicts'], ...$hallResult['conflicts']];
@@ -107,11 +108,11 @@ class ScheduleImportRowRetryService
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function candidates(ScheduleImportRow $row): array
+    private function candidates(ScheduleImportRow $row, int $sectionId): array
     {
         if ($row->timeOverrides->isNotEmpty()) {
             return $row->timeOverrides->map(fn (ScheduleImportRowTimeOverride $override): array => [
-                'subject_section_id' => $row->resolved_subject_section_id,
+                'subject_section_id' => $sectionId,
                 'weekday' => $override->weekday,
                 'start_time' => $override->start_time,
                 'end_time' => $override->end_time,
@@ -137,7 +138,7 @@ class ScheduleImportRowRetryService
 
             if ($time) {
                 $candidates[] = [
-                    'subject_section_id' => $row->resolved_subject_section_id,
+                    'subject_section_id' => $sectionId,
                     'weekday' => (int) $weekday,
                     ...$time,
                     'lecturer_id' => $row->resolved_lecturer_id,

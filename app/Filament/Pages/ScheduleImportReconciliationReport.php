@@ -18,6 +18,7 @@ use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -299,14 +300,46 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
             ->disabled(fn (ScheduleImportRow $record): bool => $this->dependency($record, 'time') !== null)
             ->tooltip(fn (ScheduleImportRow $record): ?string => $this->dependency($record, 'time'))
             ->form(fn (ScheduleImportRow $record): array => [
+                Placeholder::make('effective_subject')
+                    ->label(__('schedule-import-reconciliation.fields.subject'))
+                    ->content(function () use ($record): string {
+                        $subject = app(ScheduleImportIssueWorkflow::class)->subjectForRow($record);
+
+                        return collect([$subject?->code, $subject?->name])->filter()->implode(' — ');
+                    }),
+                Placeholder::make('effective_section')
+                    ->label(__('schedule-import-reconciliation.fields.section'))
+                    ->content(function () use ($record): string {
+                        $section = app(\App\Services\ScheduleImportRowResolutionContext::class)->effectiveSubjectSection($record);
+
+                        return $section instanceof SubjectSection ? $section->code : '—';
+                    }),
+                Placeholder::make('effective_academic_term')
+                    ->label(__('schedule-import-reconciliation.fields.academic_term'))
+                    ->content(function () use ($record): string {
+                        $term = $record->academicTerm()->first();
+
+                        return $term->display_name;
+                    }),
+                Placeholder::make('optional_identity_notice')
+                    ->label(__('schedule-import-reconciliation.fields.optional_metadata'))
+                    ->content(__('schedule-import-reconciliation.notices.optional_identities'))
+                    ->visible(fn (): bool => app(ScheduleImportIssueWorkflow::class)->hasUnresolvedIssue($record, [
+                        ...ScheduleImportIssueWorkflow::LECTURER_ISSUES,
+                        ...ScheduleImportIssueWorkflow::HALL_ISSUES,
+                    ]))
+                    ->columnSpanFull()
+                    ->extraAttributes([
+                        'class' => 'rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 text-sm font-medium text-warning-800 dark:border-warning-500/40 dark:bg-warning-500/10 dark:text-warning-200',
+                    ]),
                 Repeater::make('times')
                     ->label(__('schedule-import-reconciliation.fields.time_overrides'))
                     ->schema([
                         Select::make('weekday')->label(__('schedule-import-reconciliation.fields.weekday'))->options(__('weekly-schedule.weekdays'))->required(),
                         TimePicker::make('start_time')->label(__('schedule-import-reconciliation.fields.start_time'))->seconds(false)->required(),
                         TimePicker::make('end_time')->label(__('schedule-import-reconciliation.fields.end_time'))->seconds(false)->required(),
-                        Select::make('lecturer_id')->label(__('schedule-import-reconciliation.fields.lecturer'))->options(fn (): array => Lecturer::query()->orderBy('name')->pluck('name', 'id')->all())->searchable()->preload(),
-                        Select::make('hall_id')->label(__('schedule-import-reconciliation.fields.hall'))->options(fn (): array => Hall::query()->withoutTrashed()->orderBy('name')->pluck('name', 'id')->all())->searchable()->preload(),
+                        Select::make('lecturer_id')->label(__('schedule-import-reconciliation.fields.lecturer'))->helperText(__('schedule-import-reconciliation.fields.optional'))->options(fn (): array => Lecturer::query()->orderBy('name')->pluck('name', 'id')->all())->searchable()->preload(),
+                        Select::make('hall_id')->label(__('schedule-import-reconciliation.fields.hall'))->helperText(__('schedule-import-reconciliation.fields.optional'))->options(fn (): array => Hall::query()->withoutTrashed()->orderBy('name')->pluck('name', 'id')->all())->searchable()->preload(),
                         TextInput::make('section_capacity')->label(__('schedule-import-reconciliation.fields.section_capacity'))->numeric()->minValue(0),
                         TextInput::make('expected_student_count')->label(__('schedule-import-reconciliation.fields.expected_students'))->numeric()->minValue(0)->default($record->source_payload['expected_student_count'] ?? null),
                     ])

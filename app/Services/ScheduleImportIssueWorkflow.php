@@ -5,8 +5,6 @@ namespace App\Services;
 use App\Models\ScheduleImportIssue;
 use App\Models\ScheduleImportRow;
 use App\Models\Subject;
-use App\Models\SubjectSectionScheduleSlot;
-use App\Support\WeeklyScheduleRowNormalizer;
 use Illuminate\Support\Collection;
 
 class ScheduleImportIssueWorkflow
@@ -37,12 +35,17 @@ class ScheduleImportIssueWorkflow
 
     public const CONFLICT_ISSUES = [ScheduleImportIssue::TYPE_DUPLICATE_CONFLICT];
 
+    public const RETRY_BLOCKING_ISSUES = [
+        ScheduleImportIssue::TYPE_CORE_VALIDATION,
+        ScheduleImportIssue::TYPE_DUPLICATE_CONFLICT,
+    ];
+
     public const ZERO_STUDENT_ISSUES = [
         ScheduleImportIssue::TYPE_ZERO_STUDENT_SUBJECT_MISSING,
         ScheduleImportIssue::TYPE_ZERO_STUDENT_SECTION_MISSING,
     ];
 
-    public function __construct(private readonly WeeklyScheduleRowNormalizer $normalizer) {}
+    public function __construct(private readonly ScheduleImportRowResolutionContext $resolutionContext) {}
 
     public function hasUnresolvedIssue(ScheduleImportRow $row, array $types): bool
     {
@@ -65,39 +68,7 @@ class ScheduleImportIssueWorkflow
 
     public function subjectForRow(ScheduleImportRow $row): ?Subject
     {
-        if ($row->resolved_subject_id) {
-            return Subject::withTrashed()->find($row->resolved_subject_id);
-        }
-
-        $legacySubjectIds = $row->issues()
-            ->whereNotNull('resolved_subject_id')
-            ->pluck('resolved_subject_id')
-            ->unique();
-
-        if ($legacySubjectIds->count() === 1) {
-            return Subject::withTrashed()->find($legacySubjectIds->sole());
-        }
-
-        $slotSubjectIds = SubjectSectionScheduleSlot::query()
-            ->whereIn('id', $row->relatedScheduleSlotIds())
-            ->pluck('subject_id')
-            ->unique();
-
-        if ($slotSubjectIds->count() === 1) {
-            return Subject::withTrashed()->find($slotSubjectIds->sole());
-        }
-
-        $sourceKey = (string) ($row->normalized_payload['subject_code_key'] ?? '');
-
-        if ($sourceKey === '') {
-            return null;
-        }
-
-        $matches = Subject::query()->withoutTrashed()->get(['id', 'code', 'name', 'department_id'])
-            ->filter(fn (Subject $subject): bool => $this->normalizer->normalizeKey($subject->code) === $sourceKey)
-            ->values();
-
-        return $matches->count() === 1 ? $matches->sole() : null;
+        return $this->resolutionContext->effectiveSubject($row);
     }
 
     public function subjectResolved(ScheduleImportRow $row): bool
@@ -107,15 +78,7 @@ class ScheduleImportIssueWorkflow
 
     public function sectionResolved(ScheduleImportRow $row): bool
     {
-        if ($row->resolved_subject_section_id) {
-            return true;
-        }
-
-        return SubjectSectionScheduleSlot::query()
-            ->whereIn('id', $row->relatedScheduleSlotIds())
-            ->pluck('subject_section_id')
-            ->unique()
-            ->count() === 1;
+        return $this->resolutionContext->effectiveSubjectSection($row) !== null;
     }
 
     public function dependencyMessage(ScheduleImportRow $row, string $action): ?string
@@ -128,22 +91,13 @@ class ScheduleImportIssueWorkflow
             return __('schedule-import-reconciliation.dependencies.section_first');
         }
 
-        if ($action === 'time' && $this->hasUnresolvedIssue($row, self::LECTURER_ISSUES)) {
-            return __('schedule-import-reconciliation.dependencies.lecturer_first');
+        if ($action === 'retry' && $this->hasUnresolvedIssue($row, self::RETRY_BLOCKING_ISSUES)) {
+            return __('schedule-import-reconciliation.dependencies.resolve_issues_first');
         }
 
-        if ($action === 'time' && $this->hasUnresolvedIssue($row, self::HALL_ISSUES)) {
-            return __('schedule-import-reconciliation.dependencies.hall_first');
-        }
-
-        if ($action === 'retry' && $this->hasUnresolvedIssue($row, [
-            ...self::SUBJECT_ISSUES,
-            ...self::SECTION_ISSUES,
-            ...self::LECTURER_ISSUES,
-            ...self::HALL_ISSUES,
-            ...self::TIME_ISSUES,
-            ...self::CONFLICT_ISSUES,
-        ])) {
+        if ($action === 'retry'
+            && $this->hasUnresolvedIssue($row, self::TIME_ISSUES)
+            && ! $row->timeOverrides()->exists()) {
             return __('schedule-import-reconciliation.dependencies.resolve_issues_first');
         }
 

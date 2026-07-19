@@ -45,13 +45,18 @@ it('fills null lecturer and hall values and audits slot snapshots', function ():
         $lecturer = Lecturer::query()->create(['name' => 'مدرس حقيقي', 'canonical_name' => 'مدرس حقيقي', 'is_active' => true]);
         $super = User::factory()->create(['role' => 'super_admin', 'type' => 'admin']);
         $result = app(ScheduleImportReconciliationService::class)->assignLecturer($lecturerRow, $lecturer->id, $super);
-        $action = ScheduleImportIssueAction::query()->latest('id')->firstOrFail();
+        $initialAction = ScheduleImportIssueAction::query()->latest('id')->firstOrFail();
+        $repeated = app(ScheduleImportReconciliationService::class)->assignLecturer($lecturerRow->fresh(), $lecturer->id, $super);
+        $repeatedAction = ScheduleImportIssueAction::query()->latest('id')->firstOrFail();
 
         expect($result['status'])->toBe('completed')
+            ->and($repeated['status'])->toBe('already_applied')
             ->and($lecturerSlot->fresh()->lecturer_id)->toBe($lecturer->id)
             ->and($lecturerRow->fresh()->resolved_lecturer_id)->toBe($lecturer->id)
-            ->and(data_get($action->result, 'slot_changes.0.before.lecturer_id'))->toBeNull()
-            ->and(data_get($action->result, 'slot_changes.0.after.lecturer_id'))->toBe($lecturer->id);
+            ->and(ScheduleImportIssueAction::query()->where('action', ScheduleImportIssueAction::ACTION_ASSIGN_LECTURER)->count())->toBe(2)
+            ->and(data_get($initialAction->result, 'slot_changes.0.before.lecturer_id'))->toBeNull()
+            ->and(data_get($initialAction->result, 'slot_changes.0.after.lecturer_id'))->toBe($lecturer->id)
+            ->and(data_get($repeatedAction->result, 'status'))->toBe('already_applied');
     } finally {
         @unlink($lecturerPath);
     }
@@ -62,8 +67,10 @@ it('fills null lecturer and hall values and audits slot snapshots', function ():
         $hall = Hall::query()->create(['code' => 'H-1', 'name' => 'قاعة 1', 'floor' => null, 'is_active' => true]);
         $super = User::factory()->create(['role' => 'super_admin', 'type' => 'admin']);
         $result = app(ScheduleImportReconciliationService::class)->assignHall($hallRow, $hall->id, $super);
+        $repeated = app(ScheduleImportReconciliationService::class)->assignHall($hallRow->fresh(), $hall->id, $super);
 
         expect($result['status'])->toBe('completed')
+            ->and($repeated['status'])->toBe('already_applied')
             ->and($hallSlot->fresh()->hall_id)->toBe($hall->id)
             ->and($hallRow->fresh()->resolved_hall_id)->toBe($hall->id)
             ->and(__('hall.not_specified'))->toBe('غير محدد');

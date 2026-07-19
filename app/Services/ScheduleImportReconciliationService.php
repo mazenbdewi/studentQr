@@ -24,6 +24,7 @@ class ScheduleImportReconciliationService
     public function __construct(
         private readonly ScheduleImportRowRetryService $retryService,
         private readonly ScheduleImportIssueWorkflow $workflow,
+        private readonly ScheduleImportRowResolutionContext $resolutionContext,
         private readonly WeeklyScheduleSlotConflictDetector $conflictDetector,
         private readonly ScheduleImportReconciliationSummaryService $summaryService,
         private readonly WeeklyScheduleRowNormalizer $normalizer,
@@ -69,7 +70,7 @@ class ScheduleImportReconciliationService
 
     public function assignLecturer(ScheduleImportRow $row, int $lecturerId, User $actor, ?string $note = null): array
     {
-        $issue = $this->firstIssue($row, ScheduleImportIssueWorkflow::LECTURER_ISSUES);
+        $issue = $this->firstAnyIssue($row, ScheduleImportIssueWorkflow::LECTURER_ISSUES);
         Gate::forUser($actor)->authorize('assignLecturer', $issue);
 
         return DB::transaction(function () use ($row, $lecturerId, $actor, $note): array {
@@ -87,6 +88,7 @@ class ScheduleImportReconciliationService
                 $actor,
                 $note,
                 $result,
+                includeResolved: true,
             );
             $this->finishAction($locked, $issues, ScheduleImportIssueAction::ACTION_ASSIGN_LECTURER, $actor, $before, $result, $note);
 
@@ -133,7 +135,7 @@ class ScheduleImportReconciliationService
 
     public function assignHall(ScheduleImportRow $row, int $hallId, User $actor, ?string $note = null): array
     {
-        $issue = $this->firstIssue($row, ScheduleImportIssueWorkflow::HALL_ISSUES);
+        $issue = $this->firstAnyIssue($row, ScheduleImportIssueWorkflow::HALL_ISSUES);
         Gate::forUser($actor)->authorize('assignHall', $issue);
 
         return DB::transaction(function () use ($row, $hallId, $actor, $note): array {
@@ -151,6 +153,7 @@ class ScheduleImportReconciliationService
                 $actor,
                 $note,
                 $result,
+                includeResolved: true,
             );
             $this->finishAction($locked, $issues, ScheduleImportIssueAction::ACTION_ASSIGN_HALL, $actor, $before, $result, $note);
 
@@ -490,7 +493,7 @@ class ScheduleImportReconciliationService
 
     private function ensureCanonicalSubject(ScheduleImportRow $row): ?Subject
     {
-        $subject = $this->workflow->subjectForRow($row);
+        $subject = $this->resolutionContext->effectiveSubject($row);
 
         if ($subject && ! $row->resolved_subject_id) {
             $row->update(['resolved_subject_id' => $subject->id]);
@@ -507,21 +510,7 @@ class ScheduleImportReconciliationService
     private function canonicalCatalog(ScheduleImportRow $row): array
     {
         $subject = $this->ensureCanonicalSubject($row);
-        $section = $row->resolvedSubjectSection;
-
-        if (! $section) {
-            $legacySectionIds = $row->issues->whereNotNull('resolved_subject_section_id')->pluck('resolved_subject_section_id')->unique();
-
-            if ($legacySectionIds->count() === 1) {
-                $section = SubjectSection::find($legacySectionIds->sole());
-            }
-        }
-
-        if (! $section) {
-            $sectionIds = SubjectSectionScheduleSlot::query()->whereIn('id', $row->relatedScheduleSlotIds())->pluck('subject_section_id')->unique();
-            $section = $sectionIds->count() === 1 ? SubjectSection::find($sectionIds->sole()) : null;
-
-        }
+        $section = $this->resolutionContext->effectiveSubjectSection($row);
 
         if ($section) {
             if (! $row->resolved_subject_section_id) {
