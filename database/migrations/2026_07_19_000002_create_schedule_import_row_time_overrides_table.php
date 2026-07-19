@@ -10,7 +10,11 @@ return new class extends Migration
     {
         Schema::create('schedule_import_row_time_overrides', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('schedule_import_row_id')->constrained('schedule_import_rows')->restrictOnDelete();
+            $table->foreignId('schedule_import_row_id');
+            $table->foreign('schedule_import_row_id', 'sirto_schedule_row_fk')
+                ->references('id')
+                ->on('schedule_import_rows')
+                ->restrictOnDelete();
             $table->unsignedTinyInteger('weekday');
             $table->time('start_time');
             $table->time('end_time');
