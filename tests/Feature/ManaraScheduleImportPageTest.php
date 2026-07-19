@@ -6,6 +6,7 @@ use App\Models\ImportBatch;
 use App\Models\Subject;
 use App\Models\SubjectSection;
 use App\Models\User;
+use App\Services\ScheduleAcademicTermResolver;
 use Filament\Facades\Filament;
 use Illuminate\Http\UploadedFile;
 use Livewire\Livewire;
@@ -66,3 +67,113 @@ it('stores the original schedule client filename separately from the retained pr
         @unlink($path);
     }
 });
+
+it('automatically resolves the only eligible enrollment batch on direct access', function (): void {
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'الفصل الصيفي 2025/2026',
+        'canonical_name' => 'الفصل الصيفي 2025/2026',
+    ]);
+    $source = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', 'direct-only-source'),
+        'import_type' => ImportBatch::TYPE_ENROLLMENTS,
+        'source_filename' => 'enrollments.xlsx',
+        'status' => ImportBatch::STATUS_COMPLETED,
+        'imported_rows' => 10,
+    ]);
+    $source->academicTerms()->attach($term->id, ['row_count' => 10]);
+
+    Livewire::actingAs(manaraSchedulePageAdmin())
+        ->test(ManaraScheduleImport::class)
+        ->assertSet('sourceBatchReady', true)
+        ->assertSet('sourceBatchUuid', $source->uuid)
+        ->assertSet('resolvedAcademicTermName', $term->display_name)
+        ->assertSee(__('manara-schedule-import.source_batch_resolved'))
+        ->assertDontSee('لا توجد دفعة تسجيل مكتملة ومتوافقة مع جميع مقررات وشعب ملف الجدول');
+});
+
+it('blocks direct access safely when multiple eligible enrollment batches exist', function (): void {
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'الفصل الصيفي 2025/2026',
+        'canonical_name' => 'الفصل الصيفي 2025/2026',
+    ]);
+
+    foreach (['first', 'second'] as $identity) {
+        $source = ImportBatch::query()->create([
+            'deduplication_key' => hash('sha256', "direct-{$identity}-source"),
+            'import_type' => ImportBatch::TYPE_ENROLLMENTS,
+            'source_filename' => "{$identity}.xlsx",
+            'status' => ImportBatch::STATUS_COMPLETED,
+            'imported_rows' => 10,
+        ]);
+        $source->academicTerms()->attach($term->id, ['row_count' => 10]);
+    }
+
+    Livewire::actingAs(manaraSchedulePageAdmin())
+        ->test(ManaraScheduleImport::class)
+        ->assertSet('sourceBatchReady', false)
+        ->assertSet('sourceBatchUuid', null)
+        ->assertSee('توجد أكثر من دفعة تسجيل طلاب مؤهلة')
+        ->assertSee(__('manara-schedule-import.source_batch_unavailable'));
+});
+
+it('blocks direct access clearly when no eligible enrollment batch exists', function (): void {
+    Livewire::actingAs(manaraSchedulePageAdmin())
+        ->test(ManaraScheduleImport::class)
+        ->assertSet('sourceBatchReady', false)
+        ->assertSet('sourceBatchUuid', null)
+        ->assertSee('لا توجد دفعة تسجيل طلاب مكتملة ومؤهلة')
+        ->assertSee(__('manara-schedule-import.source_batch_unavailable'));
+});
+
+it('reopens a persisted schedule result without invoking compatibility resolution', function (): void {
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'الفصل الصيفي 2025/2026',
+        'canonical_name' => 'الفصل الصيفي 2025/2026',
+    ]);
+    $source = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', 'reopen-source'),
+        'import_type' => ImportBatch::TYPE_ENROLLMENTS,
+        'source_filename' => 'enrollments.xlsx',
+        'status' => ImportBatch::STATUS_COMPLETED,
+        'imported_rows' => 10,
+    ]);
+    $source->academicTerms()->attach($term->id, ['row_count' => 10]);
+    $schedule = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', 'reopen-schedule'),
+        'import_type' => ImportBatch::TYPE_WEEKLY_SCHEDULE,
+        'source_filename' => 'schedule.xlsx',
+        'source_import_batch_id' => $source->id,
+        'status' => ImportBatch::STATUS_COMPLETED_WITH_ERRORS,
+        'imported_rows' => 8,
+        'rejected_rows' => 2,
+        'summary' => ['imported_rows' => 8, 'rejected_rows' => 2],
+    ]);
+    $schedule->academicTerms()->attach($term->id, ['row_count' => 8]);
+    $resolver = Mockery::mock(ScheduleAcademicTermResolver::class);
+    $resolver->shouldNotReceive('resolve');
+    app()->instance(ScheduleAcademicTermResolver::class, $resolver);
+
+    Livewire::withQueryParams(['batch' => $schedule->uuid])
+        ->actingAs(manaraSchedulePageAdmin())
+        ->test(ManaraScheduleImport::class)
+        ->assertSet('sourceBatchUuid', $source->uuid)
+        ->assertSet('resultStatus', ImportBatch::STATUS_COMPLETED_WITH_ERRORS)
+        ->assertSet('resultHasPersistedSchedule', true)
+        ->assertSet('sourceResolutionError', null)
+        ->assertSee(__('manara-schedule-import.open_weekly_schedule'))
+        ->assertSee(__('manara-schedule-import.open_reconciliation'));
+});
+
+function manaraSchedulePageAdmin(): User
+{
+    Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
+    $user = User::factory()->create([
+        'role' => 'super_admin',
+        'type' => 'admin',
+        'status' => 'active',
+    ]);
+    $user->assignRole('super-admin');
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+    return $user;
+}

@@ -35,6 +35,18 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::findByName('admin', 'web')->givePermissionTo($reconciliationPermissions);
         Role::findByName('super-admin', 'web')->givePermissionTo($reconciliationPermissions);
 
+        $weeklySchedulePermissions = collect([
+            'view weekly schedule',
+            'view weekly schedule reports',
+            'export weekly schedule reports',
+        ])->map(fn (string $name) => Permission::firstOrCreate([
+            'name' => $name,
+            'guard_name' => 'web',
+        ]));
+
+        Role::findByName('admin', 'web')->givePermissionTo($weeklySchedulePermissions);
+        Role::findByName('super-admin', 'web')->givePermissionTo($weeklySchedulePermissions);
+
         $this->createUser(
             email: 'super@admin.com',
             role: 'super-admin',

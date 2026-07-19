@@ -9,6 +9,7 @@ use App\Models\LectureSession;
 use App\Models\Subject;
 use App\Models\SubjectSection;
 use App\Models\SubjectSectionScheduleSlot;
+use App\Services\ScheduleImportReconciliationBuilder;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -63,6 +64,45 @@ it('rejects missing subjects and sections without creating catalog data', functi
     }
 });
 
+it('uses an explicit eligible enrollment batch before key matching and reconciles unmatched rows', function (): void {
+    [$term, $sourceBatch] = weeklyScheduleSource();
+    $otherBatch = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', 'other-explicit-source'),
+        'import_type' => ImportBatch::TYPE_ENROLLMENTS,
+        'source_filename' => 'other-enrollments.xlsx',
+        'status' => ImportBatch::STATUS_COMPLETED,
+        'total_rows' => 1,
+        'imported_rows' => 1,
+    ]);
+    $otherBatch->academicTerms()->attach($term->id, ['row_count' => 1]);
+    $path = weeklyScheduleWorkbook([
+        ['SCH101', 'T', 1, null, null, 20, 18, '08:30AM-10:30AM', '-', '-'],
+        ['MISSING101', 'T', 1, null, null, 20, 18, '08:30AM-10:30AM', '-', '-'],
+    ]);
+
+    try {
+        $import = app(WeeklyScheduleImport::class);
+        $import->import($path, 'partial-schedule.xlsx', $sourceBatch->uuid);
+        $batch = $import->getBatch();
+
+        expect($batch)->not->toBeNull()
+            ->and($batch->source_import_batch_id)->toBe($sourceBatch->id)
+            ->and($batch->status)->toBe(ImportBatch::STATUS_COMPLETED_WITH_ERRORS)
+            ->and($batch->imported_rows)->toBe(1)
+            ->and($batch->rejected_rows)->toBe(1)
+            ->and(SubjectSectionScheduleSlot::query()->count())->toBe(1);
+
+        app(ScheduleImportReconciliationBuilder::class)->build($batch, $path);
+
+        expect($batch->scheduleImportRows()->count())->toBe(2)
+            ->and($batch->scheduleImportRows()
+                ->whereHas('issues', fn ($issues) => $issues->where('issue_type', 'subject_not_found'))
+                ->count())->toBe(1);
+    } finally {
+        @unlink($path);
+    }
+});
+
 it('does not select a newest batch when direct resolution has multiple compatible batches', function (): void {
     [$term, $sourceBatch] = weeklyScheduleSource();
     $otherBatch = ImportBatch::query()->create([
@@ -80,7 +120,7 @@ it('does not select a newest batch when direct resolution has multiple compatibl
 
     try {
         expect(fn () => app(WeeklyScheduleImport::class)->import($path, 'ambiguous-batches.xlsx'))
-            ->toThrow(RuntimeException::class, 'أكثر من دفعة تسجيل متوافقة');
+            ->toThrow(RuntimeException::class, 'أكثر من دفعة تسجيل طلاب مؤهلة');
         expect(ImportBatch::query()->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)->count())->toBe(0);
     } finally {
         @unlink($path);

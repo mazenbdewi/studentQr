@@ -5,9 +5,11 @@ namespace App\Providers;
 use App\Http\Responses\Filament\LoginResponse;
 use App\Models\ScheduleImportIssue;
 use App\Models\ScheduleImportRow;
+use App\Models\SubjectSectionScheduleSlot;
 use App\Policies\ActivityPolicy;
 use App\Policies\ScheduleImportIssuePolicy;
 use App\Policies\ScheduleImportRowPolicy;
+use App\Policies\SubjectSectionScheduleSlotPolicy;
 use BezhanSalleh\FilamentShield\Facades\FilamentShield;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
 use Filament\Tables\Columns\Column;
@@ -27,6 +29,7 @@ class AppServiceProvider extends ServiceProvider
         Activity::class => ActivityPolicy::class,
         ScheduleImportRow::class => ScheduleImportRowPolicy::class,
         ScheduleImportIssue::class => ScheduleImportIssuePolicy::class,
+        SubjectSectionScheduleSlot::class => SubjectSectionScheduleSlotPolicy::class,
     ];
 
     public function register(): void

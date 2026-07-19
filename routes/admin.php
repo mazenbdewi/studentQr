@@ -10,6 +10,8 @@ use App\Http\Controllers\Admin\ManaraEnrollmentImportErrorDownloadController;
 use App\Http\Controllers\Admin\ManaraScheduleImportErrorDownloadController;
 use App\Http\Controllers\Admin\ScheduleImportReconciliationExportController;
 use App\Http\Controllers\Admin\UserGuideDownloadController;
+use App\Http\Controllers\Admin\WeeklyScheduleReportExcelController;
+use App\Http\Controllers\Admin\WeeklyScheduleReportPdfController;
 use Illuminate\Support\Facades\Route;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -60,3 +62,13 @@ Route::middleware(['auth', 'pin.verified'])
     ->get('/admin/schedule-import-reconciliation/{batch}/export', ScheduleImportReconciliationExportController::class)
     ->whereUuid('batch')
     ->name('admin.schedule-import-reconciliation.export');
+
+Route::middleware(['auth', 'pin.verified'])
+    ->get('/admin/weekly-schedule-reports/{type}/excel', WeeklyScheduleReportExcelController::class)
+    ->where('type', 'comprehensive|by_lecturer|by_hall|by_subject|by_weekday|reconciliation')
+    ->name('admin.weekly-schedule-reports.excel');
+
+Route::middleware(['auth', 'pin.verified'])
+    ->get('/admin/weekly-schedule-reports/{type}/pdf', WeeklyScheduleReportPdfController::class)
+    ->where('type', 'comprehensive|by_lecturer|by_hall|by_subject|by_weekday|reconciliation')
+    ->name('admin.weekly-schedule-reports.pdf');
