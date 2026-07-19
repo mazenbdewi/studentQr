@@ -19,9 +19,9 @@
     <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900" aria-label="{{ __('weekly-schedule-reports.filters_title') }}">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             @foreach ($filterOptions as $property => [$label, $options])
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                <label class="block text-sm font-medium text-gray-950 dark:text-gray-100">
                     <span class="mb-1 block">{{ $label }}</span>
-                    <select wire:model.live="{{ $property }}" class="w-full rounded-lg border-gray-300 bg-white text-gray-950 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                    <select wire:model.live="{{ $property }}" class="w-full rounded-lg border border-gray-300 bg-gray-100 text-gray-950 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
                         <option value="">{{ __('weekly-schedule-reports.all') }}</option>
                         @foreach ($options as $value => $optionLabel)
                             <option value="{{ $value }}">{{ $optionLabel }}</option>
@@ -59,7 +59,7 @@
                 <h2 class="text-lg font-bold text-gray-950 dark:text-white">{{ \App\Services\WeeklyScheduleReportService::reportTypes()[$reportType] }}</h2>
                 <div class="mt-2 flex flex-wrap gap-2">
                     @forelse ($activeFilters as $label => $value)
-                        <span class="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">{{ $label }}: {{ $value }}</span>
+                        <span class="rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-950 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">{{ $label }}: {{ $value }}</span>
                     @empty
                         <span class="text-sm text-gray-500">{{ __('weekly-schedule-reports.all_records') }}</span>
                     @endforelse

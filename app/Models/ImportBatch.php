@@ -83,14 +83,14 @@ class ImportBatch extends Model
     {
         return $query
             ->where('import_type', self::TYPE_ENROLLMENTS)
-            ->whereIn('status', [self::STATUS_COMPLETED, self::STATUS_COMPLETED_WITH_ERRORS])
+            ->where('status', self::STATUS_COMPLETED)
             ->where('imported_rows', '>', 0);
     }
 
     public function isEligibleEnrollmentSource(): bool
     {
         return $this->import_type === self::TYPE_ENROLLMENTS
-            && in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_COMPLETED_WITH_ERRORS], true)
+            && $this->status === self::STATUS_COMPLETED
             && $this->imported_rows > 0;
     }
 

@@ -18,17 +18,42 @@
         x-on:schedule-upload-state.window="uploadReady = Boolean($event.detail.ready); verifyingUpload = false; if (! uploadReady) { uploading = false; uploadProgress = 0 }"
         class="space-y-6"
     >
+        <section class="rounded-xl border border-primary-300 bg-primary-50 p-5 text-primary-950 shadow-sm dark:border-primary-700 dark:bg-primary-950 dark:text-primary-100">
+            <h2 class="text-lg font-bold">{{ __('manara-schedule-import.title') }}</h2>
+            <p class="mt-2 text-sm leading-6 text-primary-900 dark:text-primary-200">{{ __('manara-schedule-import.prerequisite_explanation') }}</p>
+            <div class="mt-4 text-sm font-semibold">{{ __('manara-schedule-import.phase_sequence') }}</div>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                <div class="rounded-lg border border-primary-200 bg-white/70 p-3 dark:border-primary-800 dark:bg-gray-900/60">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">{{ __('manara-schedule-import.stage_one') }}</div>
+                    <div class="mt-1 font-semibold">{{ __('manara-schedule-import.stage_one_label') }}</div>
+                </div>
+                <div class="rounded-lg border-2 border-primary-500 bg-primary-100 p-3 shadow-sm dark:border-primary-400 dark:bg-primary-900">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-primary-800 dark:text-primary-200">{{ __('manara-schedule-import.stage_two') }}</div>
+                    <div class="mt-1 font-bold">{{ __('manara-schedule-import.stage_two_label') }}</div>
+                </div>
+            </div>
+        </section>
+
         @if ($sourceResolutionError)
             <div class="rounded-lg border border-danger-200 bg-danger-50 p-4 text-sm text-danger-800 dark:border-danger-800 dark:bg-danger-950 dark:text-danger-200">
                 <div class="font-semibold">{{ __('manara-schedule-import.source_batch_unavailable') }}</div>
                 <div class="mt-1">{{ $sourceResolutionError }}</div>
+                <div class="mt-2 text-danger-900 dark:text-danger-100">{{ __('manara-schedule-import.prerequisite_unavailable') }}</div>
+                <x-filament::button class="mt-3" tag="a" :href="\App\Filament\Pages\ManaraEnrollmentImport::getUrl()" color="danger" icon="heroicon-o-arrow-right">
+                    {{ __('manara-schedule-import.go_to_stage_one') }}
+                </x-filament::button>
             </div>
         @elseif ($sourceBatchReady && $sourceBatchUuid)
             <div class="rounded-lg border border-success-200 bg-success-50 p-4 text-sm text-success-800 dark:border-success-800 dark:bg-success-950 dark:text-success-200">
-                <div class="font-semibold">{{ __('manara-schedule-import.source_batch_resolved') }}</div>
-                <div class="mt-1">{{ $sourceBatchUuid }}</div>
+                <div class="font-semibold">{{ __('manara-schedule-import.prerequisite_ready') }}</div>
                 @if ($resolvedAcademicTermName)
                     <div class="mt-1">{{ __('manara-schedule-import.resolved_academic_term', ['term' => $resolvedAcademicTermName]) }}</div>
+                @endif
+                @if ($sourceBatchFilename)
+                    <div class="mt-1">{{ __('manara-schedule-import.source_filename', ['filename' => $sourceBatchFilename]) }}</div>
+                @endif
+                @if ($sourceBatchImportedRows !== null)
+                    <div class="mt-1">{{ __('manara-schedule-import.source_imported_rows', ['count' => number_format($sourceBatchImportedRows)]) }}</div>
                 @endif
             </div>
         @endif

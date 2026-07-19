@@ -50,6 +50,10 @@ class ManaraScheduleImport extends Page implements HasForms
 
     public ?string $resolvedAcademicTermName = null;
 
+    public ?string $sourceBatchFilename = null;
+
+    public ?int $sourceBatchImportedRows = null;
+
     public ?string $reconciliationUrl = null;
 
     public ?string $weeklyScheduleUrl = null;
@@ -74,11 +78,15 @@ class ManaraScheduleImport extends Page implements HasForms
             $batch = ImportBatch::query()
                 ->where('uuid', $resultBatch)
                 ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
-                ->with(['sourceImportBatch', 'academicTerms'])
+                ->with(['sourceImportBatch.academicTerms', 'academicTerms'])
                 ->firstOrFail();
-            $this->sourceBatchUuid = $batch->sourceImportBatch?->uuid;
-            $this->sourceBatchReady = $batch->sourceImportBatch?->isEligibleEnrollmentSource() ?? false;
+            $sourceBatch = $batch->sourceImportBatch;
+            $this->sourceBatchUuid = $sourceBatch?->uuid;
+            $this->sourceBatchReady = $sourceBatch?->isEligibleEnrollmentSource() === true
+                && $sourceBatch->academicTerms->count() === 1;
             $this->resolvedAcademicTermName = $batch->academicTerms->first()?->display_name;
+            $this->sourceBatchFilename = $sourceBatch?->source_filename;
+            $this->sourceBatchImportedRows = $sourceBatch?->imported_rows;
             $this->loadBatchResult($batch);
             $this->sendBatchResultNotification($batch);
 
@@ -93,9 +101,7 @@ class ManaraScheduleImport extends Page implements HasForms
                 [],
                 $explicitSourceBatchUuid,
             );
-            $this->sourceBatchUuid = $resolvedBatch->uuid;
-            $this->sourceBatchReady = true;
-            $this->resolvedAcademicTermName = $academicTerm->display_name;
+            $this->setResolvedSourceBatch($resolvedBatch, $academicTerm);
         } catch (\RuntimeException $exception) {
             $this->sourceBatchUuid = null;
             $this->sourceBatchReady = false;
@@ -110,17 +116,17 @@ class ManaraScheduleImport extends Page implements HasForms
 
     public static function getNavigationGroup(): ?string
     {
-        return __('weekly-schedule.navigation_group');
+        return __('filament-dashboard.navigation.imports_exports');
     }
 
     public static function getNavigationLabel(): string
     {
-        return __('weekly-schedule.navigation.import');
+        return __('manara-schedule-import.navigation_label');
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 1;
+        return 6;
     }
 
     public function getTitle(): string
@@ -143,6 +149,7 @@ class ManaraScheduleImport extends Page implements HasForms
                             ->maxSize(51200)
                             ->live()
                             ->afterStateUpdated(fn (mixed $state) => $this->handleUploadedFileStateChanged($state))
+                            ->disabled(fn (): bool => ! $this->sourceBatchReady)
                             ->required(),
                     ]),
             ])
@@ -257,6 +264,15 @@ class ManaraScheduleImport extends Page implements HasForms
         $this->resultStatusLabel = null;
         $this->resultBatchUuid = null;
         $this->resultHasPersistedSchedule = false;
+    }
+
+    private function setResolvedSourceBatch(ImportBatch $batch, \App\Models\AcademicTerm $academicTerm): void
+    {
+        $this->sourceBatchUuid = $batch->uuid;
+        $this->sourceBatchReady = true;
+        $this->resolvedAcademicTermName = $academicTerm->display_name;
+        $this->sourceBatchFilename = $batch->source_filename;
+        $this->sourceBatchImportedRows = $batch->imported_rows;
     }
 
     private function firstUploadedFile(mixed $state): ?TemporaryUploadedFile

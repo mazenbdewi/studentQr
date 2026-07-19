@@ -87,7 +87,13 @@ it('automatically resolves the only eligible enrollment batch on direct access',
         ->assertSet('sourceBatchReady', true)
         ->assertSet('sourceBatchUuid', $source->uuid)
         ->assertSet('resolvedAcademicTermName', $term->display_name)
-        ->assertSee(__('manara-schedule-import.source_batch_resolved'))
+        ->assertSet('sourceBatchFilename', 'enrollments.xlsx')
+        ->assertSet('sourceBatchImportedRows', 10)
+        ->assertSee('المرحلة الثانية: استيراد برنامج الدوام الأسبوعي')
+        ->assertSee(__('manara-schedule-import.prerequisite_explanation'))
+        ->assertSee(__('manara-schedule-import.prerequisite_ready'))
+        ->assertSee(__('manara-schedule-import.source_filename', ['filename' => 'enrollments.xlsx']))
+        ->assertSee(__('manara-schedule-import.source_imported_rows', ['count' => '10']))
         ->assertDontSee('لا توجد دفعة تسجيل مكتملة ومتوافقة مع جميع مقررات وشعب ملف الجدول');
 });
 
@@ -113,7 +119,9 @@ it('blocks direct access safely when multiple eligible enrollment batches exist'
         ->assertSet('sourceBatchReady', false)
         ->assertSet('sourceBatchUuid', null)
         ->assertSee('توجد أكثر من دفعة تسجيل طلاب مؤهلة')
-        ->assertSee(__('manara-schedule-import.source_batch_unavailable'));
+        ->assertSee(__('manara-schedule-import.source_batch_unavailable'))
+        ->assertSee(__('manara-schedule-import.prerequisite_unavailable'))
+        ->assertSee(__('manara-schedule-import.go_to_stage_one'));
 });
 
 it('blocks direct access clearly when no eligible enrollment batch exists', function (): void {
@@ -122,7 +130,67 @@ it('blocks direct access clearly when no eligible enrollment batch exists', func
         ->assertSet('sourceBatchReady', false)
         ->assertSet('sourceBatchUuid', null)
         ->assertSee('لا توجد دفعة تسجيل طلاب مكتملة ومؤهلة')
-        ->assertSee(__('manara-schedule-import.source_batch_unavailable'));
+        ->assertSee(__('manara-schedule-import.source_batch_unavailable'))
+        ->assertSee(__('manara-schedule-import.go_to_stage_one'));
+});
+
+it('blocks failed, pending, incomplete, empty, and invalid-term enrollment batches', function (string $status, int $importedRows, int $termCount): void {
+    $terms = collect($termCount > 0 ? range(1, $termCount) : [])->map(fn (int $index): AcademicTerm => AcademicTerm::query()->create([
+        'display_name' => "الفصل الصيفي 202{$index}/202".($index + 1),
+        'canonical_name' => "term-{$index}",
+    ]));
+    $source = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', "ineligible-{$status}-{$importedRows}-{$termCount}"),
+        'import_type' => ImportBatch::TYPE_ENROLLMENTS,
+        'source_filename' => 'enrollments.xlsx',
+        'status' => $status,
+        'imported_rows' => $importedRows,
+    ]);
+    foreach ($terms as $term) {
+        $source->academicTerms()->attach($term->id, ['row_count' => max($importedRows, 1)]);
+    }
+
+    Livewire::actingAs(manaraSchedulePageAdmin())
+        ->test(ManaraScheduleImport::class)
+        ->assertSet('sourceBatchReady', false)
+        ->assertSet('sourceBatchUuid', null)
+        ->assertSee(__('manara-schedule-import.prerequisite_unavailable'));
+})->with([
+    'failed' => [ImportBatch::STATUS_FAILED, 10, 1],
+    'pending' => [ImportBatch::STATUS_PENDING, 10, 1],
+    'completed with errors' => [ImportBatch::STATUS_COMPLETED_WITH_ERRORS, 10, 1],
+    'zero imported rows' => [ImportBatch::STATUS_COMPLETED, 0, 1],
+    'zero terms' => [ImportBatch::STATUS_COMPLETED, 10, 0],
+    'multiple terms' => [ImportBatch::STATUS_COMPLETED, 10, 2],
+]);
+
+it('keeps a persisted schedule result viewable when its source enrollment batch is no longer eligible', function (): void {
+    $term = AcademicTerm::query()->create(['display_name' => 'الفصل الصيفي 2025/2026', 'canonical_name' => 'summer-2025']);
+    $source = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', 'persisted-ineligible-source'),
+        'import_type' => ImportBatch::TYPE_ENROLLMENTS,
+        'source_filename' => 'enrollments.xlsx',
+        'status' => ImportBatch::STATUS_FAILED,
+        'imported_rows' => 10,
+    ]);
+    $source->academicTerms()->attach($term->id, ['row_count' => 10]);
+    $schedule = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', 'persisted-schedule'),
+        'import_type' => ImportBatch::TYPE_WEEKLY_SCHEDULE,
+        'source_filename' => 'schedule.xlsx',
+        'source_import_batch_id' => $source->id,
+        'status' => ImportBatch::STATUS_COMPLETED,
+        'imported_rows' => 1,
+    ]);
+    $schedule->academicTerms()->attach($term->id, ['row_count' => 1]);
+
+    Livewire::withQueryParams(['batch' => $schedule->uuid])
+        ->actingAs(manaraSchedulePageAdmin())
+        ->test(ManaraScheduleImport::class)
+        ->assertSet('sourceBatchReady', false)
+        ->assertSet('resultHasPersistedSchedule', true)
+        ->assertSee(__('manara-schedule-import.open_weekly_schedule'))
+        ->assertSee(__('manara-schedule-import.open_reconciliation'));
 });
 
 it('reopens a persisted schedule result without invoking compatibility resolution', function (): void {

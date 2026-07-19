@@ -1,7 +1,19 @@
 <?php
 
 return [
-    'title' => 'Weekly Schedule Import',
+    'title' => 'Stage two: weekly schedule import',
+    'navigation_label' => 'Stage two: weekly schedule import',
+    'phase_sequence' => 'Import sequence',
+    'stage_one' => 'Stage one',
+    'stage_one_label' => 'Student and enrollment import',
+    'stage_two' => 'Stage two',
+    'stage_two_label' => 'Weekly schedule import',
+    'prerequisite_explanation' => 'Complete stage one and import the student and enrollment workbook successfully first. The academic term, subjects, and sections used by the weekly schedule are determined and linked from enrollment data.',
+    'prerequisite_unavailable' => 'Stage two is not available yet. Import the student and enrollment workbook successfully in stage one, then return here to import the weekly schedule.',
+    'go_to_stage_one' => 'Go to stage one',
+    'prerequisite_ready' => 'Stage-one data ready for linking was found.',
+    'source_filename' => 'Enrollment file: :filename',
+    'source_imported_rows' => 'Imported enrollments: :count',
     'form_section' => 'Weekly schedule workbook',
     'excel_file' => 'Excel file',
     'instructions_title' => 'Import instructions',

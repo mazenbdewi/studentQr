@@ -41,10 +41,17 @@ it('allows only successful enrollment batches with imported rows as schedule sou
         'display_name' => 'الفصل الصيفي 2025/2026',
         'canonical_name' => 'الفصل الصيفي 2025/2026',
     ]);
-    $eligible = ImportBatch::query()->create([
+    $incomplete = ImportBatch::query()->create([
         'deduplication_key' => hash('sha256', 'eligible'),
         'import_type' => ImportBatch::TYPE_ENROLLMENTS,
         'status' => ImportBatch::STATUS_COMPLETED_WITH_ERRORS,
+        'imported_rows' => 9,
+    ]);
+    $incomplete->academicTerms()->attach($term->id, ['row_count' => 9]);
+    $eligible = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', 'completed'),
+        'import_type' => ImportBatch::TYPE_ENROLLMENTS,
+        'status' => ImportBatch::STATUS_COMPLETED,
         'imported_rows' => 9,
     ]);
     $eligible->academicTerms()->attach($term->id, ['row_count' => 9]);

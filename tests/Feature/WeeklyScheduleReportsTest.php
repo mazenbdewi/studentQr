@@ -1,6 +1,7 @@
 <?php
 
 use App\Exports\WeeklyScheduleReportExport;
+use App\Filament\Pages\ManaraEnrollmentImport;
 use App\Filament\Pages\ManaraScheduleImport;
 use App\Filament\Pages\ScheduleImportReconciliationIndex;
 use App\Filament\Pages\WeeklySchedule;
@@ -77,17 +78,32 @@ it('renders the import processing panel only for the import target with readable
 it('organizes all weekly schedule pages in one navigation group without UUID labels', function (): void {
     app()->setLocale('ar');
 
-    expect(ManaraScheduleImport::getNavigationGroup())->toBe('برنامج الدوام الأسبوعي')
-        ->and(WeeklySchedule::getNavigationGroup())->toBe('برنامج الدوام الأسبوعي')
+    expect(WeeklySchedule::getNavigationGroup())->toBe('برنامج الدوام الأسبوعي')
         ->and(WeeklyScheduleReports::getNavigationGroup())->toBe('برنامج الدوام الأسبوعي')
         ->and(ScheduleImportReconciliationIndex::getNavigationGroup())->toBe('برنامج الدوام الأسبوعي')
         ->and([
-            ManaraScheduleImport::getNavigationLabel(), WeeklySchedule::getNavigationLabel(),
+            WeeklySchedule::getNavigationLabel(),
             WeeklyScheduleReports::getNavigationLabel(), ScheduleImportReconciliationIndex::getNavigationLabel(),
         ])->toBe([
-            'استيراد برنامج الدوام', 'عرض برنامج الدوام الأسبوعي',
+            'عرض برنامج الدوام الأسبوعي',
             'تقارير برنامج الدوام الأسبوعي', 'تقرير مراجعة الاستيراد',
         ]);
+
+    expect(ManaraEnrollmentImport::getNavigationGroup())->toBe('الاستيراد')
+        ->and(ManaraScheduleImport::getNavigationGroup())->toBe('الاستيراد')
+        ->and(ManaraEnrollmentImport::getNavigationLabel())->toBe('المرحلة الأولى: استيراد الطلاب والتسجيلات')
+        ->and(ManaraScheduleImport::getNavigationLabel())->toBe('المرحلة الثانية: استيراد برنامج الدوام الأسبوعي')
+        ->and(ManaraEnrollmentImport::getNavigationSort())->toBeLessThan(ManaraScheduleImport::getNavigationSort());
+});
+
+it('uses readable light and dark styles for selected weekly schedule report filters', function (): void {
+    $view = file_get_contents(resource_path('views/filament/pages/weekly-schedule-reports.blade.php'));
+
+    expect($view)
+        ->toContain('border border-gray-300 bg-gray-100 text-gray-950')
+        ->toContain('dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100')
+        ->toContain('rounded-full border border-gray-300 bg-gray-100')
+        ->toContain('text-xs font-medium text-gray-950');
 });
 
 it('scopes report previews and counts using schedule slot filters without touching lecture sessions', function (): void {

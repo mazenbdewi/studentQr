@@ -1,7 +1,8 @@
 <?php
 
 return [
-    'title' => 'Manara Enrollment Import',
+    'title' => 'Stage one: student and enrollment import',
+    'navigation_label' => 'Stage one: student and enrollment import',
     'form_section' => 'Import file',
     'excel_file' => 'Excel file',
     'import_button' => 'Import enrollments',
