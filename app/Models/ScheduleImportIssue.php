@@ -42,6 +42,8 @@ class ScheduleImportIssue extends Model
 
     public const TYPE_HALL_MISSING = 'hall_missing';
 
+    public const TYPE_HALL_AMBIGUOUS = 'hall_ambiguous';
+
     public const TYPE_DUPLICATE_CONFLICT = 'duplicate_conflict';
 
     public const TYPE_INVALID_WEEKDAY_TIME = 'invalid_weekday_time';
@@ -101,6 +103,7 @@ class ScheduleImportIssue extends Model
             self::TYPE_LECTURER_MISSING,
             self::TYPE_LECTURER_AMBIGUOUS,
             self::TYPE_HALL_MISSING,
+            self::TYPE_HALL_AMBIGUOUS,
             self::TYPE_DUPLICATE_CONFLICT,
             self::TYPE_INVALID_WEEKDAY_TIME,
             self::TYPE_CORE_VALIDATION,

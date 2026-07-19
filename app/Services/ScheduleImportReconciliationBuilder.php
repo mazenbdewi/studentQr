@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AcademicTerm;
+use App\Models\Hall;
 use App\Models\ImportBatch;
 use App\Models\Lecturer;
 use App\Models\ScheduleImportIssue;
@@ -217,6 +218,15 @@ class ScheduleImportReconciliationBuilder
             ->keyBy(fn (SubjectSection $section): string => $section->subject_id.'|'.SubjectSection::normalizeCode($section->code));
         $lecturerCounts = Lecturer::query()->get(['id', 'name', 'canonical_name'])
             ->countBy(fn (Lecturer $lecturer): string => $this->normalizer->normalizeKey($lecturer->canonical_name ?: $lecturer->name));
+        $hallIdsByKey = [];
+        Hall::query()->withoutTrashed()->get(['id', 'code', 'name'])->each(function (Hall $hall) use (&$hallIdsByKey): void {
+            foreach (array_unique(array_filter([
+                $this->normalizer->normalizeKey($hall->code),
+                $this->normalizer->normalizeKey($hall->name),
+            ])) as $key) {
+                $hallIdsByKey[$key][$hall->id] = true;
+            }
+        });
 
         $analysis = [];
         $candidateGroups = [];
@@ -276,6 +286,8 @@ class ScheduleImportReconciliationBuilder
 
             if (($row['hall_name_key'] ?? '') === '') {
                 $issues[] = $this->issue(ScheduleImportIssue::TYPE_HALL_MISSING, ScheduleImportIssue::SEVERITY_WARNING, 'اسم القاعة مفقود.', 'hall');
+            } elseif (count($hallIdsByKey[$row['hall_name_key']] ?? []) > 1) {
+                $issues[] = $this->issue(ScheduleImportIssue::TYPE_HALL_AMBIGUOUS, ScheduleImportIssue::SEVERITY_WARNING, 'اسم القاعة يطابق أكثر من قاعة.', 'hall');
             }
 
             if ($section instanceof SubjectSection) {

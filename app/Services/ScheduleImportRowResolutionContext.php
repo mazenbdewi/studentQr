@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Hall;
+use App\Models\Lecturer;
 use App\Models\ScheduleImportIssue;
 use App\Models\ScheduleImportRow;
 use App\Models\Subject;
@@ -11,6 +13,18 @@ use App\Support\WeeklyScheduleRowNormalizer;
 
 class ScheduleImportRowResolutionContext
 {
+    public const SOURCE_MANUAL = 'manual';
+
+    public const SOURCE_ORIGINAL_EXACT_MATCH = 'original_exact_match';
+
+    public const SOURCE_NONE = 'none';
+
+    public const STATUS_RESOLVED = 'resolved';
+
+    public const STATUS_MISSING = 'missing';
+
+    public const STATUS_AMBIGUOUS = 'ambiguous';
+
     private const SUBJECT_ISSUES = [
         ScheduleImportIssue::TYPE_SUBJECT_NOT_FOUND,
         ScheduleImportIssue::TYPE_SUBJECT_NOT_UNIQUE,
@@ -28,6 +42,12 @@ class ScheduleImportRowResolutionContext
 
     /** @var array<string, array<int, int>> */
     private array $sectionMatches = [];
+
+    /** @var array<string, array<int, int>> */
+    private array $lecturerMatches = [];
+
+    /** @var array<string, array<int, int>> */
+    private array $hallMatches = [];
 
     public function __construct(private readonly WeeklyScheduleRowNormalizer $normalizer) {}
 
@@ -72,6 +92,88 @@ class ScheduleImportRowResolutionContext
         $sectionId = $this->effectiveSubjectSectionId($row);
 
         return $sectionId ? SubjectSection::query()->find($sectionId) : null;
+    }
+
+    /** @return array{id: ?int, source: string, status: string, match_ids: array<int, int>} */
+    public function effectiveLecturerResolution(ScheduleImportRow $row): array
+    {
+        $manualId = $this->positiveId($row->resolved_lecturer_id);
+
+        if ($manualId && Lecturer::query()->whereKey($manualId)->exists()) {
+            return $this->resolvedIdentity($manualId, self::SOURCE_MANUAL);
+        }
+
+        $sourceKey = $this->sourceIdentityKey($row, 'teacher_name');
+
+        if ($sourceKey === null) {
+            return $this->unresolvedIdentity(self::STATUS_MISSING);
+        }
+
+        $ids = $this->lecturerMatches[$sourceKey] ??= Lecturer::query()
+            ->get(['id', 'name', 'canonical_name'])
+            ->filter(fn (Lecturer $lecturer): bool => $this->normalizer->normalizeKey($lecturer->canonical_name ?: $lecturer->name) === $sourceKey)
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        return $this->identityFromExactMatches($ids);
+    }
+
+    /** @return array{id: ?int, source: string, status: string, match_ids: array<int, int>} */
+    public function effectiveHallResolution(ScheduleImportRow $row): array
+    {
+        $manualId = $this->positiveId($row->resolved_hall_id);
+
+        if ($manualId && Hall::query()->withoutTrashed()->whereKey($manualId)->exists()) {
+            return $this->resolvedIdentity($manualId, self::SOURCE_MANUAL);
+        }
+
+        $sourceKey = $this->sourceIdentityKey($row, 'hall_name');
+
+        if ($sourceKey === null) {
+            return $this->unresolvedIdentity(self::STATUS_MISSING);
+        }
+
+        $ids = $this->hallMatches[$sourceKey] ??= Hall::query()
+            ->withoutTrashed()
+            ->get(['id', 'code', 'name'])
+            ->filter(fn (Hall $hall): bool => in_array($sourceKey, array_filter([
+                $this->normalizer->normalizeKey($hall->code),
+                $this->normalizer->normalizeKey($hall->name),
+            ]), true))
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        return $this->identityFromExactMatches($ids);
+    }
+
+    public function effectiveLecturerId(ScheduleImportRow $row): ?int
+    {
+        return $this->effectiveLecturerResolution($row)['id'];
+    }
+
+    public function effectiveHallId(ScheduleImportRow $row): ?int
+    {
+        return $this->effectiveHallResolution($row)['id'];
+    }
+
+    public function effectiveLecturer(ScheduleImportRow $row): ?Lecturer
+    {
+        $id = $this->effectiveLecturerId($row);
+
+        return $id ? Lecturer::query()->find($id) : null;
+    }
+
+    public function effectiveHall(ScheduleImportRow $row): ?Hall
+    {
+        $id = $this->effectiveHallId($row);
+
+        return $id ? Hall::query()->withoutTrashed()->find($id) : null;
     }
 
     public function originalMatchedSubjectId(ScheduleImportRow $row): ?int
@@ -212,5 +314,43 @@ class ScheduleImportRowResolutionContext
     private function positiveId(mixed $id): ?int
     {
         return is_numeric($id) && (int) $id > 0 ? (int) $id : null;
+    }
+
+    private function sourceIdentityKey(ScheduleImportRow $row, string $field): ?string
+    {
+        $sourceField = $field.'_source';
+        $value = array_key_exists($sourceField, $row->normalized_payload ?? [])
+            ? $row->normalized_payload[$sourceField]
+            : ($row->source_payload[$field] ?? null);
+
+        return $this->normalizer->isMissingValue($value)
+            ? null
+            : $this->normalizer->normalizeKey($value);
+    }
+
+    /** @param array<int, int> $ids
+     * @return array{id: ?int, source: string, status: string, match_ids: array<int, int>}
+     */
+    private function identityFromExactMatches(array $ids): array
+    {
+        return match (count($ids)) {
+            1 => $this->resolvedIdentity($ids[0], self::SOURCE_ORIGINAL_EXACT_MATCH),
+            0 => $this->unresolvedIdentity(self::STATUS_MISSING),
+            default => $this->unresolvedIdentity(self::STATUS_AMBIGUOUS, $ids),
+        };
+    }
+
+    /** @return array{id: int, source: string, status: string, match_ids: array<int, int>} */
+    private function resolvedIdentity(int $id, string $source): array
+    {
+        return ['id' => $id, 'source' => $source, 'status' => self::STATUS_RESOLVED, 'match_ids' => [$id]];
+    }
+
+    /** @param array<int, int> $ids
+     * @return array{id: null, source: string, status: string, match_ids: array<int, int>}
+     */
+    private function unresolvedIdentity(string $status, array $ids = []): array
+    {
+        return ['id' => null, 'source' => self::SOURCE_NONE, 'status' => $status, 'match_ids' => $ids];
     }
 }

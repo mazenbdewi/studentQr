@@ -96,6 +96,11 @@ return [
     'notices' => [
         'optional_identities' => 'يمكن حفظ الموعد الآن وإسناد المدرس أو القاعة لاحقًا.',
     ],
+    'identity_sources' => [
+        'manual' => 'اختيار يدوي معتمد',
+        'original_exact_match' => 'مطابقة أصلية تامة',
+        'none' => 'غير محدد',
+    ],
     'summary' => [
         'unresolved_subjects' => 'مشكلات مواد غير محلولة',
         'unresolved_sections' => 'مشكلات شعب غير محلولة',

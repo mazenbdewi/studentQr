@@ -31,7 +31,10 @@ class ScheduleImportIssueWorkflow
         ScheduleImportIssue::TYPE_LECTURER_AMBIGUOUS,
     ];
 
-    public const HALL_ISSUES = [ScheduleImportIssue::TYPE_HALL_MISSING];
+    public const HALL_ISSUES = [
+        ScheduleImportIssue::TYPE_HALL_MISSING,
+        ScheduleImportIssue::TYPE_HALL_AMBIGUOUS,
+    ];
 
     public const CONFLICT_ISSUES = [ScheduleImportIssue::TYPE_DUPLICATE_CONFLICT];
 

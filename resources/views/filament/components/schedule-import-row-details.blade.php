@@ -1,3 +1,13 @@
+@php
+    $resolutionContext = app(\App\Services\ScheduleImportRowResolutionContext::class);
+    $effectiveSubject = $resolutionContext->effectiveSubject($row);
+    $effectiveSection = $resolutionContext->effectiveSubjectSection($row);
+    $effectiveLecturer = $resolutionContext->effectiveLecturer($row);
+    $effectiveHall = $resolutionContext->effectiveHall($row);
+    $lecturerResolution = $resolutionContext->effectiveLecturerResolution($row);
+    $hallResolution = $resolutionContext->effectiveHallResolution($row);
+@endphp
+
 <div class="space-y-5 text-sm">
     <section>
         <h3 class="font-semibold text-gray-950 dark:text-white">{{ __('schedule-import-reconciliation.fields.source_values') }}</h3>
@@ -14,10 +24,10 @@
     <section>
         <h3 class="font-semibold text-gray-950 dark:text-white">{{ __('schedule-import-reconciliation.fields.canonical_resolution') }}</h3>
         <div class="mt-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-            {{ $row->resolvedSubject?->code }} {{ $row->resolvedSubject?->name }}
-            @if ($row->resolvedSubjectSection) — {{ $row->resolvedSubjectSection->code }} @endif
-            @if ($row->resolvedLecturer) — {{ $row->resolvedLecturer->name }} @endif
-            @if ($row->resolvedHall) — {{ $row->resolvedHall->name }} @endif
+            {{ $effectiveSubject?->code }} {{ $effectiveSubject?->name }}
+            @if ($effectiveSection) — {{ $effectiveSection->code }} @endif
+            @if ($effectiveLecturer) — {{ $effectiveLecturer->name }} ({{ __('schedule-import-reconciliation.identity_sources.'.$lecturerResolution['source']) }}) @endif
+            @if ($effectiveHall) — {{ $effectiveHall->name }} ({{ __('schedule-import-reconciliation.identity_sources.'.$hallResolution['source']) }}) @endif
         </div>
     </section>
 

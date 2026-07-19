@@ -14,6 +14,7 @@ use App\Rules\ValidScheduleIdentityValue;
 use App\Services\ScheduleImportIssueWorkflow;
 use App\Services\ScheduleImportReconciliationService;
 use App\Services\ScheduleImportReconciliationSummaryService;
+use App\Services\ScheduleImportRowResolutionContext;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -310,7 +311,7 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
                 Placeholder::make('effective_section')
                     ->label(__('schedule-import-reconciliation.fields.section'))
                     ->content(function () use ($record): string {
-                        $section = app(\App\Services\ScheduleImportRowResolutionContext::class)->effectiveSubjectSection($record);
+                        $section = app(ScheduleImportRowResolutionContext::class)->effectiveSubjectSection($record);
 
                         return $section instanceof SubjectSection ? $section->code : '—';
                     }),
@@ -338,8 +339,8 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
                         Select::make('weekday')->label(__('schedule-import-reconciliation.fields.weekday'))->options(__('weekly-schedule.weekdays'))->required(),
                         TimePicker::make('start_time')->label(__('schedule-import-reconciliation.fields.start_time'))->seconds(false)->required(),
                         TimePicker::make('end_time')->label(__('schedule-import-reconciliation.fields.end_time'))->seconds(false)->required(),
-                        Select::make('lecturer_id')->label(__('schedule-import-reconciliation.fields.lecturer'))->helperText(__('schedule-import-reconciliation.fields.optional'))->options(fn (): array => Lecturer::query()->orderBy('name')->pluck('name', 'id')->all())->searchable()->preload(),
-                        Select::make('hall_id')->label(__('schedule-import-reconciliation.fields.hall'))->helperText(__('schedule-import-reconciliation.fields.optional'))->options(fn (): array => Hall::query()->withoutTrashed()->orderBy('name')->pluck('name', 'id')->all())->searchable()->preload(),
+                        Select::make('lecturer_id')->label(__('schedule-import-reconciliation.fields.lecturer'))->helperText(__('schedule-import-reconciliation.fields.optional'))->default(fn (): ?int => app(ScheduleImportRowResolutionContext::class)->effectiveLecturerId($record))->options(fn (): array => Lecturer::query()->orderBy('name')->pluck('name', 'id')->all())->searchable()->preload(),
+                        Select::make('hall_id')->label(__('schedule-import-reconciliation.fields.hall'))->helperText(__('schedule-import-reconciliation.fields.optional'))->default(fn (): ?int => app(ScheduleImportRowResolutionContext::class)->effectiveHallId($record))->options(fn (): array => Hall::query()->withoutTrashed()->orderBy('name')->pluck('name', 'id')->all())->searchable()->preload(),
                         TextInput::make('section_capacity')->label(__('schedule-import-reconciliation.fields.section_capacity'))->numeric()->minValue(0),
                         TextInput::make('expected_student_count')->label(__('schedule-import-reconciliation.fields.expected_students'))->numeric()->minValue(0)->default($record->source_payload['expected_student_count'] ?? null),
                     ])
@@ -447,7 +448,17 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
         $warnings = fn (Builder $query): Builder => $query->where('severity', ScheduleImportIssue::SEVERITY_WARNING)->whereIn('resolution_status', [ScheduleImportIssue::STATUS_UNRESOLVED, ScheduleImportIssue::STATUS_RETRY_FAILED]);
 
         return match ($tab) {
-            'needs_attention' => $query->whereNotIn('current_reconciliation_status', [ScheduleImportRow::STATUS_IGNORED, ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED])->whereHas('issues', $blocking),
+            'needs_attention' => $query
+                ->whereNotIn('current_reconciliation_status', [ScheduleImportRow::STATUS_IGNORED, ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED])
+                ->where(function (Builder $needsAttention) use ($blocking, $warnings): void {
+                    $needsAttention
+                        ->whereHas('issues', $blocking)
+                        ->orWhere(function (Builder $awaitingRetry) use ($warnings): void {
+                            $awaitingRetry
+                                ->where('current_reconciliation_status', ScheduleImportRow::STATUS_UNRESOLVED)
+                                ->whereDoesntHave('issues', $warnings);
+                        });
+                }),
             'warnings' => $query->whereNotIn('current_reconciliation_status', [ScheduleImportRow::STATUS_IGNORED, ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED])->whereDoesntHave('issues', $blocking)->whereHas('issues', $warnings),
             'excluded' => $query->whereIn('current_reconciliation_status', [ScheduleImportRow::STATUS_IGNORED, ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED]),
             'successful' => $query

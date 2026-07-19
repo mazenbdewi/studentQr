@@ -202,6 +202,7 @@ class ScheduleImportReconciliationService
 
         return DB::transaction(function () use ($row, $entries, $actor, $note): array {
             $locked = $this->lockRow($row);
+            $this->ensureOptionalIdentityIssues($locked);
             [$subject, $section] = $this->canonicalCatalog($locked);
 
             if (! $subject || ! $section) {
@@ -361,6 +362,7 @@ class ScheduleImportReconciliationService
 
         return DB::transaction(function () use ($row, $actor, $note): array {
             $locked = $this->lockRow($row);
+            $this->ensureOptionalIdentityIssues($locked);
             [$subject, $section] = $this->canonicalCatalog($locked);
 
             if (! $subject || ! $section) {
@@ -625,8 +627,12 @@ class ScheduleImportReconciliationService
             throw new RuntimeException(__('schedule-import-reconciliation.validation.end_after_start'));
         }
 
-        $lecturerId = filled($entry['lecturer_id'] ?? null) ? (int) $entry['lecturer_id'] : $row->resolved_lecturer_id;
-        $hallId = filled($entry['hall_id'] ?? null) ? (int) $entry['hall_id'] : $row->resolved_hall_id;
+        $lecturerId = filled($entry['lecturer_id'] ?? null)
+            ? (int) $entry['lecturer_id']
+            : $this->resolutionContext->effectiveLecturerId($row);
+        $hallId = filled($entry['hall_id'] ?? null)
+            ? (int) $entry['hall_id']
+            : $this->resolutionContext->effectiveHallId($row);
 
         if ($lecturerId && ! Lecturer::query()->whereKey($lecturerId)->exists()) {
             throw new RuntimeException(__('schedule-import-reconciliation.validation.invalid_lecturer'));
@@ -787,6 +793,10 @@ class ScheduleImportReconciliationService
     private function rowSnapshot(ScheduleImportRow $row, User $actor): array
     {
         $row->load(['issues', 'resolvedSubject', 'resolvedSubjectSection', 'resolvedLecturer', 'resolvedHall', 'timeOverrides', 'academicTerm']);
+        $lecturerResolution = $this->resolutionContext->effectiveLecturerResolution($row);
+        $hallResolution = $this->resolutionContext->effectiveHallResolution($row);
+        $lecturer = $this->resolutionContext->effectiveLecturer($row);
+        $hall = $this->resolutionContext->effectiveHall($row);
 
         return [
             'row_id' => $row->id,
@@ -795,8 +805,10 @@ class ScheduleImportReconciliationService
             'resolution' => [
                 'subject' => $row->resolvedSubject ? ['id' => $row->resolvedSubject->id, 'code' => $row->resolvedSubject->code, 'name' => $row->resolvedSubject->name] : null,
                 'section' => $row->resolvedSubjectSection ? ['id' => $row->resolvedSubjectSection->id, 'code' => $row->resolvedSubjectSection->code] : null,
-                'lecturer' => $row->resolvedLecturer ? ['id' => $row->resolvedLecturer->id, 'name' => $row->resolvedLecturer->name] : null,
-                'hall' => $row->resolvedHall ? ['id' => $row->resolvedHall->id, 'code' => $row->resolvedHall->code, 'name' => $row->resolvedHall->name] : null,
+                'lecturer' => $lecturer ? ['id' => $lecturer->id, 'name' => $lecturer->name, 'source' => $lecturerResolution['source']] : null,
+                'hall' => $hall ? ['id' => $hall->id, 'code' => $hall->code, 'name' => $hall->name, 'source' => $hallResolution['source']] : null,
+                'lecturer_context' => $lecturerResolution,
+                'hall_context' => $hallResolution,
                 'section_capacity' => $row->resolved_section_capacity,
                 'expected_student_count' => $row->resolved_expected_student_count,
                 'payload' => $row->resolution_payload,
@@ -863,6 +875,49 @@ class ScheduleImportReconciliationService
             'last_action_at' => now()->toISOString(),
         ];
         $batch->update(['summary' => $summary]);
+    }
+
+    private function ensureOptionalIdentityIssues(ScheduleImportRow $row): void
+    {
+        $resolutions = [
+            'lecturer' => $this->resolutionContext->effectiveLecturerResolution($row),
+            'hall' => $this->resolutionContext->effectiveHallResolution($row),
+        ];
+        $specifications = [
+            'lecturer' => [
+                ScheduleImportRowResolutionContext::STATUS_MISSING => [ScheduleImportIssue::TYPE_LECTURER_MISSING, 'تعذر مطابقة المدرس المصدر مع هوية مدرس موجودة.'],
+                ScheduleImportRowResolutionContext::STATUS_AMBIGUOUS => [ScheduleImportIssue::TYPE_LECTURER_AMBIGUOUS, 'اسم المدرس يطابق أكثر من هوية.'],
+            ],
+            'hall' => [
+                ScheduleImportRowResolutionContext::STATUS_MISSING => [ScheduleImportIssue::TYPE_HALL_MISSING, 'تعذر مطابقة القاعة المصدر مع قاعة موجودة.'],
+                ScheduleImportRowResolutionContext::STATUS_AMBIGUOUS => [ScheduleImportIssue::TYPE_HALL_AMBIGUOUS, 'اسم القاعة يطابق أكثر من قاعة.'],
+            ],
+        ];
+        $created = false;
+
+        foreach ($resolutions as $identity => $resolution) {
+            $specification = $specifications[$identity][$resolution['status']] ?? null;
+
+            if (! $specification || $row->issues->contains('issue_type', $specification[0])) {
+                continue;
+            }
+
+            ScheduleImportIssue::query()->firstOrCreate(
+                ['deduplication_key' => hash('sha256', implode('|', ['effective-identity', $row->id, $specification[0]]))],
+                [
+                    'schedule_import_row_id' => $row->id,
+                    'issue_type' => $specification[0],
+                    'severity' => ScheduleImportIssue::SEVERITY_WARNING,
+                    'reason_ar' => $specification[1],
+                    'resolution_status' => ScheduleImportIssue::STATUS_UNRESOLVED,
+                ],
+            );
+            $created = true;
+        }
+
+        if ($created) {
+            $row->setRelation('issues', $row->issues()->orderBy('id')->get());
+        }
     }
 
     private function resolutionUpdate(User $actor, array $values): array

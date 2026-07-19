@@ -31,9 +31,11 @@ class ScheduleImportRowRetryService
             throw new RuntimeException(__('schedule-import-reconciliation.validation.section_scope'));
         }
 
-        $lecturerResult = $this->fillIdentity($row, 'lecturer_id', $row->resolved_lecturer_id);
-        $hallResult = $this->fillIdentity($row, 'hall_id', $row->resolved_hall_id);
-        $candidates = $this->candidates($row, $section->id);
+        $lecturerResolution = $this->resolutionContext->effectiveLecturerResolution($row);
+        $hallResolution = $this->resolutionContext->effectiveHallResolution($row);
+        $lecturerResult = $this->fillIdentity($row, 'lecturer_id', $lecturerResolution['id']);
+        $hallResult = $this->fillIdentity($row, 'hall_id', $hallResolution['id']);
+        $candidates = $this->candidates($row, $section->id, $lecturerResolution['id'], $hallResolution['id']);
         $created = [];
         $existing = [];
         $conflicts = [...$lecturerResult['conflicts'], ...$hallResult['conflicts']];
@@ -104,11 +106,13 @@ class ScheduleImportRowRetryService
             'hall_conflicts' => $hallResult['conflicts'],
             'conflicts' => $conflicts,
             'slot_changes' => [...$lecturerResult['slot_changes'], ...$hallResult['slot_changes']],
+            'lecturer_resolution' => $lecturerResolution,
+            'hall_resolution' => $hallResolution,
         ];
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function candidates(ScheduleImportRow $row, int $sectionId): array
+    private function candidates(ScheduleImportRow $row, int $sectionId, ?int $lecturerId, ?int $hallId): array
     {
         if ($row->timeOverrides->isNotEmpty()) {
             return $row->timeOverrides->map(fn (ScheduleImportRowTimeOverride $override): array => [
@@ -116,8 +120,8 @@ class ScheduleImportRowRetryService
                 'weekday' => $override->weekday,
                 'start_time' => $override->start_time,
                 'end_time' => $override->end_time,
-                'lecturer_id' => $override->lecturer_id ?? $row->resolved_lecturer_id,
-                'hall_id' => $override->hall_id ?? $row->resolved_hall_id,
+                'lecturer_id' => $override->lecturer_id ?? $lecturerId,
+                'hall_id' => $override->hall_id ?? $hallId,
                 'section_capacity' => $override->section_capacity ?? $row->resolved_section_capacity,
                 'expected_student_count' => $override->expected_student_count ?? $row->resolved_expected_student_count,
             ])->all();
@@ -141,8 +145,8 @@ class ScheduleImportRowRetryService
                     'subject_section_id' => $sectionId,
                     'weekday' => (int) $weekday,
                     ...$time,
-                    'lecturer_id' => $row->resolved_lecturer_id,
-                    'hall_id' => $row->resolved_hall_id,
+                    'lecturer_id' => $lecturerId,
+                    'hall_id' => $hallId,
                     'section_capacity' => $row->resolved_section_capacity ?? ($row->normalized_payload['section_capacity'] ?? null),
                     'expected_student_count' => $row->resolved_expected_student_count ?? ($row->normalized_payload['expected_student_count'] ?? null),
                 ];
