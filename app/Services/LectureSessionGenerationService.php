@@ -47,10 +47,12 @@ class LectureSessionGenerationService
             'excluded_slot_count' => 0,
             'candidate_session_count' => 0,
             'to_create_count' => 0,
+            'safe_to_create_count' => 0,
             'already_existing_count' => 0,
             'manual_existing_count' => 0,
             'blocked_slot_count' => 0,
             'conflict_count' => 0,
+            'ready_for_partial_generation' => false,
             'structural_readiness' => $structuralReadiness,
             'blocked_slots' => [],
             'conflicts' => [],
@@ -124,6 +126,13 @@ class LectureSessionGenerationService
         $preview['ready'] = $prerequisiteErrors === []
             && $preview['blocked_slot_count'] === 0
             && $preview['conflict_count'] === 0;
+        $unsafeSourceSlotIds = $this->unsafeConflictSourceSlotIds($preview['conflicts']);
+        $preview['safe_to_create_count'] = collect($preview['candidates'])
+            ->filter(fn (array $candidate): bool => $candidate['status'] === self::STATUS_TO_CREATE)
+            ->reject(fn (array $candidate): bool => in_array((int) $candidate['source_slot_id'], $unsafeSourceSlotIds, true))
+            ->count();
+        $preview['ready_for_partial_generation'] = $prerequisiteErrors === []
+            && $preview['safe_to_create_count'] > 0;
 
         return $preview;
     }
@@ -328,8 +337,7 @@ class LectureSessionGenerationService
 
         return [
             ...$preview,
-            'ready_for_partial_generation' => $preview['prerequisite_errors'] === []
-                && $safeCandidates->isNotEmpty(),
+            'ready_for_partial_generation' => true,
             'generation_run_id' => $run->id,
             'created_session_count' => $createdCount,
             'skipped_session_count' => $skipped,
@@ -402,7 +410,7 @@ class LectureSessionGenerationService
     {
         return ImportBatch::query()
             ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
-            ->where('status', ImportBatch::STATUS_COMPLETED)
+            ->whereIn('status', [ImportBatch::STATUS_COMPLETED, ImportBatch::STATUS_COMPLETED_WITH_ERRORS])
             ->whereHas('academicTerms', fn (Builder $query): Builder => $query->whereKey($term->id))
             ->whereHas('scheduleSlots', fn (Builder $query): Builder => $query->where('academic_term_id', $term->id))
             ->exists();
@@ -412,7 +420,7 @@ class LectureSessionGenerationService
     {
         return ImportBatch::query()
             ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
-            ->where('status', ImportBatch::STATUS_COMPLETED)
+            ->whereIn('status', [ImportBatch::STATUS_COMPLETED, ImportBatch::STATUS_COMPLETED_WITH_ERRORS])
             ->whereHas('academicTerms', fn (Builder $query): Builder => $query->whereKey($term->id))
             ->whereHas('scheduleSlots', fn (Builder $query): Builder => $query->where('academic_term_id', $term->id))
             ->latest('completed_at')

@@ -151,7 +151,7 @@ class ListLectureSessions extends ListRecords
                     $generator = app(LectureSessionGenerationService::class);
                     $preview = $generator->preview($term);
 
-                    if ($preview['prerequisite_errors'] !== []) {
+                    if (! ($preview['ready_for_partial_generation'] ?? false)) {
                         Notification::make()
                             ->title(__('lecture-session.weekly_generation_not_ready_title'))
                             ->body(static::weeklyGenerationPreviewTextForResult($preview))
@@ -537,7 +537,7 @@ class ListLectureSessions extends ListRecords
             ]);
         }
 
-        if ($preview['prerequisite_errors'] === [] && $preview['to_create_count'] > 0) {
+        if ($preview['ready_for_partial_generation'] ?? false) {
             return $summary."\n".__('lecture-session.weekly_generation_preview_ready');
         }
 

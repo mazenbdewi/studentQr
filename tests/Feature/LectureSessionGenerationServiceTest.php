@@ -174,10 +174,50 @@ it('previews generation without creating users or sessions', function (): void {
     $preview = app(LectureSessionGenerationService::class)->preview($fixture['term']);
 
     expect($preview['ready'])->toBeTrue()
+        ->and($preview['ready_for_partial_generation'])->toBeTrue()
+        ->and($preview['safe_to_create_count'])->toBe(3)
         ->and($preview['structural_readiness']['total_weekly_slots'])->toBe(1)
         ->and($preview['structural_readiness']['ready_slots'])->toBe(1)
         ->and(User::query()->count())->toBe($usersBefore)
         ->and(LectureSession::query()->count())->toBe($sessionsBefore);
+});
+
+it('does not block partial-safe generation when the installed weekly schedule batch completed with errors', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $fixture['scheduleBatch']->update(['status' => ImportBatch::STATUS_COMPLETED_WITH_ERRORS]);
+    $blockedSection = SubjectSection::query()->create([
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'lecturer_id' => $fixture['lecturerUser']->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'T2',
+        'name' => 'T2',
+        'capacity' => 20,
+    ]);
+
+    SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['scheduleBatch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $blockedSection->id,
+        'lecturer_id' => $fixture['lecturerIdentity']->id,
+        'hall_id' => null,
+        'weekday' => Carbon::TUESDAY,
+        'start_time' => '10:00:00',
+        'end_time' => '11:00:00',
+        'section_capacity' => 20,
+        'expected_student_count' => 15,
+    ]);
+
+    $preview = app(LectureSessionGenerationService::class)->preview($fixture['term']);
+
+    expect($preview['ready'])->toBeFalse()
+        ->and($preview['ready_for_partial_generation'])->toBeTrue()
+        ->and($preview['prerequisite_errors'])->not->toContain('missing_completed_weekly_schedule_batch')
+        ->and($preview['to_create_count'])->toBe(3)
+        ->and($preview['safe_to_create_count'])->toBe(3)
+        ->and($preview['blocked_slot_count'])->toBe(1)
+        ->and($preview['blocked_slots'][0]['reasons'])->toContain('missing_hall');
 });
 
 it('reports structural readiness even when teaching dates are missing', function (): void {
@@ -190,6 +230,7 @@ it('reports structural readiness even when teaching dates are missing', function
     $preview = app(LectureSessionGenerationService::class)->preview($fixture['term']);
 
     expect($preview['ready'])->toBeFalse()
+        ->and($preview['ready_for_partial_generation'])->toBeFalse()
         ->and($preview['prerequisite_errors'])->toContain('missing_teaching_dates')
         ->and($preview['source_slot_count'])->toBe(1)
         ->and($preview['structural_readiness']['total_weekly_slots'])->toBe(1)
