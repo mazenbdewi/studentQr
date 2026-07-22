@@ -449,6 +449,53 @@ it('uses password reset rather than recovering old temporary passwords after a l
         ->and(DB::table('lecturer_account_generation_runs')->where('summary', 'like', '%'.$oldPlain.'%')->exists())->toBeFalse();
 });
 
+it('recovers an interrupted bulk generation by resetting undelivered created accounts and creating remaining accounts', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    addBulkLecturerSlot($fixture, 212, 'مدرس ثان');
+    $lostPlain = 'lost-temporary-password';
+    $linkedUser = User::factory()->create([
+        'name' => 'محمد ابراهيم علي',
+        'email' => null,
+        'login_username' => 'lec000211',
+        'password' => Hash::make($lostPlain),
+        'must_change_password' => true,
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+    $linkedUser->assignRole(Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']));
+    $fixture['lecturer']->forceFill(['user_id' => $linkedUser->id])->save();
+    $staleRun = LecturerAccountGenerationRun::query()->create([
+        'academic_term_id' => $fixture['term']->id,
+        'status' => LecturerAccountGenerationRun::STATUS_PROCESSING,
+        'lecturer_count' => 2,
+        'started_at' => now(),
+    ]);
+    LecturerAccountGenerationItem::query()->create([
+        'run_id' => $staleRun->id,
+        'lecturer_id' => $fixture['lecturer']->id,
+        'user_id' => $linkedUser->id,
+        'login_username' => 'lec000211',
+        'result' => LecturerAccountGenerationItem::RESULT_ACCOUNT_CREATED,
+        'message' => __('lecturer-account-preparation.results.account_created'),
+    ]);
+
+    $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+
+    expect($result['created_account_count'])->toBe(1)
+        ->and($result['recovered_password_reset_count'])->toBe(1)
+        ->and($result['credential_rows'])->toHaveCount(2)
+        ->and(collect($result['credential_rows'])->pluck('login_username')->all())->toContain('lec000211', 'lec000212')
+        ->and(Hash::check($lostPlain, $linkedUser->fresh()->password))->toBeFalse()
+        ->and($staleRun->fresh()->status)->toBe(LecturerAccountGenerationRun::STATUS_COMPLETED_WITH_ERRORS)
+        ->and(LecturerAccountGenerationItem::query()->where('result', LecturerAccountGenerationItem::RESULT_TEMPORARY_PASSWORD_RESET)->count())->toBe(1)
+        ->and(User::query()->whereIn('login_username', ['lec000211', 'lec000212'])->count())->toBe(2)
+        ->and(Lecturer::query()->whereNotNull('user_id')->count())->toBe(2)
+        ->and(DB::table('lecturer_account_generation_items')->where('message', 'like', '%'.$lostPlain.'%')->exists())->toBeFalse()
+        ->and(DB::table('lecturer_account_generation_runs')->where('summary', 'like', '%'.$lostPlain.'%')->exists())->toBeFalse();
+});
+
 it('forces password change before protected access and clears the flag after success', function (): void {
     $user = User::factory()->create([
         'must_change_password' => true,

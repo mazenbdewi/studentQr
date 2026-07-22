@@ -57,6 +57,7 @@ return [
         'role_added' => 'تم منح دور مدرس مقرر.',
         'skipped' => 'تم استبعاد الحالة.',
         'temporary_password_reset' => 'تمت إعادة تعيين كلمة المرور المؤقتة.',
+        'temporary_password_reset_after_failed_download' => 'تمت إعادة تعيين كلمة المرور المؤقتة لأن تنزيل بيانات الدخول السابق لم يكتمل.',
     ],
     'errors' => [
         'unexpected_item_failure' => 'حدث خطأ غير متوقع أثناء معالجة المدرس.',

@@ -57,6 +57,7 @@ return [
         'role_added' => 'The course lecturer role was added.',
         'skipped' => 'The item was skipped.',
         'temporary_password_reset' => 'The temporary password was reset.',
+        'temporary_password_reset_after_failed_download' => 'The temporary password was reset because the previous credentials download did not complete.',
     ],
     'errors' => [
         'unexpected_item_failure' => 'An unexpected error occurred while processing the lecturer.',

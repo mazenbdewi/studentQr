@@ -73,8 +73,11 @@ class LecturerAccountPreparationService
 
     public function prepareBulkAccounts(AcademicTerm $term, ?User $actor = null): array
     {
+        @set_time_limit(300);
         Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
 
+        $recoveryLecturerIds = $this->undeliveredTemporaryPasswordLecturerIds($term);
+        $this->markStaleProcessingRunsForRecovery($term);
         $preview = $this->previewBulkPreparation($term);
         $run = LecturerAccountGenerationRun::query()->create([
             'academic_term_id' => $term->id,
@@ -88,8 +91,8 @@ class LecturerAccountPreparationService
 
         foreach ($preview['rows'] as $row) {
             try {
-                $result = DB::transaction(function () use ($row, $run, &$usedPlainPasswords): array {
-                    return $this->processLecturerAccountRow($run, $row, $usedPlainPasswords);
+                $result = DB::transaction(function () use ($row, $run, $recoveryLecturerIds, &$usedPlainPasswords): array {
+                    return $this->processLecturerAccountRow($run, $row, $usedPlainPasswords, $recoveryLecturerIds);
                 });
 
                 if (($result['credential'] ?? null) !== null) {
@@ -115,6 +118,9 @@ class LecturerAccountPreparationService
             'generation_run_id' => (int) $run->id,
             'created_account_count' => (int) $run->fresh()->created_count,
             'granted_role_count' => (int) $run->fresh()->role_added_count,
+            'recovered_password_reset_count' => (int) $run->items()
+                ->where('result', LecturerAccountGenerationItem::RESULT_TEMPORARY_PASSWORD_RESET)
+                ->count(),
             'credential_rows' => $credentials,
             'error_report' => $run->items()
                 ->where('result', LecturerAccountGenerationItem::RESULT_FAILED)
@@ -127,6 +133,7 @@ class LecturerAccountPreparationService
     /** @param iterable<int, Lecturer> $lecturers */
     public function resetTemporaryPasswords(AcademicTerm $term, iterable $lecturers, ?User $actor = null): array
     {
+        @set_time_limit(300);
         Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
 
         $lecturerCollection = collect($lecturers)->values();
@@ -158,25 +165,17 @@ class LecturerAccountPreparationService
                         return [];
                     }
 
-                    $temporaryPassword = $this->newTemporaryPassword($usedPlainPasswords);
-                    $user->forceFill([
-                        'password' => Hash::make($temporaryPassword),
-                        'must_change_password' => true,
-                        'status' => 'active',
-                        'is_active' => true,
-                    ])->save();
-                    $user->assignRole(User::mapDatabaseRoleToSpatieRole('course_lecturer'));
-
+                    $credential = $this->resetTemporaryPasswordForLinkedLecturer($locked, $user, $usedPlainPasswords);
                     LecturerAccountGenerationItem::query()->create([
                         'run_id' => $run->id,
                         'lecturer_id' => $locked->id,
                         'user_id' => $user->id,
                         'login_username' => $user->login_username,
-                        'result' => LecturerAccountGenerationItem::RESULT_ACCOUNT_CREATED,
+                        'result' => LecturerAccountGenerationItem::RESULT_TEMPORARY_PASSWORD_RESET,
                         'message' => __('lecturer-account-preparation.results.temporary_password_reset'),
                     ]);
 
-                    return $this->credentialRow($locked, $user, $temporaryPassword);
+                    return $credential;
                 });
 
                 if ($credential !== []) {
@@ -303,9 +302,23 @@ class LecturerAccountPreparationService
         };
     }
 
-    private function processLecturerAccountRow(LecturerAccountGenerationRun $run, array $row, array &$usedPlainPasswords): array
+    private function processLecturerAccountRow(LecturerAccountGenerationRun $run, array $row, array &$usedPlainPasswords, Collection $recoveryLecturerIds): array
     {
         $lecturer = Lecturer::query()->with('user.roles')->lockForUpdate()->findOrFail($row['lecturer_id']);
+
+        if ($recoveryLecturerIds->contains((int) $lecturer->id) && $lecturer->user instanceof User) {
+            $credential = $this->resetTemporaryPasswordForLinkedLecturer($lecturer, $lecturer->user, $usedPlainPasswords);
+            LecturerAccountGenerationItem::query()->create([
+                'run_id' => $run->id,
+                'lecturer_id' => $lecturer->id,
+                'user_id' => $lecturer->user->id,
+                'login_username' => $lecturer->user->login_username,
+                'result' => LecturerAccountGenerationItem::RESULT_TEMPORARY_PASSWORD_RESET,
+                'message' => __('lecturer-account-preparation.results.temporary_password_reset_after_failed_download'),
+            ]);
+
+            return ['credential' => $credential];
+        }
 
         if ($row['status'] === 'blocked') {
             LecturerAccountGenerationItem::query()->create([
@@ -387,6 +400,7 @@ class LecturerAccountPreparationService
         $existingCount = $items->where('result', LecturerAccountGenerationItem::RESULT_EXISTING_ACCOUNT)->count();
         $createdCount = $items->where('result', LecturerAccountGenerationItem::RESULT_ACCOUNT_CREATED)->count();
         $roleAddedCount = $items->where('result', LecturerAccountGenerationItem::RESULT_ROLE_ADDED)->count();
+        $temporaryPasswordResetCount = $items->where('result', LecturerAccountGenerationItem::RESULT_TEMPORARY_PASSWORD_RESET)->count();
 
         $run->update([
             'status' => $failedCount > 0 || $skippedCount > 0
@@ -401,6 +415,7 @@ class LecturerAccountPreparationService
                 'existing_count' => $existingCount,
                 'created_count' => $createdCount,
                 'role_added_count' => $roleAddedCount,
+                'temporary_password_reset_count' => $temporaryPasswordResetCount,
                 'skipped_count' => $skippedCount,
                 'failed_count' => $failedCount,
             ],
@@ -451,6 +466,49 @@ class LecturerAccountPreparationService
             'must_change_password' => (bool) $user->must_change_password,
             'notes' => __('lecturer-account-preparation.results.account_created'),
         ];
+    }
+
+    private function resetTemporaryPasswordForLinkedLecturer(Lecturer $lecturer, User $user, array &$usedPlainPasswords): array
+    {
+        $temporaryPassword = $this->newTemporaryPassword($usedPlainPasswords);
+        $user->forceFill([
+            'password' => Hash::make($temporaryPassword),
+            'must_change_password' => true,
+            'status' => 'active',
+            'is_active' => true,
+        ])->save();
+        $user->assignRole(User::mapDatabaseRoleToSpatieRole('course_lecturer'));
+
+        return $this->credentialRow($lecturer, $user->fresh(), $temporaryPassword);
+    }
+
+    private function undeliveredTemporaryPasswordLecturerIds(AcademicTerm $term): Collection
+    {
+        return LecturerAccountGenerationItem::query()
+            ->whereIn('run_id', LecturerAccountGenerationRun::query()
+                ->where('academic_term_id', $term->id)
+                ->where('status', LecturerAccountGenerationRun::STATUS_PROCESSING)
+                ->select('id'))
+            ->where('result', LecturerAccountGenerationItem::RESULT_ACCOUNT_CREATED)
+            ->pluck('lecturer_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+    }
+
+    private function markStaleProcessingRunsForRecovery(AcademicTerm $term): void
+    {
+        LecturerAccountGenerationRun::query()
+            ->where('academic_term_id', $term->id)
+            ->where('status', LecturerAccountGenerationRun::STATUS_PROCESSING)
+            ->update([
+                'status' => LecturerAccountGenerationRun::STATUS_COMPLETED_WITH_ERRORS,
+                'summary' => json_encode([
+                    'error' => 'credentials_download_failed_or_interrupted',
+                    'recovery_action' => 'temporary_password_reset_required',
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'completed_at' => now(),
+            ]);
     }
 
     private function ensureLecturerIsUnlinked(Lecturer $lecturer): void

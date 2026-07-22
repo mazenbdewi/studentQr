@@ -385,6 +385,7 @@ class LecturerAccountPreparation extends Page implements HasTable
             LecturerAccountGenerationItem::RESULT_ACCOUNT_CREATED,
             LecturerAccountGenerationItem::RESULT_EXISTING_ACCOUNT,
             LecturerAccountGenerationItem::RESULT_ROLE_ADDED,
+            LecturerAccountGenerationItem::RESULT_TEMPORARY_PASSWORD_RESET,
         ];
         $rows = $type === 'success'
             ? $items->whereIn('result', $successResults)->map(fn (LecturerAccountGenerationItem $item): array => [
