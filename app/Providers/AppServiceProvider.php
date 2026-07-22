@@ -68,6 +68,12 @@ class AppServiceProvider extends ServiceProvider
             ScheduleImportRowPolicy::EXCLUDE_WEEKLY_SLOT_FROM_CURRENT_BATCH,
             ScheduleImportRowPolicy::VIEW_RECONCILIATION_AUDIT_HISTORY,
             ScheduleImportRowPolicy::EXPORT_BLOCKED_WEEKLY_SLOT_REPORTS,
+            ScheduleImportRowPolicy::MANAGE_HALL_METADATA,
+            ScheduleImportRowPolicy::EXPORT_HALL_METADATA,
+            ScheduleImportRowPolicy::IMPORT_HALL_METADATA,
+            ScheduleImportRowPolicy::PREVIEW_HALL_METADATA_IMPORT,
+            ScheduleImportRowPolicy::PREVIEW_GROUPED_HALL_ASSIGNMENT,
+            ScheduleImportRowPolicy::CONFIRM_GROUPED_HALL_ASSIGNMENT_WITH_WARNING,
         ] as $ability) {
             Gate::define($ability, fn ($user): bool => $user->hasRole('admin')
                 || (method_exists($user, 'hasPermissionTo') && $user->hasPermissionTo($ability)));

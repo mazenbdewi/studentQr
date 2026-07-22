@@ -3,6 +3,7 @@
     @php($summary = $report['summary'])
     @php($rows = $this->filteredRows())
     @php($groups = $this->savedGroups())
+    @php($hallGroups = $this->hallAssignmentGroups())
     @php($selectedConflicts = $this->selectedConflicts())
 
     <div class="space-y-6" dir="rtl">
@@ -47,6 +48,129 @@
                     <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ $group['description'] }}</div>
                 </button>
             @endforeach
+        </div>
+
+        <div class="rounded-xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-500/30 dark:bg-gray-900">
+            <h2 class="mb-2 text-lg font-bold text-gray-950 dark:text-white">تهيئة إسناد القاعات حسب المجموعات</h2>
+            <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                هذه المعاينة لا تحفظ قاعات ولا تولّد جلسات؛ تساعد فقط على اختيار قاعة آمنة للخانات التي مشكلتها الوحيدة هي القاعة.
+            </p>
+
+            <div class="grid gap-4 lg:grid-cols-5">
+                @foreach ($hallGroups as $group)
+                    <button
+                        type="button"
+                        wire:click="selectHallAssignmentGroup('{{ $group['key'] }}')"
+                        class="rounded-xl border border-gray-200 bg-white p-4 text-right shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-emerald-500/40 dark:hover:bg-emerald-500/10"
+                    >
+                        <div class="text-sm font-semibold text-gray-950 dark:text-white">{{ $group['label'] }}</div>
+                        <div class="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ $group['slot_count'] }}</div>
+                        <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            طلاب متوقعون: {{ $group['enrolled_count'] }} — النوع المطلوب: {{ $group['required_hall_type_label'] }}
+                        </div>
+                        <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ implode('، ', $group['days_times']) }}</div>
+                    </button>
+                @endforeach
+            </div>
+
+            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <label class="space-y-1 text-sm">
+                    <span>المجموعة المحددة</span>
+                    <select wire:model.live="selectedHallGroupKey" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-800">
+                        <option value="">اختر مجموعة</option>
+                        @foreach ($hallGroups as $group)
+                            <option value="{{ $group['key'] }}">{{ $group['label'] }} — {{ $group['slot_count'] }} مواعيد</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="space-y-1 text-sm">
+                    <span>القاعة المقترحة</span>
+                    <select wire:model.live="groupedHallId" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-800">
+                        <option value="">اختر قاعة فعالة</option>
+                        @foreach ($this->hallOptions() as $hall)
+                            <option value="{{ $hall['id'] }}">
+                                {{ $hall['code'] }} — {{ $hall['name'] }} — {{ $hall['floor'] ?: 'طابق غير محدد' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="flex items-center gap-2 pt-6 text-sm xl:col-span-2">
+                    <input type="checkbox" wire:model.live="groupedHallAcknowledged">
+                    <span>{{ \App\Services\GroupedHallAssignmentPreparationService::ADMIN_ACKNOWLEDGEMENT }}</span>
+                </label>
+                <label class="space-y-1 text-sm xl:col-span-4">
+                    <span>ملاحظة المدير عند قبول التحذيرات</span>
+                    <textarea wire:model.live="groupedHallNote" class="w-full rounded-lg border-gray-300 dark:border-gray-700 dark:bg-gray-800" rows="2"></textarea>
+                </label>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+                <x-filament::button wire:click="previewGroupedHallAssignment">معاينة إسناد المجموعة</x-filament::button>
+                <span class="self-center text-xs text-gray-500">الحفظ يبقى من مسار المعالجة الجماعية بعد مراجعة المعاينة.</span>
+            </div>
+
+            @if ($groupedHallPreview)
+                <div class="mt-4 rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700">
+                    <div class="font-bold">
+                        حالة الجاهزية: {{ $groupedHallPreview['classification'] }}
+                        — {{ $groupedHallPreview['confirm_enabled'] ? 'يمكن المتابعة بعد المراجعة' : 'لا يمكن التأكيد حالياً' }}
+                    </div>
+                    <div class="mt-2">الجلسات الإضافية المتوقعة بعد الإسناد: {{ $groupedHallPreview['expected_additional_sessions'] }}</div>
+                    <div>تعارضات أسبوعية: {{ count($groupedHallPreview['weekly_conflicts'] ?? []) }}</div>
+                    <div>تعارضات جلسات مؤرخة: {{ count($groupedHallPreview['dated_session_conflicts'] ?? []) }}</div>
+                    <div>تعارضات بين الخانات المختارة: {{ count($groupedHallPreview['selected_slot_conflicts'] ?? []) }}</div>
+
+                    @if (($groupedHallPreview['warnings'] ?? []) !== [])
+                        <ul class="mt-3 list-disc space-y-1 pr-5 text-amber-700 dark:text-amber-300">
+                            @foreach ($groupedHallPreview['warnings'] as $warning)
+                                <li>{{ $warning }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+                    @if (($groupedHallPreview['blocking_errors'] ?? []) !== [])
+                        <ul class="mt-3 list-disc space-y-1 pr-5 text-danger-700 dark:text-danger-300">
+                            @foreach ($groupedHallPreview['blocking_errors'] as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+
+                    <div class="mt-4 overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 text-xs dark:divide-gray-700">
+                            <thead>
+                            <tr class="bg-gray-50 text-right dark:bg-gray-800">
+                                <th class="px-2 py-2">الموعد</th>
+                                <th class="px-2 py-2">المادة</th>
+                                <th class="px-2 py-2">الشعبة</th>
+                                <th class="px-2 py-2">اليوم</th>
+                                <th class="px-2 py-2">الوقت</th>
+                                <th class="px-2 py-2">الطلاب</th>
+                                <th class="px-2 py-2">السعة</th>
+                                <th class="px-2 py-2">المتبقي</th>
+                                <th class="px-2 py-2">نوع القاعة</th>
+                                <th class="px-2 py-2">الحالة</th>
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                            @foreach ($groupedHallPreview['rows'] as $row)
+                                <tr>
+                                    <td class="px-2 py-2 font-mono">{{ $row['slot_id'] }}</td>
+                                    <td class="px-2 py-2">{{ $row['subject'] }}</td>
+                                    <td class="px-2 py-2">{{ $row['section'] }}</td>
+                                    <td class="px-2 py-2">{{ $row['weekday'] }}</td>
+                                    <td class="px-2 py-2">{{ $row['start_time'] }} - {{ $row['end_time'] }}</td>
+                                    <td class="px-2 py-2">{{ $row['enrolled_count'] }}</td>
+                                    <td class="px-2 py-2">{{ $row['hall_capacity'] ?? 'غير محددة' }}</td>
+                                    <td class="px-2 py-2">{{ $row['remaining_seats'] ?? '—' }}</td>
+                                    <td class="px-2 py-2">{{ $row['hall_type'] ?? 'غير محدد' }}</td>
+                                    <td class="px-2 py-2">{{ $row['classification'] }}</td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endif
         </div>
 
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">

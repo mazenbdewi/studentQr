@@ -104,6 +104,21 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::findByName('admin', 'web')->givePermissionTo($blockedWeeklySlotReconciliationPermissions);
         Role::findByName('super-admin', 'web')->givePermissionTo($blockedWeeklySlotReconciliationPermissions);
 
+        $hallMetadataPermissions = collect([
+            'manage hall metadata',
+            'export hall metadata',
+            'import hall metadata',
+            'preview hall metadata import',
+            'preview grouped hall assignment',
+            'confirm grouped hall assignment with warning',
+        ])->map(fn (string $name) => Permission::firstOrCreate([
+            'name' => $name,
+            'guard_name' => 'web',
+        ]));
+
+        Role::findByName('admin', 'web')->givePermissionTo($hallMetadataPermissions);
+        Role::findByName('super-admin', 'web')->givePermissionTo($hallMetadataPermissions);
+
         $this->createUser(
             email: 'super@admin.com',
             role: 'super-admin',

@@ -128,10 +128,12 @@ class BlockedWeeklySlotReconciliationService
         $options = [];
         $halls = Hall::query()
             ->withoutTrashed()
-            ->when(filled($search), fn ($query) => $query
-                ->where('code', 'like', '%'.$search.'%')
-                ->orWhere('name', 'like', '%'.$search.'%')
-                ->orWhere('floor', 'like', '%'.$search.'%'))
+            ->where('is_active', true)
+            ->when(filled($search), fn ($query) => $query->where(function ($query) use ($search): void {
+                $query->where('code', 'like', '%'.$search.'%')
+                    ->orWhere('name', 'like', '%'.$search.'%')
+                    ->orWhere('floor', 'like', '%'.$search.'%');
+            }))
             ->orderBy('code')
             ->limit($limit)
             ->get();

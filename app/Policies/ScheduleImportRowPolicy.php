@@ -31,6 +31,18 @@ class ScheduleImportRowPolicy
 
     public const EXPORT_BLOCKED_WEEKLY_SLOT_REPORTS = 'export blocked weekly slot reports';
 
+    public const MANAGE_HALL_METADATA = 'manage hall metadata';
+
+    public const EXPORT_HALL_METADATA = 'export hall metadata';
+
+    public const IMPORT_HALL_METADATA = 'import hall metadata';
+
+    public const PREVIEW_HALL_METADATA_IMPORT = 'preview hall metadata import';
+
+    public const PREVIEW_GROUPED_HALL_ASSIGNMENT = 'preview grouped hall assignment';
+
+    public const CONFIRM_GROUPED_HALL_ASSIGNMENT_WITH_WARNING = 'confirm grouped hall assignment with warning';
+
     public function before(User $user): ?bool
     {
         return $user->isSuperAdmin() ? true : null;
@@ -99,5 +111,35 @@ class ScheduleImportRowPolicy
     public function exportBlockedWeeklySlotReports(User $user): bool
     {
         return $user->can(self::EXPORT_BLOCKED_WEEKLY_SLOT_REPORTS);
+    }
+
+    public function manageHallMetadata(User $user): bool
+    {
+        return $user->can(self::MANAGE_HALL_METADATA);
+    }
+
+    public function exportHallMetadata(User $user): bool
+    {
+        return $user->can(self::EXPORT_HALL_METADATA);
+    }
+
+    public function importHallMetadata(User $user): bool
+    {
+        return $user->can(self::IMPORT_HALL_METADATA);
+    }
+
+    public function previewHallMetadataImport(User $user): bool
+    {
+        return $user->can(self::PREVIEW_HALL_METADATA_IMPORT);
+    }
+
+    public function previewGroupedHallAssignment(User $user): bool
+    {
+        return $user->can(self::PREVIEW_GROUPED_HALL_ASSIGNMENT);
+    }
+
+    public function confirmGroupedHallAssignmentWithWarning(User $user): bool
+    {
+        return $user->can(self::CONFIRM_GROUPED_HALL_ASSIGNMENT_WITH_WARNING);
     }
 }

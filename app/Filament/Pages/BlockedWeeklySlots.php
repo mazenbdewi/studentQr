@@ -7,6 +7,7 @@ use App\Models\LectureSessionGenerationRun;
 use App\Models\User;
 use App\Services\BlockedWeeklySlotReconciliationService;
 use App\Services\BlockedWeeklySlotReportService;
+use App\Services\GroupedHallAssignmentPreparationService;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -65,6 +66,17 @@ class BlockedWeeklySlots extends Page
 
     /** @var array<string, mixed>|null */
     public ?array $lastApplyResult = null;
+
+    public string $selectedHallGroupKey = '';
+
+    public ?int $groupedHallId = null;
+
+    public bool $groupedHallAcknowledged = false;
+
+    public string $groupedHallNote = '';
+
+    /** @var array<string, mixed>|null */
+    public ?array $groupedHallPreview = null;
 
     public static function canAccess(): bool
     {
@@ -137,6 +149,12 @@ class BlockedWeeklySlots extends Page
         return app(BlockedWeeklySlotReconciliationService::class)->hallOptions();
     }
 
+    /** @return array<int, array<string, mixed>> */
+    public function hallAssignmentGroups(): array
+    {
+        return app(GroupedHallAssignmentPreparationService::class)->groups();
+    }
+
     /** @return array<int, int> */
     public function filteredSlotIds(): array
     {
@@ -147,6 +165,16 @@ class BlockedWeeklySlots extends Page
     {
         $group = collect($this->savedGroups())->firstWhere('key', $key);
         $this->selectedSlotIds = $group ? array_values($group['slot_ids']) : [];
+        $this->bulkPreview = null;
+    }
+
+    public function selectHallAssignmentGroup(string $key): void
+    {
+        $group = collect($this->hallAssignmentGroups())->firstWhere('key', $key);
+        $this->selectedHallGroupKey = $key;
+        $this->selectedSlotIds = $group ? array_values($group['slot_ids']) : [];
+        $this->bulkAction = BlockedWeeklySlotReconciliationService::ACTION_ASSIGN_HALL;
+        $this->groupedHallPreview = null;
         $this->bulkPreview = null;
     }
 
@@ -174,6 +202,23 @@ class BlockedWeeklySlots extends Page
 
         $this->bulkPreview = app(BlockedWeeklySlotReconciliationService::class)
             ->preview($this->selectedSlotIds, $this->proposal(), $user);
+        $this->lastApplyResult = null;
+    }
+
+    public function previewGroupedHallAssignment(): void
+    {
+        $user = Filament::auth()->user();
+
+        abort_unless($user instanceof User, 403);
+
+        $this->groupedHallPreview = app(GroupedHallAssignmentPreparationService::class)
+            ->preview(
+                $this->selectedHallGroupKey,
+                (int) $this->groupedHallId,
+                $user,
+                $this->groupedHallAcknowledged,
+                $this->groupedHallNote,
+            );
         $this->lastApplyResult = null;
     }
 
