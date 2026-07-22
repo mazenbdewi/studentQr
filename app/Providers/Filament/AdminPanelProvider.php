@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use Andreia\FilamentNordTheme\FilamentNordThemePlugin;
 use App\Filament\Pages\Auth\Login;
+use App\Filament\Pages\BlockedWeeklySlots;
 use App\Filament\Pages\DatabaseBackups;
 use App\Filament\Pages\LecturerAccountPreparation;
 use App\Filament\Pages\ManaraEnrollmentImport;
@@ -90,6 +91,7 @@ class AdminPanelProvider extends PanelProvider
                 WeeklySchedule::class,
                 WeeklyScheduleReports::class,
                 LecturerAccountPreparation::class,
+                BlockedWeeklySlots::class,
                 ScheduleImportReconciliationIndex::class,
                 ScheduleImportReconciliationReport::class,
                 PortalSettings::class,

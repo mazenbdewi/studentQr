@@ -17,6 +17,8 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\ForceDeleteBulkAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Utilities\Get;
@@ -24,10 +26,9 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Actions\RestoreAction;
-use Filament\Actions\RestoreBulkAction;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -121,7 +122,7 @@ class LectureSessionResource extends Resource
                     ->relationship(
                         name: 'hall',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                        modifyQueryUsing: fn (Builder $query) => $query->whereNull('deleted_at'),
                     )
                     ->searchable()
                     ->preload()
@@ -178,8 +179,8 @@ class LectureSessionResource extends Resource
                         name: 'lecturer',
                         titleAttribute: 'name',
                         modifyQueryUsing: fn (Builder $query) => auth()->user()?->hasRole('course_lecturer')
-                            ? $query->withoutTrashed()->whereKey(auth()->id())
-                            : $query->withoutTrashed(),
+                            ? $query->whereNull('deleted_at')->whereKey(auth()->id())
+                            : $query->whereNull('deleted_at'),
                     )
                     ->searchable()
                     ->preload()
@@ -221,7 +222,21 @@ class LectureSessionResource extends Resource
 
                 Tables\Columns\TextColumn::make('subject.subject_type')
                     ->label(__('subjects.subject_type'))
-                    ->formatStateUsing(fn (LectureSession $record): string => $record->subjectSection?->section_type_label ?? $record->subject?->subject_type_label ?? __('subjects.not_available'))
+                    ->formatStateUsing(function (LectureSession $record): string {
+                        $section = $record->subjectSection;
+
+                        if ($section instanceof SubjectSection) {
+                            return $section->section_type_label;
+                        }
+
+                        $subject = $record->subject;
+
+                        if ($subject instanceof Subject) {
+                            return $subject->subject_type_label;
+                        }
+
+                        return __('subjects.not_available');
+                    })
                     ->badge()
                     ->toggleable(),
 
@@ -230,6 +245,12 @@ class LectureSessionResource extends Resource
                     ->badge()
                     ->placeholder(__('subjects.not_available'))
                     ->searchable(),
+
+                Tables\Columns\TextColumn::make('lecturer.name')
+                    ->label('المدرس')
+                    ->searchable()
+                    ->sortable()
+                    ->wrap(),
 
                 Tables\Columns\TextColumn::make('hall.name')
                     ->label(__('lecture-session.hall'))
@@ -260,10 +281,7 @@ class LectureSessionResource extends Resource
 
                 Tables\Columns\TextColumn::make('actual_attendance')
                     ->label(__('lecture-session.actual_attendance'))
-                    ->getStateUsing(fn ($record) => $record->attendances()
-                        ->select('student_id')
-                        ->distinct()
-                        ->count('student_id')),
+                    ->getStateUsing(fn (LectureSession $record): int => (int) ($record->actual_attendance_count ?? 0)),
                 Tables\Columns\TextColumn::make('deleted_at')
                     ->label(__('lecture-session.deleted_at'))
                     ->dateTime()
@@ -279,6 +297,12 @@ class LectureSessionResource extends Resource
                         modifyQueryUsing: fn (Builder $query) => static::scopeSubjectQueryForCurrentUser($query),
                     ),
                 Tables\Filters\TrashedFilter::make(),
+
+                Tables\Filters\SelectFilter::make('lecturer')
+                    ->label('المدرس')
+                    ->relationship('lecturer', 'name')
+                    ->searchable()
+                    ->preload(),
 
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('lecture-session.status'))
@@ -428,6 +452,11 @@ class LectureSessionResource extends Resource
         LectureSession::syncExpiredSessions();
 
         $query = parent::getEloquentQuery()
+            ->with(['subject', 'subjectSection', 'lecturer', 'hall'])
+            ->withCount([
+                'attendances as actual_attendance_count' => fn (Builder $query) => $query
+                    ->select(DB::raw('count(distinct student_id)')),
+            ])
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);
@@ -492,7 +521,7 @@ class LectureSessionResource extends Resource
 
     public static function scopeSubjectQueryForCurrentUser(Builder $query): Builder
     {
-        $query->withoutTrashed();
+        $query->whereNull('deleted_at');
 
         $user = auth()->user();
 
@@ -552,25 +581,28 @@ class LectureSessionResource extends Resource
         $section = null;
 
         if (filled($data['subject_section_id'] ?? null)) {
-            $section = $subject->sections()
+            $resolvedSection = $subject->sections()
                 ->whereKey($data['subject_section_id'])
                 ->first();
 
-            if (! $section) {
+            if (! $resolvedSection instanceof SubjectSection) {
                 throw ValidationException::withMessages([
                     'subject_section_id' => __('subjects.section_must_belong_to_subject'),
                 ]);
             }
+
+            $section = $resolvedSection;
         }
 
-        if ($user?->hasRole('course_lecturer') && ! static::subjectCanBeUsedByLecturer($subject, $user->id, $section)) {
+        if ($user?->hasRole('course_lecturer') && ! self::subjectCanBeUsedByLecturer($subject, $user->id, $section)) {
             throw ValidationException::withMessages([
                 'subject_id' => __('lecture-session.subject_not_assigned_to_lecturer'),
             ]);
         }
 
-        $data['lecturer_id'] = $section?->lecturer_id
-            ?? $subject->lecturer_id;
+        $data['lecturer_id'] = $section instanceof SubjectSection && $section->lecturer_id
+            ? $section->lecturer_id
+            : $subject->lecturer_id;
 
         if (blank($data['lecturer_id'])) {
             throw ValidationException::withMessages([
@@ -581,7 +613,7 @@ class LectureSessionResource extends Resource
         return $data;
     }
 
-    public static function getSectionOptionsForSubject(int | string | null $subjectId): array
+    public static function getSectionOptionsForSubject(int|string|null $subjectId): array
     {
         if (blank($subjectId)) {
             return [];
@@ -608,7 +640,7 @@ class LectureSessionResource extends Resource
             ->all();
     }
 
-    public static function subjectHasSections(int | string | null $subjectId): bool
+    public static function subjectHasSections(int|string|null $subjectId): bool
     {
         return filled($subjectId)
             && \App\Models\SubjectSection::query()
@@ -616,7 +648,7 @@ class LectureSessionResource extends Resource
                 ->exists();
     }
 
-    public static function resolveLecturerIdForSubjectAndSection(int | string | null $subjectId, int | string | null $sectionId): ?int
+    public static function resolveLecturerIdForSubjectAndSection(int|string|null $subjectId, int|string|null $sectionId): ?int
     {
         if (filled($sectionId)) {
             $section = SubjectSection::query()
@@ -640,7 +672,7 @@ class LectureSessionResource extends Resource
         return null;
     }
 
-    public static function shouldShowMissingLecturerWarning(int | string | null $subjectId, int | string | null $sectionId): bool
+    public static function shouldShowMissingLecturerWarning(int|string|null $subjectId, int|string|null $sectionId): bool
     {
         if (blank($subjectId)) {
             return false;

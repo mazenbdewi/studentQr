@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\LectureSessions\Pages;
 
 use App\Exports\LectureSessionGenerationReportExport;
+use App\Filament\Pages\BlockedWeeklySlots;
 use App\Filament\Pages\LecturerAccountPreparation;
 use App\Filament\Pages\ScheduleImportReconciliationIndex;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
@@ -117,6 +118,13 @@ class ListLectureSessions extends ListRecords
                 ->color('gray')
                 ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
                 ->url(fn (): string => ScheduleImportReconciliationIndex::getUrl()),
+
+            Action::make('open_blocked_weekly_slots')
+                ->label('الخانات المحجوبة من توليد الجلسات')
+                ->icon('heroicon-o-exclamation-triangle')
+                ->color('gray')
+                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                ->url(fn (): string => BlockedWeeklySlots::getUrl()),
 
             Action::make('generate_from_weekly_schedule')
                 ->label(__('lecture-session.generate_from_weekly_schedule'))
