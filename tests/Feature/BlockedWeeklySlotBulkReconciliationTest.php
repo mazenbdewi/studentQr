@@ -271,6 +271,28 @@ it('creates one exact lecturer identity from source for two slots and does not c
         ->and($second['slot']->fresh()->lecturer_id)->toBe($lecturers->first()->id);
 });
 
+it('accepts the real weekly importer teacher_name source key for lecturer identity creation', function (): void {
+    $actor = blockedSlotActor();
+    $fixture = blockedSlotFixture(['source_lecturer' => '', 'issues' => [ScheduleImportIssue::TYPE_LECTURER_MISSING]]);
+    $source = $fixture['row']->source_payload;
+    $normalized = $fixture['row']->normalized_payload;
+    unset($source['lecturer'], $normalized['lecturer_name']);
+    $source['teacher_name'] = 'نتالي محمد موسى';
+    $normalized['teacher_name'] = 'نتالي محمد موسى';
+    $normalized['teacher_name_source'] = 'نتالي محمد موسى';
+    $fixture['row']->update(['source_payload' => $source, 'normalized_payload' => $normalized]);
+
+    $preview = app(BlockedWeeklySlotReconciliationService::class)->preview(
+        [$fixture['slot']->id],
+        ['action' => BlockedWeeklySlotReconciliationService::ACTION_CREATE_LECTURER_FROM_SOURCE],
+        $actor,
+    );
+
+    expect($preview['confirm_enabled'])->toBeTrue()
+        ->and($preview['source_lecturer_name'])->toBe('نتالي محمد موسى')
+        ->and($preview['rows'][0]['raw_lecturer_value'])->toBe('نتالي محمد موسى');
+});
+
 it('resolves only corrected missing issues and leaves unrelated issues open', function (): void {
     $actor = blockedSlotActor();
     $fixture = blockedSlotFixture();

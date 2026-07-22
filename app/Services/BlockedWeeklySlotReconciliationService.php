@@ -767,6 +767,7 @@ class BlockedWeeklySlotReconciliationService
     private function sourceLecturerName(?ScheduleImportRow $row): ?string
     {
         $value = $row?->source_payload['lecturer'] ?? $row?->source_payload['lecturer_name'] ?? $row?->source_payload['اسم المدرس'] ?? $row?->normalized_payload['lecturer_name'] ?? null;
+        $value ??= $row?->source_payload['teacher_name'] ?? $row?->normalized_payload['teacher_name'] ?? $row?->normalized_payload['teacher_name_source'] ?? null;
 
         return filled($value) ? trim((string) $value) : null;
     }
