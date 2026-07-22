@@ -53,6 +53,28 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::findByName('admin', 'web')->givePermissionTo($weeklySchedulePermissions);
         Role::findByName('super-admin', 'web')->givePermissionTo($weeklySchedulePermissions);
 
+        $lecturerAccountPreparationPermissions = collect([
+            'view lecturer-account preparation',
+            'manage lecturer-account preparation',
+        ])->map(fn (string $name) => Permission::firstOrCreate([
+            'name' => $name,
+            'guard_name' => 'web',
+        ]));
+
+        Role::findByName('admin', 'web')->givePermissionTo($lecturerAccountPreparationPermissions);
+        Role::findByName('super-admin', 'web')->givePermissionTo($lecturerAccountPreparationPermissions);
+
+        $lectureSessionGenerationPermissions = collect([
+            'preview lecture-session weekly generation',
+            'generate lecture-session weekly schedule',
+        ])->map(fn (string $name) => Permission::firstOrCreate([
+            'name' => $name,
+            'guard_name' => 'web',
+        ]));
+
+        Role::findByName('admin', 'web')->givePermissionTo($lectureSessionGenerationPermissions);
+        Role::findByName('super-admin', 'web')->givePermissionTo($lectureSessionGenerationPermissions);
+
         $this->createUser(
             email: 'super@admin.com',
             role: 'super-admin',

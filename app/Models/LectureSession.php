@@ -3,12 +3,12 @@
 namespace App\Models;
 
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -19,7 +19,11 @@ class LectureSession extends Model
 
     protected $fillable = [
         'subject_id',
+        'academic_term_id',
         'subject_section_id',
+        'subject_section_schedule_slot_id',
+        'lecture_session_generation_run_id',
+        'generated_from_weekly_schedule_at',
         'lecturer_id',
         'hall_id',
         'session_date',
@@ -28,6 +32,7 @@ class LectureSession extends Model
         'status',
         'attendance_mode',
         'qr_refresh_rate',
+        'expected_students',
         'notes',
         'session_otp',
         'qr_expired',
@@ -45,6 +50,7 @@ class LectureSession extends Model
         'qr_expires_at' => 'datetime',
         'actual_start' => 'datetime',
         'actual_end' => 'datetime',
+        'generated_from_weekly_schedule_at' => 'datetime',
         'session_date' => 'date',
         'qr_expired' => 'boolean',
     ];
@@ -233,9 +239,24 @@ class LectureSession extends Model
         return $this->belongsTo(Subject::class)->withTrashed();
     }
 
+    public function academicTerm(): BelongsTo
+    {
+        return $this->belongsTo(AcademicTerm::class);
+    }
+
     public function subjectSection(): BelongsTo
     {
         return $this->belongsTo(SubjectSection::class);
+    }
+
+    public function sourceWeeklyScheduleSlot(): BelongsTo
+    {
+        return $this->belongsTo(SubjectSectionScheduleSlot::class, 'subject_section_schedule_slot_id');
+    }
+
+    public function generationRun(): BelongsTo
+    {
+        return $this->belongsTo(LectureSessionGenerationRun::class, 'lecture_session_generation_run_id');
     }
 
     public function lecturer(): BelongsTo

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SubjectSectionScheduleSlot extends Model
 {
@@ -59,5 +60,10 @@ class SubjectSectionScheduleSlot extends Model
     public function hall(): BelongsTo
     {
         return $this->belongsTo(Hall::class)->withTrashed();
+    }
+
+    public function lectureSessions(): HasMany
+    {
+        return $this->hasMany(LectureSession::class, 'subject_section_schedule_slot_id');
     }
 }

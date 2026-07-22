@@ -11,6 +11,13 @@ class AcademicTerm extends Model
     protected $fillable = [
         'display_name',
         'canonical_name',
+        'teaching_start_date',
+        'teaching_end_date',
+    ];
+
+    protected $casts = [
+        'teaching_start_date' => 'date',
+        'teaching_end_date' => 'date',
     ];
 
     public function enrollments(): HasMany
@@ -32,6 +39,16 @@ class AcademicTerm extends Model
     public function scheduleSlots(): HasMany
     {
         return $this->hasMany(SubjectSectionScheduleSlot::class);
+    }
+
+    public function lectureSessions(): HasMany
+    {
+        return $this->hasMany(LectureSession::class);
+    }
+
+    public function lectureSessionGenerationRuns(): HasMany
+    {
+        return $this->hasMany(LectureSessionGenerationRun::class);
     }
 
     /** @return HasMany<ScheduleImportRow, $this> */

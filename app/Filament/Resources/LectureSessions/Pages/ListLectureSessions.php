@@ -3,20 +3,22 @@
 namespace App\Filament\Resources\LectureSessions\Pages;
 
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
+use App\Models\AcademicTerm;
 use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\Subject;
 use App\Services\LectureSessionCalendarService;
+use App\Services\LectureSessionGenerationService;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
-use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
-use Filament\Notifications\Notification;
 
 class ListLectureSessions extends ListRecords
 {
@@ -44,6 +46,113 @@ class ListLectureSessions extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('configure_teaching_period')
+                ->label(__('lecture-session.configure_teaching_period'))
+                ->icon('heroicon-o-calendar')
+                ->color('gray')
+                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                ->modalHeading(__('lecture-session.configure_teaching_period_heading'))
+                ->modalDescription(__('lecture-session.configure_teaching_period_description'))
+                ->modalSubmitActionLabel(__('lecture-session.configure_teaching_period_submit'))
+                ->form([
+                    Forms\Components\Select::make('academic_term_id')
+                        ->label(__('lecture-session.academic_term'))
+                        ->options(fn (): array => AcademicTerm::query()
+                            ->orderByDesc('id')
+                            ->pluck('display_name', 'id')
+                            ->all())
+                        ->searchable()
+                        ->preload()
+                        ->native(false)
+                        ->live()
+                        ->afterStateUpdated(function (callable $set, mixed $state): void {
+                            $term = $state ? AcademicTerm::query()->find($state) : null;
+
+                            $set('teaching_start_date', $term?->teaching_start_date?->toDateString());
+                            $set('teaching_end_date', $term?->teaching_end_date?->toDateString());
+                        })
+                        ->required(),
+
+                    Forms\Components\DatePicker::make('teaching_start_date')
+                        ->label(__('lecture-session.teaching_start_date'))
+                        ->native(false)
+                        ->required(),
+
+                    Forms\Components\DatePicker::make('teaching_end_date')
+                        ->label(__('lecture-session.teaching_end_date'))
+                        ->native(false)
+                        ->required(),
+                ])
+                ->action(function (array $data): void {
+                    AcademicTerm::query()
+                        ->findOrFail($data['academic_term_id'])
+                        ->update([
+                            'teaching_start_date' => $data['teaching_start_date'],
+                            'teaching_end_date' => $data['teaching_end_date'],
+                        ]);
+
+                    Notification::make()
+                        ->title(__('lecture-session.teaching_period_saved_title'))
+                        ->success()
+                        ->send();
+                }),
+
+            Action::make('generate_from_weekly_schedule')
+                ->label(__('lecture-session.generate_from_weekly_schedule'))
+                ->icon('heroicon-o-sparkles')
+                ->color('success')
+                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                ->modalHeading(__('lecture-session.generate_from_weekly_schedule_heading'))
+                ->modalDescription(__('lecture-session.generate_from_weekly_schedule_description'))
+                ->modalSubmitActionLabel(__('lecture-session.generate_from_weekly_schedule_submit'))
+                ->modalWidth('4xl')
+                ->requiresConfirmation()
+                ->form([
+                    Forms\Components\Select::make('academic_term_id')
+                        ->label(__('lecture-session.academic_term'))
+                        ->options(fn (): array => AcademicTerm::query()
+                            ->orderByDesc('id')
+                            ->pluck('display_name', 'id')
+                            ->all())
+                        ->searchable()
+                        ->preload()
+                        ->native(false)
+                        ->live()
+                        ->required(),
+
+                    Forms\Components\Placeholder::make('weekly_generation_preview')
+                        ->label(__('lecture-session.weekly_generation_preview'))
+                        ->content(fn (Get $get): string => static::weeklyGenerationPreviewText($get))
+                        ->columnSpanFull(),
+                ])
+                ->action(function (array $data): void {
+                    $term = AcademicTerm::query()->findOrFail($data['academic_term_id']);
+                    $generator = app(LectureSessionGenerationService::class);
+                    $preview = $generator->preview($term);
+
+                    if (! $preview['ready']) {
+                        Notification::make()
+                            ->title(__('lecture-session.weekly_generation_not_ready_title'))
+                            ->body(static::weeklyGenerationPreviewTextForResult($preview))
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    $result = $generator->generate($term, auth()->user());
+
+                    Notification::make()
+                        ->title(__('lecture-session.weekly_generation_completed_title'))
+                        ->body(__('lecture-session.weekly_generation_completed_body', [
+                            'created' => $result['created_session_count'],
+                            'skipped' => $result['skipped_session_count'],
+                            'total' => $result['candidate_session_count'],
+                        ]))
+                        ->success()
+                        ->send();
+                }),
+
             Action::make('create_recurring')
                 ->label(__('lecture-session.create_recurring'))
                 ->icon('heroicon-o-calendar-days')
@@ -342,5 +451,56 @@ class ListLectureSessions extends ListRecords
         }
 
         return $count;
+    }
+
+    protected static function canGenerateFromWeeklySchedule(): bool
+    {
+        return (bool) auth()->user()?->hasAnyRole(['super-admin', 'admin']);
+    }
+
+    protected static function weeklyGenerationPreviewText(Get $get): string
+    {
+        $termId = $get('academic_term_id');
+
+        if (blank($termId)) {
+            return __('lecture-session.weekly_generation_preview_empty');
+        }
+
+        $term = AcademicTerm::query()->find($termId);
+
+        if (! $term) {
+            return __('lecture-session.weekly_generation_preview_empty');
+        }
+
+        return static::weeklyGenerationPreviewTextForResult(
+            app(LectureSessionGenerationService::class)->preview($term),
+        );
+    }
+
+    protected static function weeklyGenerationPreviewTextForResult(array $preview): string
+    {
+        $summary = __('lecture-session.weekly_generation_preview_summary', [
+            'source' => $preview['source_slot_count'],
+            'total' => $preview['candidate_session_count'],
+            'create' => $preview['to_create_count'],
+            'existing' => $preview['already_existing_count'] + $preview['manual_existing_count'],
+            'blocked' => $preview['blocked_slot_count'],
+            'conflicts' => $preview['conflict_count'],
+        ]);
+
+        if ($preview['ready']) {
+            return $summary."\n".__('lecture-session.weekly_generation_preview_ready');
+        }
+
+        $issues = collect($preview['prerequisite_errors'])
+            ->merge(collect($preview['blocked_slots'])->flatMap(fn (array $slot): array => $slot['reasons'] ?? []))
+            ->merge(collect($preview['conflicts'])->pluck('reason')->filter())
+            ->unique()
+            ->values()
+            ->implode(', ');
+
+        return $summary."\n".__('lecture-session.weekly_generation_preview_blocked', [
+            'issues' => $issues !== '' ? $issues : __('lecture-session.not_available'),
+        ]);
     }
 }
