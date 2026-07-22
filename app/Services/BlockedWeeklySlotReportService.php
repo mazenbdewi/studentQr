@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\LectureSessionGenerationRun;
+use App\Models\ScheduleImportRow;
 use App\Models\SubjectSectionScheduleSlot;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
@@ -71,21 +72,44 @@ class BlockedWeeklySlotReportService
         $conflictSlotIds = array_values(array_unique(array_filter($conflictSlotIds)));
 
         $rows = [];
+        $importRowsBySlot = $this->importRowsBySlot($slotIds);
+
         foreach ($slotIds as $slotId) {
             $slot = $slots->get($slotId);
+            $importRow = $importRowsBySlot[$slotId] ?? null;
             $slotErrorRows = $this->errorRowsForSlot($errorRows, $slotId);
             $codes = $this->codesForSlot($slotErrorRows);
             $actions = $this->actionsForSlot($slotErrorRows);
             $blockedSlot = $blockedBySlot[$slotId] ?? [];
             $conflictDates = $this->conflictDateCountForSlot($conflicts, $slotId);
             $firstErrorRow = $slotErrorRows[0] ?? [];
+            $excelRow = $importRow instanceof ScheduleImportRow ? $importRow->source_row_number : '';
+            $importRowId = $importRow instanceof ScheduleImportRow ? $importRow->id : null;
+            $importRowTermId = $importRow instanceof ScheduleImportRow ? $importRow->academic_term_id : null;
+            $importRowBatchId = $importRow instanceof ScheduleImportRow ? $importRow->import_batch_id : null;
+            $resolvedLecturer = $importRow instanceof ScheduleImportRow && $importRow->resolvedLecturer
+                ? $importRow->resolvedLecturer->name
+                : $this->relatedAttribute($slot, 'lecturer', 'name');
+            $resolvedHall = $importRow instanceof ScheduleImportRow && $importRow->resolvedHall
+                ? $importRow->resolvedHall->name
+                : $this->relatedAttribute($slot, 'hall', 'name');
 
             $rows[] = [
                 'رقم الموعد الأسبوعي' => $slotId,
+                'رقم صف Excel' => $excelRow,
+                'معرف صف الاستيراد' => $importRowId,
+                'معرف الفصل الدراسي' => $slot instanceof SubjectSectionScheduleSlot ? $slot->academic_term_id : $importRowTermId,
+                'معرف دفعة الاستيراد' => $slot instanceof SubjectSectionScheduleSlot ? $slot->import_batch_id : $importRowBatchId,
                 'المادة' => $this->relatedAttribute($slot, 'subject', 'name') ?: (string) ($firstErrorRow['المادة'] ?? ''),
                 'الشعبة' => $this->relatedAttribute($slot, 'subjectSection', 'code') ?: (string) ($firstErrorRow['الشعبة'] ?? ''),
                 'المدرس' => $this->relatedAttribute($slot, 'lecturer', 'name') ?: 'غير محدد',
+                'القيمة الأصلية من الملف - المدرس' => $this->sourceValue($importRow, ['lecturer', 'lecturer_name', 'اسم المدرس']),
+                'قيمة المدرس الأصلية من الملف' => $this->sourceValue($importRow, ['lecturer', 'lecturer_name', 'اسم المدرس']),
+                'القيمة المعتمدة بعد المعالجة - المدرس' => $resolvedLecturer,
                 'القاعة' => $this->relatedAttribute($slot, 'hall', 'name') ?: 'غير محددة',
+                'القيمة الأصلية من الملف - القاعة' => $this->sourceValue($importRow, ['hall', 'hall_name', 'اسم القاعة']),
+                'قيمة القاعة الأصلية من الملف' => $this->sourceValue($importRow, ['hall', 'hall_name', 'اسم القاعة']),
+                'القيمة المعتمدة بعد المعالجة - القاعة' => $resolvedHall,
                 'اليوم' => $this->weekdayLabel($slot instanceof SubjectSectionScheduleSlot ? (int) $slot->weekday : 0),
                 'وقت البداية' => $this->time($slot instanceof SubjectSectionScheduleSlot ? $slot->start_time : null),
                 'وقت النهاية' => $this->time($slot instanceof SubjectSectionScheduleSlot ? $slot->end_time : null),
@@ -129,6 +153,32 @@ class BlockedWeeklySlotReportService
                 'generation_blocked_slots' => (int) $run->blocked_slot_count,
             ],
         ];
+    }
+
+    /**
+     * @param  array<int, int>  $slotIds
+     * @return array<int, ScheduleImportRow>
+     */
+    private function importRowsBySlot(array $slotIds): array
+    {
+        if ($slotIds === []) {
+            return [];
+        }
+
+        $rowsBySlot = [];
+        ScheduleImportRow::query()
+            ->with(['resolvedLecturer', 'resolvedHall'])
+            ->whereNotNull('import_result')
+            ->get()
+            ->each(function (ScheduleImportRow $row) use (&$rowsBySlot, $slotIds): void {
+                foreach ($row->relatedScheduleSlotIds() as $slotId) {
+                    if (in_array($slotId, $slotIds, true)) {
+                        $rowsBySlot[$slotId] = $row;
+                    }
+                }
+            });
+
+        return $rowsBySlot;
     }
 
     /**
@@ -279,6 +329,24 @@ class BlockedWeeklySlotReportService
         $related = $slot->getRelationValue($relation);
 
         return $related instanceof Model ? (string) ($related->getAttribute($attribute) ?? '') : '';
+    }
+
+    /** @param  array<int, string>  $keys */
+    private function sourceValue(?ScheduleImportRow $row, array $keys): string
+    {
+        if (! $row instanceof ScheduleImportRow) {
+            return '';
+        }
+
+        foreach ($keys as $key) {
+            $value = $row->source_payload[$key] ?? $row->normalized_payload[$key] ?? null;
+
+            if (filled($value)) {
+                return trim((string) $value);
+            }
+        }
+
+        return '';
     }
 
     /**

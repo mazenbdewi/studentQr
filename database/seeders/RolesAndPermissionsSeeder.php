@@ -86,6 +86,24 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::findByName('admin', 'web')->givePermissionTo($lectureSessionGenerationPermissions);
         Role::findByName('super-admin', 'web')->givePermissionTo($lectureSessionGenerationPermissions);
 
+        $blockedWeeklySlotReconciliationPermissions = collect([
+            'preview blocked weekly slot reconciliation',
+            'reconcile blocked weekly slots',
+            'create lecturer identity from source',
+            'change reconciled lecturer',
+            'change reconciled hall',
+            'change reconciled weekly time',
+            'exclude weekly slot from current batch',
+            'view reconciliation audit history',
+            'export blocked weekly slot reports',
+        ])->map(fn (string $name) => Permission::firstOrCreate([
+            'name' => $name,
+            'guard_name' => 'web',
+        ]));
+
+        Role::findByName('admin', 'web')->givePermissionTo($blockedWeeklySlotReconciliationPermissions);
+        Role::findByName('super-admin', 'web')->givePermissionTo($blockedWeeklySlotReconciliationPermissions);
+
         $this->createUser(
             email: 'super@admin.com',
             role: 'super-admin',

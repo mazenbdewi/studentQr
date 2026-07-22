@@ -9,10 +9,12 @@ class BlockedWeeklySlotsExport implements WithMultipleSheets
     /**
      * @param  array<int, array<string, mixed>>  $rows
      * @param  array<int, array<string, mixed>>  $conflicts
+     * @param  array<int, array<string, mixed>>  $suggestedTreatments
      */
     public function __construct(
         private readonly array $rows,
         private readonly array $conflicts,
+        private readonly array $suggestedTreatments = [],
     ) {}
 
     public function sheets(): array
@@ -75,6 +77,26 @@ class BlockedWeeklySlotsExport implements WithMultipleSheets
                         'بعد التعارض' => $conflict['conflict_dimension'] ?? '',
                     ])
                     ->all(),
+            ],
+            [
+                'title' => 'المعالجات المقترحة',
+                'headings' => [
+                    'رقم الموعد الأسبوعي',
+                    'رقم صف Excel',
+                    'المادة',
+                    'الشعبة',
+                    'اليوم',
+                    'الوقت',
+                    'المدرس الحالي',
+                    'المدرس المقترح',
+                    'القاعة الحالية',
+                    'القاعة المقترحة',
+                    'المشكلات الحالية',
+                    'المشكلات التي ستبقى',
+                    'الجلسات المتوقعة بعد المعالجة',
+                    'القرار المطلوب',
+                ],
+                'rows' => $this->suggestedTreatments,
             ],
         ]))->sheets();
     }

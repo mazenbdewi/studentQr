@@ -52,8 +52,25 @@ class AppServiceProvider extends ServiceProvider
 
     private function configurePolicies(): void
     {
+        Gate::before(fn ($user): ?bool => $user->isSuperAdmin() ? true : null);
+
         foreach ($this->policies as $model => $policy) {
             Gate::policy($model, $policy);
+        }
+
+        foreach ([
+            ScheduleImportRowPolicy::PREVIEW_BLOCKED_WEEKLY_SLOT_RECONCILIATION,
+            ScheduleImportRowPolicy::RECONCILE_BLOCKED_WEEKLY_SLOTS,
+            ScheduleImportRowPolicy::CREATE_LECTURER_IDENTITY_FROM_SOURCE,
+            ScheduleImportRowPolicy::CHANGE_RECONCILED_LECTURER,
+            ScheduleImportRowPolicy::CHANGE_RECONCILED_HALL,
+            ScheduleImportRowPolicy::CHANGE_RECONCILED_WEEKLY_TIME,
+            ScheduleImportRowPolicy::EXCLUDE_WEEKLY_SLOT_FROM_CURRENT_BATCH,
+            ScheduleImportRowPolicy::VIEW_RECONCILIATION_AUDIT_HISTORY,
+            ScheduleImportRowPolicy::EXPORT_BLOCKED_WEEKLY_SLOT_REPORTS,
+        ] as $ability) {
+            Gate::define($ability, fn ($user): bool => $user->hasRole('admin')
+                || (method_exists($user, 'hasPermissionTo') && $user->hasPermissionTo($ability)));
         }
     }
 
