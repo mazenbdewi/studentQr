@@ -13,9 +13,8 @@ return new class extends Migration
         $hasBuildingName = Schema::hasColumn('halls', 'building_name');
         $hasFacultyId = Schema::hasColumn('halls', 'faculty_id');
         $hasNotes = Schema::hasColumn('halls', 'notes');
-        $hasFacultiesTable = Schema::hasTable('faculties');
 
-        Schema::table('halls', function (Blueprint $table) use ($hasBuildingName, $hasCapacity, $hasFacultiesTable, $hasFacultyId, $hasHallType, $hasNotes): void {
+        Schema::table('halls', function (Blueprint $table) use ($hasBuildingName, $hasCapacity, $hasFacultyId, $hasHallType, $hasNotes): void {
             if (! $hasCapacity) {
                 $table->unsignedInteger('capacity')->nullable()->after('name');
             }
@@ -28,16 +27,18 @@ return new class extends Migration
                 $table->string('building_name')->nullable()->after('hall_type');
             }
 
-            if ($hasFacultiesTable && ! $hasFacultyId) {
+            if (! $hasFacultyId) {
                 $table->foreignId('faculty_id')
                     ->nullable()
-                    ->after('building_name')
-                    ->constrained('faculties', indexName: 'halls_faculty_id_fk')
+                    ->after('building_name');
+                $table->foreign('faculty_id', 'halls_faculty_id_fk')
+                    ->references('id')
+                    ->on('faculties')
                     ->nullOnDelete();
             }
 
             if (! $hasNotes) {
-                $table->text('notes')->nullable()->after($hasFacultiesTable && ! $hasFacultyId ? 'faculty_id' : 'building_name');
+                $table->text('notes')->nullable()->after(! $hasFacultyId ? 'faculty_id' : 'building_name');
             }
         });
     }

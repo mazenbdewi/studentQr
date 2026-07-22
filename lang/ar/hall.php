@@ -27,7 +27,7 @@ return [
     'network_ssid' => 'شبكة SSID',
     'ip_range_start' => 'بداية نطاق IP',
     'ip_range_end' => 'نهاية نطاق IP',
-    'is_active' => 'نشط',
+    'is_active' => 'فعالة',
     'created_at' => 'تاريخ الإنشاء',
     'updated_at' => 'تاريخ التحديث',
     'deleted_at' => 'تاريخ الحذف',

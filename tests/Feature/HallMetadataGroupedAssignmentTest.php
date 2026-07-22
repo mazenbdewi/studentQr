@@ -205,7 +205,7 @@ it('exports an Arabic RTL xlsx hall metadata template containing existing halls'
         ->and($sheet->getCell('A1')->getValue())->toBe('رمز القاعة')
         ->and($sheet->getCell('C1')->getValue())->toBe('السعة')
         ->and($values)->toContain('RTL-1')
-        ->and($spreadsheet->getSheetByName('تعليمات الاستخدام')->getRightToLeft())->toBeTrue()
+        ->and($spreadsheet->getSheetByName('تعليمات التعبئة')->getRightToLeft())->toBeTrue()
         ->and(trim(implode("\n", $gitStatus)))->toBe('');
 });
 
