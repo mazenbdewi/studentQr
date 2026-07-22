@@ -3,10 +3,18 @@
 return [
     'title' => 'Lecturer account preparation',
     'saved' => 'Lecturer account preparation saved',
+    'bulk_completed_title' => 'Lecturer accounts prepared',
+    'bulk_completed_body' => ':created accounts created and :roles accounts received the role. Excluded cases: :blocked.',
+    'no_credentials_generated' => 'No new temporary passwords were generated.',
+    'bulk_preview_empty' => 'Choose an academic term to preview account preparation.',
+    'bulk_preview_summary' => 'Lecturers used by the schedule: :total. Ready: :ready. Accounts to create: :create. Need role grant: :roles. Excluded cases: :blocked.',
+    'one_time_download_title' => 'One-time credentials download',
+    'one_time_download_warning' => 'Temporary passwords appear only in the downloaded file and are not stored in the database. If the browser download fails after account creation, the old plaintext passwords cannot be recovered; use the reset action to generate new temporary passwords.',
     'fields' => [
         'lecturer_name' => 'Lecturer name in Arabic',
         'linked_account' => 'Linked account',
         'email' => 'Email',
+        'login_username' => 'Login username',
         'account_status' => 'Account status',
         'course_lecturer_role_status' => 'Course lecturer role status',
         'weekly_slots_count' => 'Weekly slots count',
@@ -18,6 +26,11 @@ return [
         'create_account' => 'Create lecturer login account',
         'link_existing_account' => 'Link lecturer to existing account',
         'grant_course_lecturer_role' => 'Grant course lecturer role',
+        'preview_bulk_preparation' => 'Preview account preparation',
+        'create_bulk_accounts' => 'Create lecturer accounts',
+        'reset_temporary_passwords' => 'Reset temporary passwords for selected accounts',
+        'successful_operations_report' => 'Successful operations report',
+        'error_report' => 'Error and excluded cases report',
     ],
     'statuses' => [
         'missing_account' => 'No linked account',
@@ -38,9 +51,21 @@ return [
     'notices' => [
         'course_lecturer_role_assigned' => 'The course lecturer role will be assigned when the login account is created.',
     ],
+    'results' => [
+        'existing_account' => 'The account already exists and is ready.',
+        'account_created' => 'The account was created.',
+        'role_added' => 'The course lecturer role was added.',
+        'skipped' => 'The item was skipped.',
+        'temporary_password_reset' => 'The temporary password was reset.',
+    ],
+    'errors' => [
+        'unexpected_item_failure' => 'An unexpected error occurred while processing the lecturer.',
+        'missing_linked_user' => 'This lecturer has no linked account.',
+    ],
     'validation' => [
         'lecturer_already_linked' => 'This lecturer is already linked to a login account.',
         'user_already_linked' => 'This account is already linked to another lecturer.',
         'no_linked_user' => 'This lecturer has no linked account.',
+        'login_identifier_taken' => 'The login username collides with an existing username, email, or student number.',
     ],
 ];

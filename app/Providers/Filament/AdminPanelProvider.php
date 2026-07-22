@@ -26,6 +26,7 @@ use App\Filament\Resources\StudentDevices\StudentDeviceResource;
 use App\Filament\Resources\Students\StudentResource;
 use App\Filament\Resources\Subjects\SubjectResource;
 use App\Filament\Resources\Users\UserResource;
+use App\Http\Middleware\EnsurePasswordChangeIsNotRequired;
 use App\Http\Middleware\EnsurePinIsVerified;
 use App\Http\Middleware\SetAdminLocale;
 use App\Livewire\Filament\Profile\UpdatePassword;
@@ -124,6 +125,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                EnsurePasswordChangeIsNotRequired::class,
                 EnsurePinIsVerified::class,
             ])
             ->userMenuItems([

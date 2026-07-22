@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Jeffgreco13\FilamentBreezy\Livewire\MyProfileComponent;
 
+/** @property Schema $form */
 class UpdatePassword extends MyProfileComponent
 {
     protected string $view = 'livewire.filament.profile.update-password';
@@ -60,6 +61,7 @@ class UpdatePassword extends MyProfileComponent
 
         $this->user->forceFill([
             'password' => Hash::make((string) $data['new_password']),
+            'must_change_password' => false,
             'remember_token' => Str::random(60),
         ])->save();
 

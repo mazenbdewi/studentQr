@@ -8,6 +8,7 @@ use App\Filament\Resources\LectureSessions\LectureSessionResource;
 use App\Models\AcademicTerm;
 use App\Models\AppSetting;
 use App\Models\Hall;
+use App\Models\LectureSessionGenerationRun;
 use App\Models\Subject;
 use App\Services\LectureSessionCalendarService;
 use App\Services\LectureSessionGenerationService;
@@ -21,6 +22,7 @@ use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ListLectureSessions extends ListRecords
 {
@@ -146,7 +148,7 @@ class ListLectureSessions extends ListRecords
                     $generator = app(LectureSessionGenerationService::class);
                     $preview = $generator->preview($term);
 
-                    if (! $preview['ready']) {
+                    if ($preview['prerequisite_errors'] !== []) {
                         Notification::make()
                             ->title(__('lecture-session.weekly_generation_not_ready_title'))
                             ->body(static::weeklyGenerationPreviewTextForResult($preview))
@@ -156,7 +158,7 @@ class ListLectureSessions extends ListRecords
                         return;
                     }
 
-                    $result = $generator->generate($term, auth()->user());
+                    $result = $generator->generateReadySessions($term, auth()->user());
 
                     Notification::make()
                         ->title(__('lecture-session.weekly_generation_completed_title'))
@@ -168,6 +170,20 @@ class ListLectureSessions extends ListRecords
                         ->success()
                         ->send();
                 }),
+
+            Action::make('download_latest_generation_success_report')
+                ->label(__('lecture-session.successful_operations_report'))
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                ->action(fn (): ?StreamedResponse => static::downloadLatestGenerationReport('success_report')),
+
+            Action::make('download_latest_generation_error_report')
+                ->label(__('lecture-session.error_report'))
+                ->icon('heroicon-o-exclamation-triangle')
+                ->color('gray')
+                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                ->action(fn (): ?StreamedResponse => static::downloadLatestGenerationReport('error_report')),
 
             Action::make('create_recurring')
                 ->label(__('lecture-session.create_recurring'))
@@ -518,7 +534,7 @@ class ListLectureSessions extends ListRecords
             ]);
         }
 
-        if ($preview['ready']) {
+        if ($preview['prerequisite_errors'] === [] && $preview['to_create_count'] > 0) {
             return $summary."\n".__('lecture-session.weekly_generation_preview_ready');
         }
 
@@ -531,6 +547,47 @@ class ListLectureSessions extends ListRecords
 
         return $summary."\n".__('lecture-session.weekly_generation_preview_blocked', [
             'issues' => $issues !== '' ? $issues : __('lecture-session.not_available'),
+        ]);
+    }
+
+    protected static function downloadLatestGenerationReport(string $key): ?StreamedResponse
+    {
+        $run = LectureSessionGenerationRun::query()
+            ->latest('completed_at')
+            ->latest('id')
+            ->first();
+        $rows = $run?->summary[$key] ?? [];
+
+        if ($rows === []) {
+            Notification::make()
+                ->title(__('lecture-session.not_available'))
+                ->warning()
+                ->send();
+
+            return null;
+        }
+
+        return response()->streamDownload(function () use ($rows): void {
+            $output = fopen('php://output', 'w');
+
+            if ($output === false) {
+                return;
+            }
+
+            $headers = array_keys((array) $rows[0]);
+            fputcsv($output, $headers, ',', '"', '');
+
+            foreach ($rows as $row) {
+                fputcsv($output, array_map(
+                    fn (mixed $value): string => is_scalar($value) || $value === null ? (string) $value : json_encode($value, JSON_UNESCAPED_UNICODE),
+                    (array) $row,
+                ), ',', '"', '');
+            }
+
+            fclose($output);
+        }, 'lecture-session-generation-'.$key.'-'.$run->id.'.csv', [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
     }
 }

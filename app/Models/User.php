@@ -14,7 +14,6 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable implements FilamentUser
 {
     use HasFactory;
-
     use HasPanelShield;
     use HasRoles;
     use Notifiable;
@@ -23,7 +22,9 @@ class User extends Authenticatable implements FilamentUser
     protected $fillable = [
         'name',
         'email',
+        'login_username',
         'password',
+        'must_change_password',
         'pin_code',
         'pin_enabled',
         'pin_changed_at',
@@ -51,6 +52,8 @@ class User extends Authenticatable implements FilamentUser
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'must_change_password' => 'boolean',
+        'is_active' => 'boolean',
         'pin_enabled' => 'boolean',
         'pin_changed_at' => 'datetime',
     ];
@@ -69,7 +72,7 @@ class User extends Authenticatable implements FilamentUser
 
     public function isAdmin(): bool
     {
-        return $this->role === 'admin'
+        return (string) $this->getAttribute('role') === 'admin'
             || $this->hasRole('admin');
     }
 
@@ -119,7 +122,6 @@ class User extends Authenticatable implements FilamentUser
         };
     }
 
-
     public function attendances()
     {
         return $this->hasMany(Attendance::class, 'student_id');
@@ -139,7 +141,6 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->belongsTo(Department::class)->withTrashed();
     }
-
 
     public function lectureSessions()
     {

@@ -27,6 +27,7 @@ trait ManagesOwnAccountSecurity
 
         $user->forceFill([
             'password' => Hash::make((string) $request->input('new_password')),
+            'must_change_password' => false,
         ])->save();
 
         return back()->with('success', __('profile.password_changed_successfully'));

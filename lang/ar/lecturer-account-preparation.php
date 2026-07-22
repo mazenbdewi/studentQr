@@ -1,12 +1,20 @@
 <?php
 
 return [
-    'title' => 'تجهيز حسابات المدرسين',
+    'title' => 'تهيئة حسابات المدرسين',
     'saved' => 'تم حفظ تجهيز حساب المدرس',
+    'bulk_completed_title' => 'تمت تهيئة حسابات المدرسين',
+    'bulk_completed_body' => 'تم إنشاء :created حسابًا ومنح الدور لـ :roles حسابًا. الحالات المستبعدة: :blocked.',
+    'no_credentials_generated' => 'لم يتم توليد كلمات مرور مؤقتة جديدة.',
+    'bulk_preview_empty' => 'اختر فصلًا دراسيًا لمعاينة تهيئة الحسابات.',
+    'bulk_preview_summary' => 'المدرسون المستخدمون في الجدول: :total. جاهزون: :ready. سيتم إنشاء حساباتهم: :create. يحتاجون منح الدور: :roles. حالات مستبعدة: :blocked.',
+    'one_time_download_title' => 'تنزيل بيانات الدخول مرة واحدة',
+    'one_time_download_warning' => 'سيتم عرض كلمات المرور المؤقتة في ملف التنزيل فقط ولن تحفظ في قاعدة البيانات. إذا فشل التنزيل بعد إنشاء الحسابات فلا يمكن استعادة كلمات المرور القديمة، ويجب استخدام إجراء إعادة التعيين لتوليد كلمات مرور مؤقتة جديدة.',
     'fields' => [
         'lecturer_name' => 'اسم المدرس بالعربية',
         'linked_account' => 'الحساب المرتبط',
         'email' => 'البريد الإلكتروني',
+        'login_username' => 'اسم الدخول',
         'account_status' => 'حالة الحساب',
         'course_lecturer_role_status' => 'حالة دور مدرس مقرر',
         'weekly_slots_count' => 'عدد المواعيد الأسبوعية',
@@ -18,6 +26,11 @@ return [
         'create_account' => 'إنشاء حساب دخول للمدرس',
         'link_existing_account' => 'ربط المدرس بحساب موجود',
         'grant_course_lecturer_role' => 'منح صلاحية مدرس مقرر',
+        'preview_bulk_preparation' => 'معاينة تهيئة الحسابات',
+        'create_bulk_accounts' => 'إنشاء حسابات المدرسين',
+        'reset_temporary_passwords' => 'إعادة تعيين كلمات المرور المؤقتة للحسابات المحددة',
+        'successful_operations_report' => 'تقرير العمليات الناجحة',
+        'error_report' => 'تقرير الأخطاء والحالات المستبعدة',
     ],
     'statuses' => [
         'missing_account' => 'لا يوجد حساب مرتبط',
@@ -38,9 +51,21 @@ return [
     'notices' => [
         'course_lecturer_role_assigned' => 'سيتم منح الحساب دور مدرس مقرر عند إنشاء حساب الدخول.',
     ],
+    'results' => [
+        'existing_account' => 'الحساب موجود وجاهز.',
+        'account_created' => 'تم إنشاء الحساب.',
+        'role_added' => 'تم منح دور مدرس مقرر.',
+        'skipped' => 'تم استبعاد الحالة.',
+        'temporary_password_reset' => 'تمت إعادة تعيين كلمة المرور المؤقتة.',
+    ],
+    'errors' => [
+        'unexpected_item_failure' => 'حدث خطأ غير متوقع أثناء معالجة المدرس.',
+        'missing_linked_user' => 'لا يوجد حساب مرتبط بهذا المدرس.',
+    ],
     'validation' => [
         'lecturer_already_linked' => 'هذا المدرس مرتبط بحساب دخول مسبقًا.',
         'user_already_linked' => 'هذا الحساب مرتبط بمدرس آخر مسبقًا.',
         'no_linked_user' => 'لا يوجد حساب مرتبط بهذا المدرس.',
+        'login_identifier_taken' => 'اسم الدخول يتعارض مع اسم دخول أو بريد إلكتروني أو رقم جامعي موجود.',
     ],
 ];

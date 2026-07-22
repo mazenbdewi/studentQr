@@ -222,6 +222,122 @@ class LectureSessionGenerationService
         });
     }
 
+    public function generateReadySessions(AcademicTerm $term, ?User $user = null): array
+    {
+        $preview = $this->preview($term);
+        $fatalPrerequisites = $preview['prerequisite_errors'];
+
+        if ($fatalPrerequisites !== []) {
+            throw ValidationException::withMessages([
+                'academic_term_id' => __('lecture-session.weekly_generation_not_ready'),
+            ]);
+        }
+
+        $now = now(config('app.timezone', 'Asia/Damascus'));
+        $unsafeSourceSlotIds = $this->unsafeConflictSourceSlotIds($preview['conflicts']);
+        $safeCandidates = collect($preview['candidates'])
+            ->filter(fn (array $candidate): bool => $candidate['status'] === self::STATUS_TO_CREATE)
+            ->reject(fn (array $candidate): bool => in_array((int) $candidate['source_slot_id'], $unsafeSourceSlotIds, true))
+            ->values();
+
+        $run = LectureSessionGenerationRun::query()->create([
+            'academic_term_id' => $term->id,
+            'schedule_import_batch_id' => $this->latestWeeklyScheduleBatch($term)?->id,
+            'started_by' => $user?->id,
+            'teaching_start_date' => $preview['teaching_start_date'],
+            'teaching_end_date' => $preview['teaching_end_date'],
+            'status' => 'running',
+            'source_slot_count' => $preview['source_slot_count'],
+            'candidate_session_count' => $preview['candidate_session_count'],
+            'blocked_slot_count' => $preview['blocked_slot_count'],
+            'conflict_count' => $preview['conflict_count'],
+            'summary' => $preview,
+            'started_at' => $now,
+        ]);
+
+        $successReport = collect($preview['candidates'])
+            ->filter(fn (array $candidate): bool => in_array($candidate['status'], [self::STATUS_ALREADY_EXISTS, self::STATUS_MANUAL_EXISTS], true))
+            ->map(fn (array $candidate): array => $this->sessionSuccessReportRow($candidate, $candidate['status'] === self::STATUS_ALREADY_EXISTS ? 'already_exists' : 'manual_exists'))
+            ->values()
+            ->all();
+        $errorReport = $this->sessionErrorReportRows($preview['blocked_slots'], $preview['conflicts'], $unsafeSourceSlotIds);
+        $createdCount = 0;
+        $skipped = $preview['already_existing_count'] + $preview['manual_existing_count'];
+
+        foreach ($safeCandidates as $candidate) {
+            try {
+                $freshEvaluation = $this->evaluateCandidate($candidate, []);
+
+                if ($freshEvaluation['status'] === self::STATUS_ALREADY_EXISTS || $freshEvaluation['status'] === self::STATUS_MANUAL_EXISTS) {
+                    $skipped++;
+                    $successReport[] = $this->sessionSuccessReportRow($candidate, $freshEvaluation['status'] === self::STATUS_ALREADY_EXISTS ? 'already_exists' : 'manual_exists');
+
+                    continue;
+                }
+
+                if ($freshEvaluation['status'] !== self::STATUS_TO_CREATE) {
+                    $skipped++;
+                    $errorReport[] = $this->sessionErrorReportRow($candidate, 'scheduling_conflict', __('lecture-session.report_reasons.scheduling_conflict'));
+
+                    continue;
+                }
+
+                $session = DB::transaction(fn (): LectureSession => LectureSession::query()->create([
+                    'academic_term_id' => $term->id,
+                    'subject_id' => $candidate['subject_id'],
+                    'subject_section_id' => $candidate['subject_section_id'],
+                    'subject_section_schedule_slot_id' => $candidate['source_slot_id'],
+                    'lecture_session_generation_run_id' => $run->id,
+                    'generated_from_weekly_schedule_at' => $now,
+                    'lecturer_id' => $candidate['lecturer_user_id'],
+                    'hall_id' => $candidate['hall_id'],
+                    'session_date' => $candidate['session_date'],
+                    'start_time' => $candidate['start_time'],
+                    'end_time' => $candidate['end_time'],
+                    'status' => 'scheduled',
+                    'attendance_mode' => 'qr_otp',
+                    'qr_refresh_rate' => AppSetting::defaultQrRefreshRate(),
+                    'expected_students' => $candidate['expected_student_count'] ?? 0,
+                    'notes' => __('lecture-session.generated_from_weekly_schedule_note'),
+                ]));
+
+                $createdCount++;
+                $successReport[] = [
+                    ...$this->sessionSuccessReportRow($candidate, 'created'),
+                    'lecture_session_id' => (int) $session->id,
+                ];
+            } catch (\Throwable) {
+                $skipped++;
+                $errorReport[] = $this->sessionErrorReportRow($candidate, 'unexpected_item_failure', __('lecture-session.report_reasons.unexpected_item_failure'));
+            }
+        }
+
+        $run->update([
+            'status' => $errorReport !== [] ? 'completed_with_errors' : 'completed',
+            'created_session_count' => $createdCount,
+            'skipped_session_count' => $skipped,
+            'summary' => [
+                ...$preview,
+                'created_session_count' => $createdCount,
+                'skipped_session_count' => $skipped,
+                'success_report' => $successReport,
+                'error_report' => $errorReport,
+            ],
+            'completed_at' => now(config('app.timezone', 'Asia/Damascus')),
+        ]);
+
+        return [
+            ...$preview,
+            'ready_for_partial_generation' => $preview['prerequisite_errors'] === []
+                && $safeCandidates->isNotEmpty(),
+            'generation_run_id' => $run->id,
+            'created_session_count' => $createdCount,
+            'skipped_session_count' => $skipped,
+            'success_report' => $successReport,
+            'error_report' => $errorReport,
+        ];
+    }
+
     /** @return array{start: ?CarbonImmutable, end: ?CarbonImmutable} */
     private function dateRange(AcademicTerm $term): array
     {
@@ -532,6 +648,87 @@ class LectureSessionGenerationService
     private function timesOverlap(string $startA, string $endA, string $startB, string $endB): bool
     {
         return $startA < $endB && $endA > $startB;
+    }
+
+    private function sessionSuccessReportRow(array $candidate, string $result): array
+    {
+        $slot = SubjectSectionScheduleSlot::query()
+            ->with(['subject', 'subjectSection', 'lecturer.user', 'hall'])
+            ->find($candidate['source_slot_id']);
+        $lecturerUser = $slot?->lecturer?->user;
+
+        return [
+            'المادة' => $slot?->subject?->getAttribute('name') ?? (string) $candidate['subject_id'],
+            'الشعبة' => $slot?->subjectSection?->getAttribute('code') ?? (string) $candidate['subject_section_id'],
+            'المدرس' => $slot?->lecturer?->getAttribute('name') ?? (string) ($candidate['lecturer_identity_id'] ?? ''),
+            'اسم الدخول' => $lecturerUser instanceof User ? ($lecturerUser->login_username ?? $lecturerUser->email) : null,
+            'القاعة' => $slot?->hall?->getAttribute('name') ?? (string) $candidate['hall_id'],
+            'التاريخ' => $candidate['session_date'],
+            'وقت البداية والنهاية' => $candidate['start_time'].' - '.$candidate['end_time'],
+            'النتيجة' => $result,
+            'source_slot_id' => (int) $candidate['source_slot_id'],
+        ];
+    }
+
+    private function sessionErrorReportRows(array $blockedSlots, array $conflicts, array $unsafeSourceSlotIds): array
+    {
+        return collect($blockedSlots)
+            ->flatMap(fn (array $slot): array => collect($slot['reasons'] ?? ['blocked'])
+                ->map(fn (string $reason): array => $this->sessionErrorReportRow($slot, $reason, $this->arabicGenerationReason($reason)))
+                ->all())
+            ->merge(collect($conflicts)->map(fn (array $conflict): array => $this->sessionErrorReportRow(
+                $conflict,
+                (string) ($conflict['reason'] ?? 'scheduling_conflict'),
+                $this->arabicGenerationReason((string) ($conflict['reason'] ?? 'scheduling_conflict')),
+            )))
+            ->merge(collect($unsafeSourceSlotIds)->map(fn (int $slotId): array => $this->sessionErrorReportRow(
+                ['source_slot_id' => $slotId],
+                'scheduling_conflict',
+                $this->arabicGenerationReason('scheduling_conflict'),
+            )))
+            ->values()
+            ->all();
+    }
+
+    private function sessionErrorReportRow(array $source, string $code, string $reason): array
+    {
+        $slot = SubjectSectionScheduleSlot::query()
+            ->with(['subject', 'subjectSection', 'lecturer.user', 'hall'])
+            ->find($source['source_slot_id'] ?? null);
+
+        return [
+            'الموعد الأسبوعي المصدر' => $source['source_slot_id'] ?? null,
+            'المادة والشعبة' => collect([$slot?->subject?->getAttribute('name'), $slot?->subjectSection?->getAttribute('code')])->filter()->implode(' / '),
+            'المدرس' => $slot?->lecturer?->getAttribute('name'),
+            'القاعة' => $slot?->hall?->getAttribute('name'),
+            'اليوم والوقت' => collect([$slot?->weekday, $slot?->start_time.' - '.$slot?->end_time])->filter()->implode(' / '),
+            'رمز الخطأ' => $code,
+            'السبب بالعربية' => $reason,
+            'الإجراء المقترح' => __('lecture-session.report_actions.'.$code) !== 'lecture-session.report_actions.'.$code
+                ? __('lecture-session.report_actions.'.$code)
+                : __('lecture-session.report_actions.default'),
+        ];
+    }
+
+    private function arabicGenerationReason(string $reason): string
+    {
+        $translation = __('lecture-session.report_reasons.'.$reason);
+
+        return $translation === 'lecture-session.report_reasons.'.$reason
+            ? $reason
+            : $translation;
+    }
+
+    private function unsafeConflictSourceSlotIds(array $conflicts): array
+    {
+        return collect($conflicts)
+            ->flatMap(fn (array $conflict): array => array_filter([
+                (int) ($conflict['source_slot_id'] ?? 0),
+                (int) ($conflict['conflicting_source_slot_id'] ?? 0),
+            ]))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function blockedSlot(SubjectSectionScheduleSlot $slot, array $reasons, int $occurrenceCount = 0): array

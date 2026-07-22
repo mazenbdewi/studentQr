@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\CustomLoginController;
+use App\Http\Controllers\Auth\ForcePasswordChangeController;
 use App\Http\Controllers\Auth\PinVerificationController;
 use App\Http\Controllers\SeminarAttendanceController;
 use App\Http\Controllers\Student\AttendanceController;
@@ -30,6 +31,12 @@ Route::post('/logout', [CustomLoginController::class, 'logout'])
     ->name('logout');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/password/force-change', [ForcePasswordChangeController::class, 'show'])
+        ->name('password.force-change.form');
+
+    Route::put('/password/force-change', [ForcePasswordChangeController::class, 'update'])
+        ->name('password.force-change.update');
+
     Route::get('/pin/set', [PinVerificationController::class, 'showSet'])
         ->name('pin.set.form');
 

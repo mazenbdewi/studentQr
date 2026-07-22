@@ -1,11 +1,22 @@
 <?php
 
+use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\LecturerAccountPreparation;
+use App\Models\AcademicTerm;
+use App\Models\Hall;
+use App\Models\ImportBatch;
 use App\Models\Lecturer;
+use App\Models\LecturerAccountGenerationItem;
+use App\Models\LecturerAccountGenerationRun;
 use App\Models\LectureSession;
+use App\Models\Subject;
+use App\Models\SubjectSection;
+use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use App\Services\LecturerAccountPreparationService;
+use App\Services\PinLoginService;
 use Filament\Facades\Filament;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -38,68 +49,319 @@ function arabicLecturerIdentity(array $overrides = []): Lecturer
     ]);
 }
 
-it('prefills the account form with the Arabic lecturer name and does not generate an email', function (): void {
-    $lecturer = arabicLecturerIdentity();
+function lecturerBulkPreparationFixture(): array
+{
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'الفصل الصيفي 2025/2026',
+        'canonical_name' => 'الفصل الصيفي 2025/2026',
+    ]);
+    $lecturer = arabicLecturerIdentity(['id' => 211, 'name' => 'محمد ابراهيم علي', 'canonical_name' => 'محمد ابراهيم علي']);
+    $subject = Subject::query()->create([
+        'code' => 'AEFC716',
+        'name' => 'تجهيزات مباني 3',
+        'subject_type' => Subject::TYPE_THEORETICAL,
+        'is_active' => true,
+    ]);
+    $section = SubjectSection::query()->create([
+        'academic_term_id' => $term->id,
+        'subject_id' => $subject->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'T1',
+        'name' => 'T1',
+    ]);
+    $hall = Hall::query()->create([
+        'code' => 'F-05',
+        'name' => 'F-05',
+        'floor' => 1,
+        'is_active' => true,
+    ]);
+    $batch = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', 'bulk-account-schedule'),
+        'import_type' => ImportBatch::TYPE_WEEKLY_SCHEDULE,
+        'status' => ImportBatch::STATUS_COMPLETED,
+        'imported_rows' => 1,
+        'total_rows' => 1,
+        'completed_at' => now(),
+    ]);
+    $batch->academicTerms()->attach($term->id, ['row_count' => 1]);
+    $slot = SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $batch->id,
+        'academic_term_id' => $term->id,
+        'subject_id' => $subject->id,
+        'subject_section_id' => $section->id,
+        'lecturer_id' => $lecturer->id,
+        'hall_id' => $hall->id,
+        'weekday' => 2,
+        'start_time' => '08:30:00',
+        'end_time' => '12:30:00',
+    ]);
 
-    Livewire::actingAs(lecturerAccountPreparationAdmin())
-        ->test(LecturerAccountPreparation::class)
-        ->mountTableAction('create-login-account', $lecturer)
-        ->assertTableActionDataSet([
-            'name' => 'د. أحمد الخطيب',
-            'email' => null,
-        ]);
+    return compact('term', 'lecturer', 'subject', 'section', 'hall', 'batch', 'slot');
+}
+
+function addBulkLecturerSlot(array $fixture, int $lecturerId, string $name): Lecturer
+{
+    $lecturer = arabicLecturerIdentity(['id' => $lecturerId, 'name' => $name, 'canonical_name' => $name]);
+    $section = SubjectSection::query()->create([
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'T'.$lecturerId,
+        'name' => 'T'.$lecturerId,
+    ]);
+
+    SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['batch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $section->id,
+        'lecturer_id' => $lecturer->id,
+        'hall_id' => $fixture['hall']->id,
+        'weekday' => 3,
+        'start_time' => '10:30:00',
+        'end_time' => '12:30:00',
+    ]);
+
+    return $lecturer;
+}
+
+it('previews bulk lecturer accounts using deterministic usernames without creating users', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    $usersBefore = User::query()->count();
+
+    $preview = app(LecturerAccountPreparationService::class)->previewBulkPreparation($fixture['term']);
+
+    expect($preview['referenced_lecturer_count'])->toBe(1)
+        ->and($preview['accounts_to_create_count'])->toBe(1)
+        ->and($preview['rows'][0]['lecturer_name'])->toBe('محمد ابراهيم علي')
+        ->and($preview['rows'][0]['login_username'])->toBe('lec000211')
+        ->and(User::query()->count())->toBe($usersBefore);
 });
 
-it('requires a real unique email for new lecturer accounts', function (): void {
-    $lecturer = arabicLecturerIdentity();
-
-    Livewire::actingAs(lecturerAccountPreparationAdmin())
-        ->test(LecturerAccountPreparation::class)
-        ->callTableAction('create-login-account', $lecturer, [
-            'password' => 'temporary-password',
-            'password_confirmation' => 'temporary-password',
-        ])
-        ->assertHasTableActionErrors(['email' => 'required']);
-
-    User::factory()->create([
-        'email' => 'existing@example.test',
+it('supports nullable email schema and refuses unsafe rollback for username only accounts', function (): void {
+    $user = User::factory()->create([
+        'email' => null,
+        'login_username' => 'lec000999',
         'role' => 'course_lecturer',
         'type' => 'lecturer',
         'status' => 'active',
+        'is_active' => true,
     ]);
+    $migration = require database_path('migrations/2026_07_22_000004_add_login_username_to_users_for_bulk_lecturer_accounts.php');
 
-    Livewire::actingAs(lecturerAccountPreparationAdmin())
-        ->test(LecturerAccountPreparation::class)
-        ->callTableAction('create-login-account', $lecturer, [
-            'email' => 'existing@example.test',
-            'password' => 'temporary-password',
-            'password_confirmation' => 'temporary-password',
-        ])
-        ->assertHasTableActionErrors(['email' => 'unique']);
+    expect($user->fresh()->email)->toBeNull()
+        ->and(fn () => $migration->down())->toThrow(RuntimeException::class);
 });
 
-it('creates a linked course lecturer account with Arabic name preserved and a hashed password', function (): void {
-    $lecturer = arabicLecturerIdentity();
+it('bulk creates linked course lecturer accounts with Arabic names and nullable email', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
     $sessionsBefore = LectureSession::query()->count();
+
+    $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts(
+        $fixture['term']
+    );
+
+    $user = User::query()->where('login_username', 'lec000211')->firstOrFail();
+    $temporaryPassword = $result['credential_rows'][0]['temporary_password'];
+
+    expect($result['created_account_count'])->toBe(1)
+        ->and($result['credential_rows'])->toHaveCount(1)
+        ->and($user->name)->toBe('محمد ابراهيم علي')
+        ->and($user->email)->toBeNull()
+        ->and($user->login_username)->toBe('lec000211')
+        ->and($user->must_change_password)->toBeTrue()
+        ->and($user->status)->toBe('active')
+        ->and($user->is_active)->toBeTrue()
+        ->and($user->password)->not->toBe($temporaryPassword)
+        ->and(Hash::check($temporaryPassword, $user->password))->toBeTrue()
+        ->and($user->hasRole('course_lecturer'))->toBeTrue()
+        ->and($fixture['lecturer']->fresh()->user_id)->toBe($user->id)
+        ->and(app(PinLoginService::class)->findUserForLogin('lec000211')->id)->toBe($user->id)
+        ->and(LectureSession::query()->count())->toBe($sessionsBefore)
+        ->and(LecturerAccountGenerationRun::query()->first()->created_count)->toBe(1)
+        ->and(LecturerAccountGenerationItem::query()->first()->result)->toBe(LecturerAccountGenerationItem::RESULT_ACCOUNT_CREATED)
+        ->and(DB::table('lecturer_account_generation_items')->where('message', 'like', '%'.$temporaryPassword.'%')->exists())->toBeFalse()
+        ->and(DB::table('lecturer_account_generation_runs')->where('summary', 'like', '%'.$temporaryPassword.'%')->exists())->toBeFalse();
+});
+
+it('blocks username collisions with username email and student number', function (string $column): void {
+    $fixture = lecturerBulkPreparationFixture();
+    User::factory()->create([
+        $column => 'lec000211',
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+
+    $preview = app(LecturerAccountPreparationService::class)->previewBulkPreparation($fixture['term']);
+
+    expect($preview['accounts_to_create_count'])->toBe(0)
+        ->and($preview['blocked_count'])->toBe(1)
+        ->and($preview['rows'][0]['blocked_reason'])->toBe('login_identifier_already_exists');
+})->with(['login_username', 'email', 'student_number']);
+
+it('rejects cross column login ambiguity and still supports each identifier when unique', function (): void {
+    User::factory()->create(['email' => 'shared-login', 'role' => 'course_lecturer']);
+    User::factory()->create(['login_username' => 'shared-login', 'role' => 'course_lecturer']);
+    $emailUser = User::factory()->create(['email' => 'unique-login@example.test', 'role' => 'course_lecturer']);
+    $student = User::factory()->create(['student_number' => 'S100', 'role' => 'course_lecturer']);
+
+    expect(app(PinLoginService::class)->findUserForLogin('shared-login'))->toBeNull()
+        ->and(app(PinLoginService::class)->findUserForLogin($emailUser->email)?->id)->toBe($emailUser->id)
+        ->and(app(PinLoginService::class)->findUserForLogin('S100')?->id)->toBe($student->id);
+});
+
+it('allows actual filament login using login username existing email and student number', function (): void {
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
+    $lecturer = User::factory()->create([
+        'email' => null,
+        'login_username' => 'lec000211',
+        'password' => Hash::make('temporary-password'),
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+    $lecturer->assignRole('course_lecturer');
+    $admin = lecturerAccountPreparationAdmin();
+    $admin->forceFill(['password' => Hash::make('admin-password')])->save();
+    $studentNumberUser = User::factory()->create([
+        'email' => 'student-number-login@example.test',
+        'student_number' => 'STU-LOGIN-1',
+        'password' => Hash::make('student-password'),
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+    $studentNumberUser->assignRole('course_lecturer');
+
+    Livewire::test(Login::class)
+        ->fillForm(['email' => 'lec000211', 'password' => 'temporary-password'])
+        ->call('authenticate');
+
+    $this->assertAuthenticatedAs($lecturer);
+    auth()->logout();
+
+    Livewire::test(Login::class)
+        ->fillForm(['email' => $admin->email, 'password' => 'admin-password'])
+        ->call('authenticate');
+
+    $this->assertAuthenticatedAs($admin);
+    auth()->logout();
+
+    Livewire::test(Login::class)
+        ->fillForm(['email' => 'STU-LOGIN-1', 'password' => 'student-password'])
+        ->call('authenticate');
+
+    $this->assertAuthenticatedAs($studentNumberUser);
+});
+
+it('generates unique credentials only for new users and is idempotent for existing links', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    addBulkLecturerSlot($fixture, 212, 'مدرس ثان');
+
+    $first = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+    $second = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+
+    expect($first['created_account_count'])->toBe(2)
+        ->and(collect($first['credential_rows'])->pluck('temporary_password')->unique())->toHaveCount(2)
+        ->and($second['created_account_count'])->toBe(0)
+        ->and($second['credential_rows'])->toBe([])
+        ->and(User::query()->whereIn('login_username', ['lec000211', 'lec000212'])->count())->toBe(2)
+        ->and(Lecturer::query()->whereNotNull('user_id')->count())->toBe(2);
+});
+
+it('adds a missing role without resetting an existing linked account password', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    $user = User::factory()->create([
+        'email' => 'existing@example.test',
+        'password' => Hash::make('keep-this-password'),
+        'role' => 'admin',
+        'type' => 'admin',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+    $fixture['lecturer']->forceFill(['user_id' => $user->id])->save();
+
+    $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+
+    expect($result['granted_role_count'])->toBe(1)
+        ->and(Hash::check('keep-this-password', $user->fresh()->password))->toBeTrue()
+        ->and($user->fresh()->hasRole('course_lecturer'))->toBeTrue()
+        ->and($result['credential_rows'])->toBe([]);
+});
+
+it('commits successful lecturers when another lecturer is blocked', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    addBulkLecturerSlot($fixture, 212, 'مدرس ثان');
+    User::factory()->create(['email' => 'lec000211', 'role' => 'course_lecturer']);
+
+    $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+
+    expect($result['created_account_count'])->toBe(1)
+        ->and($result['blocked_count'])->toBe(1)
+        ->and(User::query()->where('login_username', 'lec000212')->exists())->toBeTrue()
+        ->and(User::query()->where('login_username', 'lec000211')->exists())->toBeFalse();
+});
+
+it('resets temporary passwords with audit and does not reveal old passwords', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+    $lecturer = $fixture['lecturer']->fresh();
+    $oldHash = $lecturer->user->password;
+
+    $result = app(LecturerAccountPreparationService::class)->resetTemporaryPasswords($fixture['term'], collect([$lecturer]));
+
+    expect($result['credential_rows'])->toHaveCount(1)
+        ->and($lecturer->user->fresh()->password)->not->toBe($oldHash)
+        ->and($lecturer->user->fresh()->must_change_password)->toBeTrue()
+        ->and(LecturerAccountGenerationItem::query()->where('message', __('lecturer-account-preparation.results.temporary_password_reset'))->exists())->toBeTrue();
+});
+
+it('forces password change before protected access and clears the flag after success', function (): void {
+    $user = User::factory()->create([
+        'must_change_password' => true,
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+    $user->assignRole(Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']));
+
+    $this->actingAs($user)
+        ->get('/admin')
+        ->assertRedirect(route('password.force-change.form'));
+
+    $this->actingAs($user)
+        ->post(route('logout'))
+        ->assertRedirect('/login');
+
+    $this->actingAs($user)
+        ->put(route('password.force-change.update'), [
+            'password' => 'new-secure-password',
+            'password_confirmation' => 'new-secure-password',
+        ])
+        ->assertRedirect('/admin');
+
+    expect($user->fresh()->must_change_password)->toBeFalse()
+        ->and(Hash::check('new-secure-password', $user->fresh()->password))->toBeTrue();
+});
+
+it('shows bulk preparation actions instead of individual account actions', function (): void {
+    lecturerBulkPreparationFixture();
 
     Livewire::actingAs(lecturerAccountPreparationAdmin())
         ->test(LecturerAccountPreparation::class)
-        ->callTableAction('create-login-account', $lecturer, [
-            'email' => 'ahmad.khatib@example.test',
-            'password' => 'temporary-password',
-            'password_confirmation' => 'temporary-password',
+        ->assertTableHeaderActionsExistInOrder([
+            'preview-bulk-lecturer-account-preparation',
+            'create-bulk-lecturer-accounts',
         ])
-        ->assertHasNoTableActionErrors();
-
-    $user = User::query()->where('email', 'ahmad.khatib@example.test')->firstOrFail();
-
-    expect($user->name)->toBe('د. أحمد الخطيب')
-        ->and($user->email)->toBe('ahmad.khatib@example.test')
-        ->and($user->password)->not->toBe('temporary-password')
-        ->and(Hash::check('temporary-password', $user->password))->toBeTrue()
-        ->and($user->hasRole('course_lecturer'))->toBeTrue()
-        ->and($lecturer->fresh()->user_id)->toBe($user->id)
-        ->and(LectureSession::query()->count())->toBe($sessionsBefore);
+        ->assertTableActionDoesNotExist('create-login-account')
+        ->assertTableActionDoesNotExist('link-existing-account')
+        ->assertTableActionDoesNotExist('grant-course-lecturer-role');
 });
 
 it('rejects duplicate lecturer links and prevents one user from being linked to multiple lecturers', function (): void {

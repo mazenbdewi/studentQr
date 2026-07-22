@@ -217,6 +217,96 @@ it('keeps generation blocked until the linked lecturer account has the course le
     app(LectureSessionGenerationService::class)->generate($fixture['term'], $fixture['admin']);
 })->throws(ValidationException::class);
 
+it('generates only ready sessions and reports blocked weekly slots separately', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $blockedSection = SubjectSection::query()->create([
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'lecturer_id' => $fixture['lecturerUser']->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'T2',
+        'name' => 'T2',
+        'capacity' => 20,
+    ]);
+
+    SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['scheduleBatch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $blockedSection->id,
+        'lecturer_id' => $fixture['lecturerIdentity']->id,
+        'hall_id' => null,
+        'weekday' => Carbon::TUESDAY,
+        'start_time' => '10:00:00',
+        'end_time' => '11:00:00',
+        'section_capacity' => 20,
+        'expected_student_count' => 15,
+    ]);
+
+    $preview = app(LectureSessionGenerationService::class)->preview($fixture['term']);
+
+    expect($preview['ready'])->toBeFalse()
+        ->and($preview['to_create_count'])->toBe(3)
+        ->and($preview['blocked_slot_count'])->toBe(1)
+        ->and($preview['blocked_slots'][0]['reasons'])->toContain('missing_hall');
+
+    $result = app(LectureSessionGenerationService::class)->generateReadySessions($fixture['term'], $fixture['admin']);
+
+    expect($result['created_session_count'])->toBe(3)
+        ->and(collect($result['error_report'])->pluck('رمز الخطأ'))->toContain('missing_hall')
+        ->and($result['success_report'])->toHaveCount(3)
+        ->and(LectureSession::query()->count())->toBe(3)
+        ->and(LectureSession::query()->where('subject_section_id', $blockedSection->id)->count())->toBe(0);
+});
+
+it('does not partially create either side of a weekly schedule conflict', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $secondUser = User::factory()->create([
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+    $secondUser->assignRole('course_lecturer');
+    $secondLecturer = Lecturer::query()->create([
+        'user_id' => $secondUser->id,
+        'name' => 'Second Lecturer',
+        'canonical_name' => 'second lecturer',
+        'is_active' => true,
+    ]);
+    $secondSection = SubjectSection::query()->create([
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'lecturer_id' => $secondUser->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'T2',
+        'name' => 'T2',
+        'capacity' => 20,
+    ]);
+
+    SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['scheduleBatch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $secondSection->id,
+        'lecturer_id' => $secondLecturer->id,
+        'hall_id' => $fixture['hall']->id,
+        'weekday' => Carbon::MONDAY,
+        'start_time' => '08:30:00',
+        'end_time' => '09:30:00',
+        'section_capacity' => 20,
+        'expected_student_count' => 15,
+    ]);
+
+    $result = app(LectureSessionGenerationService::class)->generateReadySessions($fixture['term'], $fixture['admin']);
+
+    expect($result['created_session_count'])->toBe(0)
+        ->and($result['conflict_count'])->toBe(3)
+        ->and(collect($result['error_report'])->pluck('الموعد الأسبوعي المصدر'))->toContain($fixture['slot']->id)
+        ->and(collect($result['error_report'])->pluck('الموعد الأسبوعي المصدر'))->toContain(SubjectSectionScheduleSlot::query()->latest('id')->value('id'))
+        ->and(LectureSession::query()->count())->toBe(0);
+});
+
 it('detects overlapping persisted sessions and allows adjacent sessions', function (): void {
     $fixture = lectureSessionGenerationFixture();
 

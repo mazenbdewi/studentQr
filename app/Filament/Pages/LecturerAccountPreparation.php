@@ -2,15 +2,19 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\AcademicTerm;
 use App\Models\Lecturer;
 use App\Models\User;
 use App\Services\LecturerAccountPreparationService;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
 use Filament\Facades\Filament;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -18,7 +22,8 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Validation\Rule;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LecturerAccountPreparation extends Page implements HasTable
 {
@@ -109,97 +114,157 @@ class LecturerAccountPreparation extends Page implements HasTable
                         };
                     }),
             ])
-            ->recordActions([
-                $this->createAccountAction(),
-                $this->linkExistingAccountAction(),
-                $this->grantCourseLecturerRoleAction(),
+            ->headerActions([
+                $this->previewBulkPreparationAction(),
+                $this->createBulkAccountsAction(),
             ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    $this->resetTemporaryPasswordsBulkAction(),
+                ]),
+            ])
+            ->recordActions([])
             ->defaultSort('name');
     }
 
-    private function createAccountAction(): Action
+    private function previewBulkPreparationAction(): Action
     {
-        return Action::make('create-login-account')
-            ->label(__('lecturer-account-preparation.actions.create_account'))
-            ->visible(fn (Lecturer $record): bool => blank($record->user_id))
-            ->form(fn (Lecturer $record): array => [
-                Forms\Components\TextInput::make('name')
-                    ->label(__('lecturer-account-preparation.fields.lecturer_name'))
-                    ->default($record->name)
-                    ->disabled()
-                    ->dehydrated(false),
-                Forms\Components\TextInput::make('email')
-                    ->label(__('lecturer-account-preparation.fields.email'))
-                    ->email()
-                    ->required()
-                    ->rule(Rule::unique('users', 'email'))
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('password')
-                    ->label(__('lecturer-account-preparation.fields.password'))
-                    ->password()
-                    ->autocomplete('new-password')
-                    ->required()
-                    ->confirmed(),
-                Forms\Components\TextInput::make('password_confirmation')
-                    ->label(__('lecturer-account-preparation.fields.password_confirmation'))
-                    ->password()
-                    ->autocomplete('new-password')
+        return Action::make('preview-bulk-lecturer-account-preparation')
+            ->label(__('lecturer-account-preparation.actions.preview_bulk_preparation'))
+            ->icon('heroicon-o-eye')
+            ->color('gray')
+            ->modalHeading(__('lecturer-account-preparation.actions.preview_bulk_preparation'))
+            ->modalSubmitAction(false)
+            ->form([
+                Forms\Components\Select::make('academic_term_id')
+                    ->label(__('lecture-session.academic_term'))
+                    ->options(fn (): array => AcademicTerm::query()
+                        ->orderByDesc('id')
+                        ->pluck('display_name', 'id')
+                        ->all())
+                    ->default(fn (): ?int => AcademicTerm::query()->latest('id')->value('id'))
+                    ->searchable()
+                    ->preload()
+                    ->native(false)
+                    ->live()
                     ->required(),
-                Forms\Components\Placeholder::make('course_lecturer_role_notice')
-                    ->label(__('lecturer-account-preparation.fields.course_lecturer_role_status'))
-                    ->content(__('lecturer-account-preparation.notices.course_lecturer_role_assigned')),
+                Forms\Components\Placeholder::make('bulk_account_preparation_preview')
+                    ->label(__('lecturer-account-preparation.actions.preview_bulk_preparation'))
+                    ->content(fn (Get $get): string => $this->bulkPreparationPreviewText($get))
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    private function createBulkAccountsAction(): Action
+    {
+        return Action::make('create-bulk-lecturer-accounts')
+            ->label(__('lecturer-account-preparation.actions.create_bulk_accounts'))
+            ->icon('heroicon-o-user-plus')
+            ->color('success')
+            ->requiresConfirmation()
+            ->modalHeading(__('lecturer-account-preparation.actions.create_bulk_accounts'))
+            ->modalSubmitActionLabel(__('lecturer-account-preparation.actions.create_bulk_accounts'))
+            ->form([
+                Forms\Components\Select::make('academic_term_id')
+                    ->label(__('lecture-session.academic_term'))
+                    ->options(fn (): array => AcademicTerm::query()
+                        ->orderByDesc('id')
+                        ->pluck('display_name', 'id')
+                        ->all())
+                    ->default(fn (): ?int => AcademicTerm::query()->latest('id')->value('id'))
+                    ->searchable()
+                    ->preload()
+                    ->native(false)
+                    ->live()
+                    ->required(),
+                Forms\Components\Placeholder::make('bulk_account_preparation_preview')
+                    ->label(__('lecturer-account-preparation.actions.preview_bulk_preparation'))
+                    ->content(fn (Get $get): string => $this->bulkPreparationPreviewText($get))
+                    ->columnSpanFull(),
+                Forms\Components\Placeholder::make('one_time_download_warning')
+                    ->label(__('lecturer-account-preparation.one_time_download_title'))
+                    ->content(__('lecturer-account-preparation.one_time_download_warning'))
+                    ->columnSpanFull(),
             ])
-            ->action(function (Lecturer $record, array $data): void {
-                app(LecturerAccountPreparationService::class)->createLoginAccount(
-                    $record,
-                    (string) $data['email'],
-                    (string) $data['password'],
-                    (string) $data['password_confirmation'],
+            ->action(function (array $data): ?StreamedResponse {
+                $term = AcademicTerm::query()->findOrFail($data['academic_term_id']);
+                $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts(
+                    $term,
+                    Filament::auth()->user(),
                 );
 
-                $this->successNotification();
+                Notification::make()
+                    ->title(__('lecturer-account-preparation.bulk_completed_title'))
+                    ->body(__('lecturer-account-preparation.bulk_completed_body', [
+                        'created' => $result['created_account_count'],
+                        'roles' => $result['granted_role_count'],
+                        'blocked' => $result['blocked_count'],
+                    ]))
+                    ->success()
+                    ->send();
+
+                if ($result['credential_rows'] === []) {
+                    return null;
+                }
+
+                return $this->credentialsCsvResponse(
+                    $result['credential_rows'],
+                    'lecturer-temporary-credentials-'.$result['generation_run_id'].'.csv',
+                );
             });
     }
 
-    private function linkExistingAccountAction(): Action
+    private function resetTemporaryPasswordsBulkAction(): BulkAction
     {
-        return Action::make('link-existing-account')
-            ->label(__('lecturer-account-preparation.actions.link_existing_account'))
-            ->visible(fn (Lecturer $record): bool => blank($record->user_id))
+        return BulkAction::make('reset-bulk-lecturer-temporary-passwords')
+            ->label(__('lecturer-account-preparation.actions.reset_temporary_passwords'))
+            ->icon('heroicon-o-key')
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalHeading(__('lecturer-account-preparation.actions.reset_temporary_passwords'))
             ->form([
-                Forms\Components\Select::make('user_id')
-                    ->label(__('lecturer-account-preparation.fields.linked_account'))
-                    ->options(fn (): array => User::query()
-                        ->withoutTrashed()
-                        ->whereNotIn('id', Lecturer::query()->whereNotNull('user_id')->pluck('user_id'))
-                        ->orderBy('name')
-                        ->get()
-                        ->mapWithKeys(fn (User $user): array => [$user->id => "{$user->name} — {$user->email}"])
+                Forms\Components\Select::make('academic_term_id')
+                    ->label(__('lecture-session.academic_term'))
+                    ->options(fn (): array => AcademicTerm::query()
+                        ->orderByDesc('id')
+                        ->pluck('display_name', 'id')
                         ->all())
+                    ->default(fn (): ?int => AcademicTerm::query()->latest('id')->value('id'))
                     ->searchable()
                     ->preload()
                     ->native(false)
                     ->required(),
+                Forms\Components\Placeholder::make('one_time_download_warning')
+                    ->label(__('lecturer-account-preparation.one_time_download_title'))
+                    ->content(__('lecturer-account-preparation.one_time_download_warning'))
+                    ->columnSpanFull(),
             ])
-            ->action(function (Lecturer $record, array $data): void {
-                $user = User::query()->findOrFail($data['user_id']);
+            ->action(function (EloquentCollection $records, array $data): ?StreamedResponse {
+                $term = AcademicTerm::query()->findOrFail($data['academic_term_id']);
+                /** @var array<int, Lecturer> $lecturers */
+                $lecturers = $records
+                    ->filter(fn (mixed $record): bool => $record instanceof Lecturer)
+                    ->values()
+                    ->all();
+                $result = app(LecturerAccountPreparationService::class)->resetTemporaryPasswords(
+                    $term,
+                    $lecturers,
+                    Filament::auth()->user(),
+                );
 
-                app(LecturerAccountPreparationService::class)->linkExistingAccount($record, $user);
+                if ($result['credential_rows'] === []) {
+                    Notification::make()
+                        ->title(__('lecturer-account-preparation.no_credentials_generated'))
+                        ->warning()
+                        ->send();
 
-                $this->successNotification();
-            });
-    }
+                    return null;
+                }
 
-    private function grantCourseLecturerRoleAction(): Action
-    {
-        return Action::make('grant-course-lecturer-role')
-            ->label(__('lecturer-account-preparation.actions.grant_course_lecturer_role'))
-            ->visible(fn (Lecturer $record): bool => filled($record->user_id) && ! ($this->linkedUser($record)?->hasRole('course_lecturer') ?? false))
-            ->requiresConfirmation()
-            ->action(function (Lecturer $record): void {
-                app(LecturerAccountPreparationService::class)->grantCourseLecturerRole($record);
-
-                $this->successNotification();
+                return $this->credentialsCsvResponse(
+                    $result['credential_rows'],
+                    'lecturer-temporary-password-reset-'.$result['generation_run_id'].'.csv',
+                );
             });
     }
 
@@ -238,11 +303,62 @@ class LecturerAccountPreparation extends Page implements HasTable
         return $user instanceof User ? $user : null;
     }
 
-    private function successNotification(): void
+    private function bulkPreparationPreviewText(Get $get): string
     {
-        Notification::make()
-            ->title(__('lecturer-account-preparation.saved'))
-            ->success()
-            ->send();
+        $termId = $get('academic_term_id');
+
+        if (blank($termId)) {
+            return __('lecturer-account-preparation.bulk_preview_empty');
+        }
+
+        $term = AcademicTerm::query()->find($termId);
+
+        if (! $term) {
+            return __('lecturer-account-preparation.bulk_preview_empty');
+        }
+
+        $preview = app(LecturerAccountPreparationService::class)->previewBulkPreparation($term);
+
+        return __('lecturer-account-preparation.bulk_preview_summary', [
+            'total' => $preview['referenced_lecturer_count'],
+            'ready' => $preview['already_ready_count'],
+            'create' => $preview['accounts_to_create_count'],
+            'roles' => $preview['roles_to_grant_count'],
+            'blocked' => $preview['blocked_count'],
+        ]);
+    }
+
+    private function credentialsCsvResponse(array $rows, string $filename): StreamedResponse
+    {
+        return response()->streamDownload(function () use ($rows): void {
+            $output = fopen('php://output', 'w');
+
+            if ($output === false) {
+                return;
+            }
+
+            fputcsv($output, [
+                'اسم المدرس بالعربية',
+                'اسم الدخول',
+                'كلمة المرور المؤقتة',
+                'حالة الحساب',
+                'يجب تغيير كلمة المرور عند أول دخول',
+            ], ',', '"', '');
+
+            foreach ($rows as $row) {
+                fputcsv($output, [
+                    $row['lecturer_name'],
+                    $row['login_username'],
+                    $row['temporary_password'],
+                    $row['account_status'],
+                    $row['must_change_password'] ? 'نعم' : 'لا',
+                ], ',', '"', '');
+            }
+
+            fclose($output);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        ]);
     }
 }
