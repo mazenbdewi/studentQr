@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\LectureSessions\Pages;
 
+use App\Exports\LectureSessionGenerationReportExport;
 use App\Filament\Pages\LecturerAccountPreparation;
 use App\Filament\Pages\ScheduleImportReconciliationIndex;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
@@ -22,7 +23,9 @@ use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Maatwebsite\Excel\Excel as ExcelWriter;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ListLectureSessions extends ListRecords
 {
@@ -176,14 +179,14 @@ class ListLectureSessions extends ListRecords
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
                 ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                ->action(fn (): ?StreamedResponse => static::downloadLatestGenerationReport('success_report')),
+                ->action(fn (): ?BinaryFileResponse => static::downloadLatestGenerationReport('success_report')),
 
             Action::make('download_latest_generation_error_report')
                 ->label(__('lecture-session.error_report'))
                 ->icon('heroicon-o-exclamation-triangle')
                 ->color('gray')
                 ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                ->action(fn (): ?StreamedResponse => static::downloadLatestGenerationReport('error_report')),
+                ->action(fn (): ?BinaryFileResponse => static::downloadLatestGenerationReport('error_report')),
 
             Action::make('create_recurring')
                 ->label(__('lecture-session.create_recurring'))
@@ -550,7 +553,7 @@ class ListLectureSessions extends ListRecords
         ]);
     }
 
-    protected static function downloadLatestGenerationReport(string $key): ?StreamedResponse
+    protected static function downloadLatestGenerationReport(string $key): ?BinaryFileResponse
     {
         $run = LectureSessionGenerationRun::query()
             ->latest('completed_at')
@@ -567,27 +570,13 @@ class ListLectureSessions extends ListRecords
             return null;
         }
 
-        return response()->streamDownload(function () use ($rows): void {
-            $output = fopen('php://output', 'w');
+        $success = $key === 'success_report';
 
-            if ($output === false) {
-                return;
-            }
-
-            $headers = array_keys((array) $rows[0]);
-            fputcsv($output, $headers, ',', '"', '');
-
-            foreach ($rows as $row) {
-                fputcsv($output, array_map(
-                    fn (mixed $value): string => is_scalar($value) || $value === null ? (string) $value : json_encode($value, JSON_UNESCAPED_UNICODE),
-                    (array) $row,
-                ), ',', '"', '');
-            }
-
-            fclose($output);
-        }, 'lecture-session-generation-'.$key.'-'.$run->id.'.csv', [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
-        ]);
+        return Excel::download(
+            $success ? LectureSessionGenerationReportExport::success($rows) : LectureSessionGenerationReportExport::errors($rows),
+            $success ? 'lecture-session-generation-success.xlsx' : 'lecture-session-generation-errors.xlsx',
+            ExcelWriter::XLSX,
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        );
     }
 }

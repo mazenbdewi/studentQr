@@ -447,7 +447,9 @@ class LecturerAccountPreparationService
             'login_username' => (string) $user->login_username,
             'temporary_password' => $temporaryPassword,
             'account_status' => (string) $user->status,
+            'role' => 'course_lecturer',
             'must_change_password' => (bool) $user->must_change_password,
+            'notes' => __('lecturer-account-preparation.results.account_created'),
         ];
     }
 

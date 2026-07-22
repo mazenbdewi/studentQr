@@ -2,8 +2,12 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\LecturerAccountReportExport;
+use App\Exports\LecturerLoginCredentialsExport;
 use App\Models\AcademicTerm;
 use App\Models\Lecturer;
+use App\Models\LecturerAccountGenerationItem;
+use App\Models\LecturerAccountGenerationRun;
 use App\Models\User;
 use App\Services\LecturerAccountPreparationService;
 use BackedEnum;
@@ -23,7 +27,9 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Maatwebsite\Excel\Excel as ExcelWriter;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class LecturerAccountPreparation extends Page implements HasTable
 {
@@ -117,6 +123,8 @@ class LecturerAccountPreparation extends Page implements HasTable
             ->headerActions([
                 $this->previewBulkPreparationAction(),
                 $this->createBulkAccountsAction(),
+                $this->downloadLatestSuccessReportAction(),
+                $this->downloadLatestErrorReportAction(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
@@ -186,7 +194,7 @@ class LecturerAccountPreparation extends Page implements HasTable
                     ->content(__('lecturer-account-preparation.one_time_download_warning'))
                     ->columnSpanFull(),
             ])
-            ->action(function (array $data): ?StreamedResponse {
+            ->action(function (array $data): ?BinaryFileResponse {
                 $term = AcademicTerm::query()->findOrFail($data['academic_term_id']);
                 $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts(
                     $term,
@@ -207,9 +215,9 @@ class LecturerAccountPreparation extends Page implements HasTable
                     return null;
                 }
 
-                return $this->credentialsCsvResponse(
+                return $this->credentialsExcelResponse(
+                    $term,
                     $result['credential_rows'],
-                    'lecturer-temporary-credentials-'.$result['generation_run_id'].'.csv',
                 );
             });
     }
@@ -239,7 +247,7 @@ class LecturerAccountPreparation extends Page implements HasTable
                     ->content(__('lecturer-account-preparation.one_time_download_warning'))
                     ->columnSpanFull(),
             ])
-            ->action(function (EloquentCollection $records, array $data): ?StreamedResponse {
+            ->action(function (EloquentCollection $records, array $data): ?BinaryFileResponse {
                 $term = AcademicTerm::query()->findOrFail($data['academic_term_id']);
                 /** @var array<int, Lecturer> $lecturers */
                 $lecturers = $records
@@ -261,11 +269,29 @@ class LecturerAccountPreparation extends Page implements HasTable
                     return null;
                 }
 
-                return $this->credentialsCsvResponse(
+                return $this->credentialsExcelResponse(
+                    $term,
                     $result['credential_rows'],
-                    'lecturer-temporary-password-reset-'.$result['generation_run_id'].'.csv',
                 );
             });
+    }
+
+    private function downloadLatestSuccessReportAction(): Action
+    {
+        return Action::make('download-latest-lecturer-account-success-report')
+            ->label(__('lecturer-account-preparation.actions.successful_operations_report'))
+            ->icon('heroicon-o-document-arrow-down')
+            ->color('gray')
+            ->action(fn (): ?BinaryFileResponse => $this->downloadLatestAccountReport('success'));
+    }
+
+    private function downloadLatestErrorReportAction(): Action
+    {
+        return Action::make('download-latest-lecturer-account-error-report')
+            ->label(__('lecturer-account-preparation.actions.error_report'))
+            ->icon('heroicon-o-exclamation-triangle')
+            ->color('gray')
+            ->action(fn (): ?BinaryFileResponse => $this->downloadLatestAccountReport('error'));
     }
 
     private function accountStatusLabel(Lecturer $record): string
@@ -328,37 +354,70 @@ class LecturerAccountPreparation extends Page implements HasTable
         ]);
     }
 
-    private function credentialsCsvResponse(array $rows, string $filename): StreamedResponse
+    private function credentialsExcelResponse(AcademicTerm $term, array $rows): BinaryFileResponse
     {
-        return response()->streamDownload(function () use ($rows): void {
-            $output = fopen('php://output', 'w');
+        return Excel::download(
+            new LecturerLoginCredentialsExport($rows),
+            'lecturer-login-credentials-'.$this->safeFilenameSegment($term->display_name).'-'.now()->format('Ymd-His').'.xlsx',
+            ExcelWriter::XLSX,
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        );
+    }
 
-            if ($output === false) {
-                return;
-            }
+    private function downloadLatestAccountReport(string $type): ?BinaryFileResponse
+    {
+        $run = LecturerAccountGenerationRun::query()
+            ->latest('completed_at')
+            ->latest('id')
+            ->first();
 
-            fputcsv($output, [
-                'اسم المدرس بالعربية',
-                'اسم الدخول',
-                'كلمة المرور المؤقتة',
-                'حالة الحساب',
-                'يجب تغيير كلمة المرور عند أول دخول',
-            ], ',', '"', '');
+        if (! $run instanceof LecturerAccountGenerationRun) {
+            Notification::make()
+                ->title(__('lecture-session.not_available'))
+                ->warning()
+                ->send();
 
-            foreach ($rows as $row) {
-                fputcsv($output, [
-                    $row['lecturer_name'],
-                    $row['login_username'],
-                    $row['temporary_password'],
-                    $row['account_status'],
-                    $row['must_change_password'] ? 'نعم' : 'لا',
-                ], ',', '"', '');
-            }
+            return null;
+        }
 
-            fclose($output);
-        }, $filename, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
-        ]);
+        $items = $run->items()->with(['lecturer', 'user.roles'])->orderBy('id')->get();
+        $successResults = [
+            LecturerAccountGenerationItem::RESULT_ACCOUNT_CREATED,
+            LecturerAccountGenerationItem::RESULT_EXISTING_ACCOUNT,
+            LecturerAccountGenerationItem::RESULT_ROLE_ADDED,
+        ];
+        $rows = $type === 'success'
+            ? $items->whereIn('result', $successResults)->map(fn (LecturerAccountGenerationItem $item): array => [
+                'اسم المدرس' => $item->lecturer?->name,
+                'اسم الدخول' => $item->login_username,
+                'النتيجة' => $item->result,
+                'الحساب المنشأ أو المعاد استخدامه' => $item->user_id ? __('lecturer-account-preparation.results.'.$item->result) : '',
+                'الدور' => $item->user?->hasRole('course_lecturer') ? 'course_lecturer' : '',
+                'الملاحظة' => $item->message,
+            ])->values()->all()
+            : $items->reject(fn (LecturerAccountGenerationItem $item): bool => in_array($item->result, $successResults, true))
+                ->map(fn (LecturerAccountGenerationItem $item): array => [
+                    'اسم المدرس' => $item->lecturer?->name,
+                    'اسم الدخول المقترح' => $item->login_username,
+                    'رمز الخطأ' => $item->error_code,
+                    'السبب بالعربية' => $item->message,
+                    'الإجراء المقترح' => __('lecturer-account-preparation.report_actions.'.($item->error_code ?: 'default')) !== 'lecturer-account-preparation.report_actions.'.($item->error_code ?: 'default')
+                        ? __('lecturer-account-preparation.report_actions.'.($item->error_code ?: 'default'))
+                        : __('lecturer-account-preparation.report_actions.default'),
+                ])->values()->all();
+
+        return Excel::download(
+            $type === 'success' ? LecturerAccountReportExport::success($rows) : LecturerAccountReportExport::errors($rows),
+            $type === 'success' ? 'lecturer-account-success-report.xlsx' : 'lecturer-account-errors-report.xlsx',
+            ExcelWriter::XLSX,
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        );
+    }
+
+    private function safeFilenameSegment(string $value): string
+    {
+        $segment = preg_replace('/[^\pL\pN\-]+/u', '-', $value) ?: 'academic-term';
+
+        return trim($segment, '-') ?: 'academic-term';
     }
 }

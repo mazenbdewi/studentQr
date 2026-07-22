@@ -62,6 +62,13 @@ return [
         'unexpected_item_failure' => 'An unexpected error occurred while processing the lecturer.',
         'missing_linked_user' => 'This lecturer has no linked account.',
     ],
+    'report_actions' => [
+        'login_identifier_already_exists' => 'Review the collision with an existing login username, email, or student number.',
+        'missing_linked_user' => 'Link the lecturer to a valid account or create a new account.',
+        'unexpected_item_failure' => 'Review the operation log, then retry only affected cases.',
+        'blocked' => 'Review the lecturer and linked account state before retrying.',
+        'default' => 'Review the case, then rerun the action for ready cases only.',
+    ],
     'validation' => [
         'lecturer_already_linked' => 'This lecturer is already linked to a login account.',
         'user_already_linked' => 'This account is already linked to another lecturer.',

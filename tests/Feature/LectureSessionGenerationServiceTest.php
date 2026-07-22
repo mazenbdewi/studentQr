@@ -1,5 +1,6 @@
 <?php
 
+use App\Exports\LectureSessionGenerationReportExport;
 use App\Models\AcademicTerm;
 use App\Models\Hall;
 use App\Models\ImportBatch;
@@ -13,6 +14,8 @@ use App\Models\User;
 use App\Services\LectureSessionGenerationService;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
+use Maatwebsite\Excel\Excel as ExcelWriter;
+use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Permission\Models\Role;
 
 function lectureSessionGenerationFixture(array $slotOverrides = []): array
@@ -257,6 +260,63 @@ it('generates only ready sessions and reports blocked weekly slots separately', 
         ->and($result['success_report'])->toHaveCount(3)
         ->and(LectureSession::query()->count())->toBe(3)
         ->and(LectureSession::query()->where('subject_section_id', $blockedSection->id)->count())->toBe(0);
+});
+
+it('exports lecture-session generation success and skipped reports as Arabic RTL xlsx', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $blockedSection = SubjectSection::query()->create([
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'BLOCKED',
+        'name' => 'BLOCKED',
+    ]);
+
+    SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['scheduleBatch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $blockedSection->id,
+        'lecturer_id' => $fixture['lecturerIdentity']->id,
+        'hall_id' => null,
+        'weekday' => Carbon::TUESDAY,
+        'start_time' => '10:00:00',
+        'end_time' => '11:00:00',
+        'section_capacity' => 20,
+        'expected_student_count' => 15,
+    ]);
+
+    $result = app(LectureSessionGenerationService::class)->generateReadySessions($fixture['term'], $fixture['admin']);
+    $successBook = spreadsheetFromXlsxBytes(Excel::raw(LectureSessionGenerationReportExport::success($result['success_report']), ExcelWriter::XLSX));
+    $errorBook = spreadsheetFromXlsxBytes(Excel::raw(LectureSessionGenerationReportExport::errors($result['error_report']), ExcelWriter::XLSX));
+    $successSheet = $successBook->getSheetByName('العمليات الناجحة');
+    $errorSheet = $errorBook->getSheetByName('الأخطاء والحالات المستبعدة');
+    $successResponse = Excel::download(
+        LectureSessionGenerationReportExport::success($result['success_report']),
+        'lecture-session-generation-success.xlsx',
+        ExcelWriter::XLSX,
+        ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    );
+    $errorResponse = Excel::download(
+        LectureSessionGenerationReportExport::errors($result['error_report']),
+        'lecture-session-generation-errors.xlsx',
+        ExcelWriter::XLSX,
+        ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    );
+
+    expect($successResponse->headers->get('content-type'))->toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        ->and((string) $successResponse->headers->get('content-disposition'))->toContain('lecture-session-generation-success.xlsx')
+        ->and($errorResponse->headers->get('content-type'))->toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        ->and((string) $errorResponse->headers->get('content-disposition'))->toContain('lecture-session-generation-errors.xlsx')
+        ->and($successSheet)->not->toBeNull()
+        ->and($errorSheet)->not->toBeNull()
+        ->and($successSheet->getRightToLeft())->toBeTrue()
+        ->and($errorSheet->getRightToLeft())->toBeTrue()
+        ->and($successSheet->getCell('A1')->getValue())->toBe('المادة')
+        ->and($successSheet->getCell('H1')->getValue())->toBe('وقت النهاية')
+        ->and($errorSheet->getCell('A1')->getValue())->toBe('الموعد الأسبوعي المصدر')
+        ->and($errorSheet->getCell('J1')->getValue())->toBe('الإجراء المقترح')
+        ->and(spreadsheetCellValues($errorBook))->toContain('missing_hall');
 });
 
 it('does not partially create either side of a weekly schedule conflict', function (): void {

@@ -664,7 +664,8 @@ class LectureSessionGenerationService
             'اسم الدخول' => $lecturerUser instanceof User ? ($lecturerUser->login_username ?? $lecturerUser->email) : null,
             'القاعة' => $slot?->hall?->getAttribute('name') ?? (string) $candidate['hall_id'],
             'التاريخ' => $candidate['session_date'],
-            'وقت البداية والنهاية' => $candidate['start_time'].' - '.$candidate['end_time'],
+            'وقت البداية' => $candidate['start_time'],
+            'وقت النهاية' => $candidate['end_time'],
             'النتيجة' => $result,
             'source_slot_id' => (int) $candidate['source_slot_id'],
         ];
@@ -698,10 +699,12 @@ class LectureSessionGenerationService
 
         return [
             'الموعد الأسبوعي المصدر' => $source['source_slot_id'] ?? null,
-            'المادة والشعبة' => collect([$slot?->subject?->getAttribute('name'), $slot?->subjectSection?->getAttribute('code')])->filter()->implode(' / '),
+            'المادة' => $slot?->subject?->getAttribute('name'),
+            'الشعبة' => $slot?->subjectSection?->getAttribute('code'),
             'المدرس' => $slot?->lecturer?->getAttribute('name'),
             'القاعة' => $slot?->hall?->getAttribute('name'),
-            'اليوم والوقت' => collect([$slot?->weekday, $slot?->start_time.' - '.$slot?->end_time])->filter()->implode(' / '),
+            'اليوم' => $slot?->weekday,
+            'الوقت' => collect([$slot?->start_time, $slot?->end_time])->filter()->implode(' - '),
             'رمز الخطأ' => $code,
             'السبب بالعربية' => $reason,
             'الإجراء المقترح' => __('lecture-session.report_actions.'.$code) !== 'lecture-session.report_actions.'.$code
