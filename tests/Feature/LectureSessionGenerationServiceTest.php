@@ -353,10 +353,13 @@ it('exports lecture-session generation success and skipped reports as Arabic RTL
         ->and($errorSheet)->not->toBeNull()
         ->and($successSheet->getRightToLeft())->toBeTrue()
         ->and($errorSheet->getRightToLeft())->toBeTrue()
-        ->and($successSheet->getCell('A1')->getValue())->toBe('المادة')
-        ->and($successSheet->getCell('H1')->getValue())->toBe('وقت النهاية')
-        ->and($errorSheet->getCell('A1')->getValue())->toBe('الموعد الأسبوعي المصدر')
-        ->and($errorSheet->getCell('J1')->getValue())->toBe('الإجراء المقترح')
+        ->and($successSheet->getCell('A1')->getValue())->toBe('الرقم')
+        ->and($successSheet->getCell('B1')->getValue())->toBe('المادة')
+        ->and($successSheet->getCell('K1')->getValue())->toBe('وقت النهاية')
+        ->and($successSheet->getCell('M1')->getValue())->toBe('رقم الموعد الأسبوعي المصدر')
+        ->and($errorSheet->getCell('A1')->getValue())->toBe('الرقم')
+        ->and($errorSheet->getCell('B1')->getValue())->toBe('الموعد الأسبوعي المصدر')
+        ->and($errorSheet->getCell('K1')->getValue())->toBe('الإجراء المقترح')
         ->and(spreadsheetCellValues($errorBook))->toContain('missing_hall');
 });
 

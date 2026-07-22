@@ -667,15 +667,17 @@ class LectureSessionGenerationService
 
         return [
             'المادة' => $slot?->subject?->getAttribute('name') ?? (string) $candidate['subject_id'],
+            'رمز المادة' => $slot?->subject?->getAttribute('code') ?? '',
             'الشعبة' => $slot?->subjectSection?->getAttribute('code') ?? (string) $candidate['subject_section_id'],
             'المدرس' => $slot?->lecturer?->getAttribute('name') ?? (string) ($candidate['lecturer_identity_id'] ?? ''),
-            'اسم الدخول' => $lecturerUser instanceof User ? ($lecturerUser->login_username ?? $lecturerUser->email) : null,
+            'اسم دخول المدرس' => $lecturerUser instanceof User ? ($lecturerUser->login_username ?? $lecturerUser->email) : null,
             'القاعة' => $slot?->hall?->getAttribute('name') ?? (string) $candidate['hall_id'],
             'التاريخ' => $candidate['session_date'],
+            'اليوم' => $this->weekdayLabelForDate((string) $candidate['session_date']),
             'وقت البداية' => $candidate['start_time'],
             'وقت النهاية' => $candidate['end_time'],
             'النتيجة' => $result,
-            'source_slot_id' => (int) $candidate['source_slot_id'],
+            'رقم الموعد الأسبوعي المصدر' => (int) $candidate['source_slot_id'],
         ];
     }
 
@@ -711,7 +713,7 @@ class LectureSessionGenerationService
             'الشعبة' => $slot?->subjectSection?->getAttribute('code'),
             'المدرس' => $slot?->lecturer?->getAttribute('name'),
             'القاعة' => $slot?->hall?->getAttribute('name'),
-            'اليوم' => $slot?->weekday,
+            'اليوم' => $this->weekdayLabel((int) ($slot->weekday ?? 0)),
             'الوقت' => collect([$slot?->start_time, $slot?->end_time])->filter()->implode(' - '),
             'رمز الخطأ' => $code,
             'السبب بالعربية' => $reason,
@@ -728,6 +730,20 @@ class LectureSessionGenerationService
         return $translation === 'lecture-session.report_reasons.'.$reason
             ? $reason
             : $translation;
+    }
+
+    private function weekdayLabelForDate(string $date): string
+    {
+        try {
+            return $this->weekdayLabel(CarbonImmutable::parse($date)->isoWeekday());
+        } catch (\Throwable) {
+            return $date;
+        }
+    }
+
+    private function weekdayLabel(int $weekday): string
+    {
+        return __('weekly-schedule.weekdays')[$weekday] ?? (string) $weekday;
     }
 
     private function unsafeConflictSourceSlotIds(array $conflicts): array
