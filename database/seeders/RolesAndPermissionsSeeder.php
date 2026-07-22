@@ -56,6 +56,8 @@ class RolesAndPermissionsSeeder extends Seeder
         $lecturerAccountPreparationPermissions = collect([
             'view lecturer-account preparation',
             'manage lecturer-account preparation',
+            'prepare lecturer login accounts',
+            'link lecturer user accounts',
         ])->map(fn (string $name) => Permission::firstOrCreate([
             'name' => $name,
             'guard_name' => 'web',
@@ -67,6 +69,9 @@ class RolesAndPermissionsSeeder extends Seeder
         $lectureSessionGenerationPermissions = collect([
             'preview lecture-session weekly generation',
             'generate lecture-session weekly schedule',
+            'preview lecture-session generation',
+            'generate lecture sessions from weekly schedule',
+            'view lecture-session generation runs',
         ])->map(fn (string $name) => Permission::firstOrCreate([
             'name' => $name,
             'guard_name' => 'web',

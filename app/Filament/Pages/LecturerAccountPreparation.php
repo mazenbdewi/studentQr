@@ -145,6 +145,9 @@ class LecturerAccountPreparation extends Page implements HasTable
                     ->password()
                     ->autocomplete('new-password')
                     ->required(),
+                Forms\Components\Placeholder::make('course_lecturer_role_notice')
+                    ->label(__('lecturer-account-preparation.fields.course_lecturer_role_status'))
+                    ->content(__('lecturer-account-preparation.notices.course_lecturer_role_assigned')),
             ])
             ->action(function (Lecturer $record, array $data): void {
                 app(LecturerAccountPreparationService::class)->createLoginAccount(

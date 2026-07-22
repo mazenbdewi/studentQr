@@ -35,6 +35,9 @@ return [
         'missing_account' => 'لا يوجد حساب مرتبط',
         'linked' => 'مرتبط بحساب',
     ],
+    'notices' => [
+        'course_lecturer_role_assigned' => 'سيتم منح الحساب دور مدرس مقرر عند إنشاء حساب الدخول.',
+    ],
     'validation' => [
         'lecturer_already_linked' => 'هذا المدرس مرتبط بحساب دخول مسبقًا.',
         'user_already_linked' => 'هذا الحساب مرتبط بمدرس آخر مسبقًا.',

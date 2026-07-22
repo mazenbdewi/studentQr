@@ -34,6 +34,7 @@ class LectureSessionGenerationService
         $dateRange = $this->dateRange($term);
         $prerequisiteErrors = $this->prerequisiteErrors($term, $dateRange);
         $excludedSlotIds = $this->excludedScheduleSlotIds($term);
+        $structuralReadiness = $this->structuralReadiness($term);
         $plannedCandidates = [];
 
         $preview = [
@@ -50,12 +51,16 @@ class LectureSessionGenerationService
             'manual_existing_count' => 0,
             'blocked_slot_count' => 0,
             'conflict_count' => 0,
+            'structural_readiness' => $structuralReadiness,
             'blocked_slots' => [],
             'conflicts' => [],
             'candidates' => [],
         ];
 
         if ($dateRange['start'] === null || $dateRange['end'] === null) {
+            $preview['source_slot_count'] = $structuralReadiness['total_weekly_slots'];
+            $preview['blocked_slot_count'] = $structuralReadiness['blocked_slots'];
+
             return $preview;
         }
 
@@ -314,6 +319,47 @@ class LectureSessionGenerationService
             ->values();
     }
 
+    public function structuralReadiness(AcademicTerm $term): array
+    {
+        /** @var Collection<int, SubjectSectionScheduleSlot> $slots */
+        $slots = $this->sourceSlotQuery($term)
+            ->with(['subject', 'subjectSection', 'lecturer.user.roles', 'hall'])
+            ->get();
+
+        $validSubjectAndSection = $slots->filter(fn (SubjectSectionScheduleSlot $slot): bool => $this->hasValidSubjectSection($slot));
+        $withLecturerIdentity = $slots->filter(fn (SubjectSectionScheduleSlot $slot): bool => filled($slot->lecturer_id) && filled($slot->lecturer));
+        $withValidLinkedLecturerAccountAndRole = $slots->filter(function (SubjectSectionScheduleSlot $slot): bool {
+            $user = $slot->lecturer?->user;
+
+            return $user instanceof User
+                && ! $user->trashed()
+                && ($user->is_active ?? true)
+                && $user->status === 'active'
+                && $user->hasRole('course_lecturer');
+        });
+        $withHalls = $slots->filter(fn (SubjectSectionScheduleSlot $slot): bool => filled($slot->hall_id) && filled($slot->hall));
+        $otherwiseInvalid = $slots->reject(fn (SubjectSectionScheduleSlot $slot): bool => $this->hasValidSubjectSection($slot)
+            && $slot->weekday >= 1
+            && $slot->weekday <= 7
+            && filled($slot->start_time)
+            && filled($slot->end_time)
+            && strcmp((string) $slot->start_time, (string) $slot->end_time) < 0);
+        $ready = $slots->filter(fn (SubjectSectionScheduleSlot $slot): bool => $this->slotErrors($slot) === []);
+
+        return [
+            'total_weekly_slots' => $slots->count(),
+            'valid_subject_and_section' => $validSubjectAndSection->count(),
+            'slots_with_lecturer_identity' => $withLecturerIdentity->count(),
+            'slots_without_lecturer_identity' => $slots->count() - $withLecturerIdentity->count(),
+            'slots_with_valid_linked_lecturer_account_and_role' => $withValidLinkedLecturerAccountAndRole->count(),
+            'slots_with_halls' => $withHalls->count(),
+            'slots_without_halls' => $slots->count() - $withHalls->count(),
+            'slots_otherwise_invalid' => $otherwiseInvalid->count(),
+            'ready_slots' => $ready->count(),
+            'blocked_slots' => $slots->count() - $ready->count(),
+        ];
+    }
+
     private function slotErrors(SubjectSectionScheduleSlot $slot): array
     {
         $errors = [];
@@ -326,9 +372,7 @@ class LectureSessionGenerationService
             $errors[] = 'invalid_time_range';
         }
 
-        $section = $slot->subjectSection;
-
-        if (! $section instanceof SubjectSection || (int) $section->subject_id !== (int) $slot->subject_id) {
+        if (! $this->hasValidSubjectSection($slot)) {
             $errors[] = 'invalid_subject_section';
         }
 
@@ -349,6 +393,13 @@ class LectureSessionGenerationService
         }
 
         return $errors;
+    }
+
+    private function hasValidSubjectSection(SubjectSectionScheduleSlot $slot): bool
+    {
+        $section = $slot->subjectSection;
+
+        return $section instanceof SubjectSection && (int) $section->subject_id === (int) $slot->subject_id;
     }
 
     private function sessionDatesForSlot(SubjectSectionScheduleSlot $slot, CarbonImmutable $start, CarbonImmutable $end): array

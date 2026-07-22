@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\LectureSessions\Pages;
 
+use App\Filament\Pages\LecturerAccountPreparation;
+use App\Filament\Pages\ScheduleImportReconciliationIndex;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
 use App\Models\AcademicTerm;
 use App\Models\AppSetting;
@@ -96,6 +98,20 @@ class ListLectureSessions extends ListRecords
                         ->success()
                         ->send();
                 }),
+
+            Action::make('open_lecturer_account_preparation')
+                ->label(__('lecture-session.open_lecturer_account_preparation'))
+                ->icon('heroicon-o-user-group')
+                ->color('gray')
+                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                ->url(fn (): string => LecturerAccountPreparation::getUrl()),
+
+            Action::make('open_weekly_schedule_reconciliation')
+                ->label(__('lecture-session.open_weekly_schedule_reconciliation'))
+                ->icon('heroicon-o-clipboard-document-check')
+                ->color('gray')
+                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                ->url(fn (): string => ScheduleImportReconciliationIndex::getUrl()),
 
             Action::make('generate_from_weekly_schedule')
                 ->label(__('lecture-session.generate_from_weekly_schedule'))
@@ -487,6 +503,20 @@ class ListLectureSessions extends ListRecords
             'blocked' => $preview['blocked_slot_count'],
             'conflicts' => $preview['conflict_count'],
         ]);
+        $structural = $preview['structural_readiness'] ?? [];
+
+        if ($structural !== []) {
+            $summary .= "\n".__('lecture-session.weekly_generation_structural_readiness', [
+                'valid' => $structural['valid_subject_and_section'] ?? 0,
+                'with_lecturer' => $structural['slots_with_lecturer_identity'] ?? 0,
+                'without_lecturer' => $structural['slots_without_lecturer_identity'] ?? 0,
+                'with_login' => $structural['slots_with_valid_linked_lecturer_account_and_role'] ?? 0,
+                'with_halls' => $structural['slots_with_halls'] ?? 0,
+                'without_halls' => $structural['slots_without_halls'] ?? 0,
+                'ready' => $structural['ready_slots'] ?? 0,
+                'blocked' => $structural['blocked_slots'] ?? 0,
+            ]);
+        }
 
         if ($preview['ready']) {
             return $summary."\n".__('lecture-session.weekly_generation_preview_ready');

@@ -35,6 +35,9 @@ return [
         'missing_account' => 'No linked account',
         'linked' => 'Linked account',
     ],
+    'notices' => [
+        'course_lecturer_role_assigned' => 'The course lecturer role will be assigned when the login account is created.',
+    ],
     'validation' => [
         'lecturer_already_linked' => 'This lecturer is already linked to a login account.',
         'user_already_linked' => 'This account is already linked to another lecturer.',

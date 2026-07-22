@@ -171,8 +171,26 @@ it('previews generation without creating users or sessions', function (): void {
     $preview = app(LectureSessionGenerationService::class)->preview($fixture['term']);
 
     expect($preview['ready'])->toBeTrue()
+        ->and($preview['structural_readiness']['total_weekly_slots'])->toBe(1)
+        ->and($preview['structural_readiness']['ready_slots'])->toBe(1)
         ->and(User::query()->count())->toBe($usersBefore)
         ->and(LectureSession::query()->count())->toBe($sessionsBefore);
+});
+
+it('reports structural readiness even when teaching dates are missing', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $fixture['term']->update([
+        'teaching_start_date' => null,
+        'teaching_end_date' => null,
+    ]);
+
+    $preview = app(LectureSessionGenerationService::class)->preview($fixture['term']);
+
+    expect($preview['ready'])->toBeFalse()
+        ->and($preview['prerequisite_errors'])->toContain('missing_teaching_dates')
+        ->and($preview['source_slot_count'])->toBe(1)
+        ->and($preview['structural_readiness']['total_weekly_slots'])->toBe(1)
+        ->and($preview['structural_readiness']['ready_slots'])->toBe(1);
 });
 
 it('treats weekly schedule weekday seven as Sunday', function (): void {
