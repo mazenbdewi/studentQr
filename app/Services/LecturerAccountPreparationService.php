@@ -44,10 +44,10 @@ class LecturerAccountPreparationService
 
         $rows = $lecturers->map(function (Lecturer $lecturer): array {
             $status = $this->bulkPreparationStatus($lecturer);
-            $loginUsername = $this->loginUsernameForLecturer($lecturer);
+            $loginUsername = $lecturer->user_id ? $this->loginUsernameForLecturer($lecturer) : null;
             $blockedReason = null;
 
-            if ($status === 'needs_create' && $this->loginIdentifierExists($loginUsername)) {
+            if ($status === 'needs_create' && $loginUsername !== null && $this->loginIdentifierExists($loginUsername)) {
                 $status = 'blocked';
                 $blockedReason = 'login_identifier_already_exists';
             }
@@ -374,13 +374,11 @@ class LecturerAccountPreparationService
             return [];
         }
 
-        $loginUsername = (string) $row['login_username'];
-        $this->ensureLoginIdentifierAvailable($loginUsername);
         $temporaryPassword = $this->newTemporaryPassword($usedPlainPasswords);
         $user = User::query()->create([
             'name' => $lecturer->name,
             'email' => null,
-            'login_username' => $loginUsername,
+            'login_username' => null,
             'password' => Hash::make($temporaryPassword),
             'must_change_password' => true,
             'role' => 'course_lecturer',
@@ -389,8 +387,12 @@ class LecturerAccountPreparationService
             'is_active' => true,
             'title' => $lecturer->title,
         ]);
-        $user->assignRole(User::mapDatabaseRoleToSpatieRole('course_lecturer'));
         $lecturer->forceFill(['user_id' => $user->id])->save();
+        $lecturer->setRelation('user', $user);
+        $loginUsername = $this->loginUsernameForLecturer($lecturer);
+        $this->ensureLoginIdentifierAvailable($loginUsername);
+        $user->forceFill(['login_username' => $loginUsername])->save();
+        $user->assignRole(User::mapDatabaseRoleToSpatieRole('course_lecturer'));
         $this->synchronizeLecturerSections($lecturer);
 
         LecturerAccountGenerationItem::query()->create([

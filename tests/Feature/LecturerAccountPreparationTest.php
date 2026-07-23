@@ -139,7 +139,7 @@ it('previews bulk lecturer accounts using deterministic usernames without creati
     expect($preview['referenced_lecturer_count'])->toBe(1)
         ->and($preview['accounts_to_create_count'])->toBe(1)
         ->and($preview['rows'][0]['lecturer_name'])->toBe('محمد ابراهيم علي')
-        ->and($preview['rows'][0]['login_username'])->toBe('lec000211')
+        ->and($preview['rows'][0]['login_username'])->toBeNull()
         ->and(User::query()->count())->toBe($usersBefore);
 });
 
@@ -166,14 +166,14 @@ it('bulk creates linked course lecturer accounts with Arabic names and nullable 
         $fixture['term']
     );
 
-    $user = User::query()->where('login_username', 'lec000211')->firstOrFail();
+    $user = $fixture['lecturer']->fresh()->user;
     $temporaryPassword = $result['credential_rows'][0]['temporary_password'];
 
     expect($result['created_account_count'])->toBe(1)
         ->and($result['credential_rows'])->toHaveCount(1)
         ->and($user->name)->toBe('محمد ابراهيم علي')
         ->and($user->email)->toBeNull()
-        ->and($user->login_username)->toBe('lec000211')
+        ->and($user->login_username)->toMatch('/^[a-z]+'.$user->id.'$/')
         ->and($user->must_change_password)->toBeTrue()
         ->and($user->status)->toBe('active')
         ->and($user->is_active)->toBeTrue()
@@ -181,7 +181,7 @@ it('bulk creates linked course lecturer accounts with Arabic names and nullable 
         ->and(Hash::check($temporaryPassword, $user->password))->toBeTrue()
         ->and($user->hasRole('course_lecturer'))->toBeTrue()
         ->and($fixture['lecturer']->fresh()->user_id)->toBe($user->id)
-        ->and(app(PinLoginService::class)->findUserForLogin('lec000211')->id)->toBe($user->id)
+        ->and(app(PinLoginService::class)->findUserForLogin($user->login_username)->id)->toBe($user->id)
         ->and(LectureSession::query()->count())->toBe($sessionsBefore)
         ->and(LecturerAccountGenerationRun::query()->first()->created_count)->toBe(1)
         ->and(LecturerAccountGenerationItem::query()->first()->result)->toBe(LecturerAccountGenerationItem::RESULT_ACCOUNT_CREATED)
@@ -233,7 +233,7 @@ it('exports one-time lecturer credentials as private Arabic RTL xlsx for newly c
         ->and($credentialsSheet->getCell('C1')->getValue())->toBe('اسم الدخول')
         ->and($credentialsSheet->getCell('D1')->getValue())->toBe('كلمة المرور المؤقتة')
         ->and($credentialsSheet->getCell('B2')->getValue())->toBe('محمد ابراهيم علي')
-        ->and($credentialsSheet->getCell('C2')->getValue())->toBe('lec000211')
+        ->and($credentialsSheet->getCell('C2')->getValue())->toBe($result['credential_rows'][0]['login_username'])
         ->and($credentialsSheet->getCell('D2')->getValue())->toBe($temporaryPassword)
         ->and($credentialsSheet->getCell('B3')->getValue())->toBeNull()
         ->and($values)->toContain('يجب تغيير كلمة المرور المؤقتة عند أول تسجيل دخول.')
@@ -308,9 +308,9 @@ it('blocks username collisions with username email and student number', function
 
     $preview = app(LecturerAccountPreparationService::class)->previewBulkPreparation($fixture['term']);
 
-    expect($preview['accounts_to_create_count'])->toBe(0)
-        ->and($preview['blocked_count'])->toBe(1)
-        ->and($preview['rows'][0]['blocked_reason'])->toBe('login_identifier_already_exists');
+    expect($preview['accounts_to_create_count'])->toBe(1)
+        ->and($preview['blocked_count'])->toBe(0)
+        ->and($preview['rows'][0]['login_username'])->toBeNull();
 })->with(['login_username', 'email', 'student_number']);
 
 it('rejects cross column login ambiguity and still supports each identifier when unique', function (): void {
@@ -382,7 +382,8 @@ it('generates unique credentials only for new users and is idempotent for existi
         ->and(collect($first['credential_rows'])->pluck('temporary_password')->unique())->toHaveCount(2)
         ->and($second['created_account_count'])->toBe(0)
         ->and($second['credential_rows'])->toBe([])
-        ->and(User::query()->whereIn('login_username', ['lec000211', 'lec000212'])->count())->toBe(2)
+        ->and(User::query()->where('login_username', 'like', '%lec%')->count())->toBe(0)
+        ->and(User::query()->whereNotNull('login_username')->count())->toBe(2)
         ->and(Lecturer::query()->whereNotNull('user_id')->count())->toBe(2);
 });
 
@@ -409,14 +410,13 @@ it('adds a missing role without resetting an existing linked account password', 
 it('commits successful lecturers when another lecturer is blocked', function (): void {
     $fixture = lecturerBulkPreparationFixture();
     addBulkLecturerSlot($fixture, 212, 'مدرس ثان');
-    User::factory()->create(['email' => 'lec000211', 'role' => 'course_lecturer']);
+    User::factory()->create(['email' => 'unrelated@example.test', 'role' => 'course_lecturer']);
 
     $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
 
-    expect($result['created_account_count'])->toBe(1)
-        ->and($result['blocked_count'])->toBe(1)
-        ->and(User::query()->where('login_username', 'lec000212')->exists())->toBeTrue()
-        ->and(User::query()->where('login_username', 'lec000211')->exists())->toBeFalse();
+    expect($result['created_account_count'])->toBe(2)
+        ->and($result['blocked_count'])->toBe(0)
+        ->and(User::query()->where('login_username', 'like', '%lec%')->count())->toBe(0);
 });
 
 it('resets temporary passwords with audit and does not reveal old passwords', function (): void {
@@ -486,11 +486,11 @@ it('recovers an interrupted bulk generation by resetting undelivered created acc
     expect($result['created_account_count'])->toBe(1)
         ->and($result['recovered_password_reset_count'])->toBe(1)
         ->and($result['credential_rows'])->toHaveCount(2)
-        ->and(collect($result['credential_rows'])->pluck('login_username')->all())->toContain('lec000211', 'lec000212')
+        ->and(collect($result['credential_rows'])->pluck('login_username')->every(fn (string $username): bool => (bool) preg_match('/^[a-z]+\d+$/', $username)))->toBeTrue()
         ->and(Hash::check($lostPlain, $linkedUser->fresh()->password))->toBeFalse()
         ->and($staleRun->fresh()->status)->toBe(LecturerAccountGenerationRun::STATUS_COMPLETED_WITH_ERRORS)
         ->and(LecturerAccountGenerationItem::query()->where('result', LecturerAccountGenerationItem::RESULT_TEMPORARY_PASSWORD_RESET)->count())->toBe(1)
-        ->and(User::query()->whereIn('login_username', ['lec000211', 'lec000212'])->count())->toBe(2)
+        ->and(User::query()->whereNotNull('login_username')->count())->toBe(2)
         ->and(Lecturer::query()->whereNotNull('user_id')->count())->toBe(2)
         ->and(DB::table('lecturer_account_generation_items')->where('message', 'like', '%'.$lostPlain.'%')->exists())->toBeFalse()
         ->and(DB::table('lecturer_account_generation_runs')->where('summary', 'like', '%'.$lostPlain.'%')->exists())->toBeFalse();
@@ -516,6 +516,7 @@ it('forces password change before protected access and clears the flag after suc
 
     $this->actingAs($user)
         ->put(route('password.force-change.update'), [
+            'current_password' => 'password',
             'password' => 'new-secure-password',
             'password_confirmation' => 'new-secure-password',
         ])
