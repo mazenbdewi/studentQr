@@ -26,7 +26,7 @@ function credentialPageUser(string $role, array $permissions = []): User
         $user->givePermissionTo($permissions);
     }
 
-return $user;
+    return $user;
 }
 function credentialPageBatch(array $extra = []): LecturerCredentialBatch
 {
@@ -63,4 +63,17 @@ it('keeps page authorization server-side for forged users', function (): void {
     expect(LecturerCredentialBatches::canAccess())->toBeFalse();
     $this->actingAs($manager)->get('/admin/lecturer-credential-batches')->assertForbidden();
     expect($batch->fresh()->status)->toBe('available');
+});
+
+it('rejects direct public action bypass attempts without changing batches', function (): void {
+    $batch = credentialPageBatch();
+    $admin = credentialPageUser('admin', ['view lecturer credential batches', 'download lecturer credential batches']);
+    $manager = credentialPageUser('manager');
+    $page = app(LecturerCredentialBatches::class);
+    $this->actingAs($admin);
+    expect(fn () => $page->secureDelete($batch->id, app(\App\Services\LecturerCredentialBatchService::class)))->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+    expect($batch->fresh()->status)->toBe('available')->and($batch->actions()->count())->toBe(0);
+    $this->actingAs($manager);
+    expect(fn () => $page->download($batch->id, app(\App\Services\LecturerCredentialBatchService::class)))->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+    expect($batch->fresh()->downloaded_count)->toBe(0);
 });
