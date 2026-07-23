@@ -54,6 +54,12 @@ class ListLectureSessions extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            CreateAction::make()
+                ->label(__('lecture-session.create_manual'))
+                ->icon('heroicon-o-plus')
+                ->color('primary')
+                ->visible(fn (): bool => LectureSessionResource::canCreate()),
+
             Action::make('configure_teaching_period')
                 ->label(__('lecture-session.configure_teaching_period'))
                 ->icon('heroicon-o-calendar')
@@ -390,10 +396,6 @@ class ListLectureSessions extends ListRecords
                     $notification->send();
                 }),
 
-            CreateAction::make()
-                ->label(__('lecture-session.create_manual'))
-                ->icon('heroicon-o-plus')
-                ->color('primary'),
         ];
     }
 

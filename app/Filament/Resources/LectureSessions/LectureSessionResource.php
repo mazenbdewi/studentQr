@@ -511,6 +511,17 @@ class LectureSessionResource extends Resource
         return auth()->user()->hasAnyRole(['super-admin', 'admin', 'manager', 'course_lecturer']);
     }
 
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null
+            && (
+                $user->hasRole('super-admin')
+                || $user->can('create manual lecture sessions')
+            );
+    }
+
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
         return $record instanceof LectureSession

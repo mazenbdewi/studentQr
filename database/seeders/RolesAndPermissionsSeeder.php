@@ -120,12 +120,14 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::findByName('super-admin', 'web')->givePermissionTo($hallMetadataPermissions);
 
         $manualLectureSessionPermissions = collect([
+            'create manual lecture sessions',
             'override lecture session teaching period',
         ])->map(fn (string $name) => Permission::firstOrCreate([
             'name' => $name,
             'guard_name' => 'web',
         ]));
 
+        Role::findByName('admin', 'web')->givePermissionTo($manualLectureSessionPermissions->where('name', 'create manual lecture sessions'));
         Role::findByName('super-admin', 'web')->givePermissionTo($manualLectureSessionPermissions);
 
         $this->createUser(

@@ -10,6 +10,7 @@ use App\Models\Hall;
 use App\Models\LectureSession;
 use App\Models\Subject;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
@@ -76,6 +77,13 @@ function lectureSessionAdmin(): User
     $user->assignRole('admin');
 
     return $user;
+}
+
+function grantManualLectureSessionCreation(User $user): void
+{
+    Permission::findOrCreate('create manual lecture sessions', 'web');
+
+    $user->givePermissionTo('create manual lecture sessions');
 }
 
 function lectureSessionSubject(User $lecturer, string $code): Subject
@@ -150,8 +158,9 @@ it('allows super admins to see all lecture session subjects', function (): void 
         ->toBe(collect([$subjectA->id, $subjectB->id])->sort()->values()->all());
 });
 
-it('prevents a lecturer from creating a lecture session for another lecturer subject', function (): void {
+it('prevents an explicitly permitted lecturer from creating a lecture session for another lecturer subject', function (): void {
     $lecturerA = lectureSessionLecturer('lecturer-a@example.com');
+    grantManualLectureSessionCreation($lecturerA);
     $lecturerB = lectureSessionLecturer('lecturer-b@example.com');
     $subjectB = lectureSessionSubject($lecturerB, 'B103');
     $hall = lectureSessionHall();
@@ -217,6 +226,49 @@ it('keeps the manual lecture creation header action available alongside generati
     expect(LectureSession::query()->count())->toBe(0);
 });
 
+it('shows the manual lecture creation header action to ordinary administrators with the explicit manual permission', function (): void {
+    $admin = lectureSessionAdmin();
+    grantManualLectureSessionCreation($admin);
+
+    $this->actingAs($admin);
+
+    expect($admin->can('create', LectureSession::class))->toBeFalse()
+        ->and($admin->can('create manual lecture sessions'))->toBeTrue()
+        ->and(LectureSessionResource::canCreate())->toBeTrue();
+
+    Livewire::actingAs($admin)
+        ->test(ListLectureSessions::class)
+        ->assertActionVisible('create')
+        ->assertSee('إضافة محاضرة');
+
+    expect(LectureSession::query()->count())->toBe(0);
+});
+
+it('does not show the manual lecture creation header action to course lecturers without explicit permission', function (): void {
+    $lecturer = lectureSessionLecturer('manual-unpermitted-lecturer@example.com');
+
+    $this->actingAs($lecturer);
+
+    expect($lecturer->can('create manual lecture sessions'))->toBeFalse()
+        ->and(LectureSessionResource::canCreate())->toBeFalse();
+
+    Livewire::actingAs($lecturer)
+        ->test(ListLectureSessions::class)
+        ->assertActionHidden('create');
+
+    expect(LectureSession::query()->count())->toBe(0);
+});
+
+it('seeds manual lecture creation permission only for administrators', function (): void {
+    $this->seed(RolesAndPermissionsSeeder::class);
+
+    expect(Permission::query()->where('name', 'create manual lecture sessions')->exists())->toBeTrue()
+        ->and(Role::findByName('admin', 'web')->hasPermissionTo('create manual lecture sessions'))->toBeTrue()
+        ->and(Role::findByName('super-admin', 'web')->hasPermissionTo('create manual lecture sessions'))->toBeTrue()
+        ->and(Role::findByName('manager', 'web')->hasPermissionTo('create manual lecture sessions'))->toBeFalse()
+        ->and(Role::findByName('course_lecturer', 'web')->hasPermissionTo('create manual lecture sessions'))->toBeFalse();
+});
+
 it('marks manually created sessions as not generated from the weekly schedule', function (): void {
     $lecturer = lectureSessionLecturer('manual-marker@example.com');
     $subject = lectureSessionSubject($lecturer, 'MAN101');
@@ -252,6 +304,7 @@ it('validates manual session term section lecturer hall date and time rules', fu
     $inactiveHall = lectureSessionHall();
     $inactiveHall->update(['is_active' => false]);
     $admin = lectureSessionAdmin();
+    grantManualLectureSessionCreation($admin);
     $base = lectureSessionFormData($subject, $hall);
     $base['academic_term_id'] = $term->id;
 
@@ -292,6 +345,7 @@ it('allows teaching-period override only with explicit permission and written re
     Permission::findOrCreate('override lecture session teaching period', 'web');
 
     $admin = lectureSessionAdmin();
+    grantManualLectureSessionCreation($admin);
     $admin->givePermissionTo('override lecture session teaching period');
     $lecturer = lectureSessionLecturer('manual-override@example.com');
     $subject = lectureSessionSubject($lecturer, 'MAN103');
@@ -342,9 +396,10 @@ it('uses the selected subject section lecturer when creating a lecture session',
         ->and($session?->lecturer_id)->toBe($sectionLecturer->id);
 });
 
-it('allows a lecturer to create sessions for sections assigned to them', function (): void {
+it('allows an explicitly permitted lecturer to create sessions for sections assigned to them', function (): void {
     $defaultLecturer = lectureSessionLecturer('default-owner@example.com');
     $sectionLecturer = lectureSessionLecturer('section-owner@example.com');
+    grantManualLectureSessionCreation($sectionLecturer);
     $subject = lectureSessionSubject($defaultLecturer, 'SEC102');
     $term = lectureSessionAcademicTerm();
     $section = $subject->sections()->create([
