@@ -28,8 +28,13 @@ class ForcePasswordChangeController extends Controller
         abort_unless($user !== null, 403);
 
         $data = $request->validate([
+            'current_password' => ['required', 'current_password:web'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
+
+        if (Hash::check((string) $data['password'], (string) $user->password)) {
+            return back()->withErrors(['password' => __('validation.different', ['attribute' => __('auth.password'), 'other' => __('auth.current_password')])]);
+        }
 
         $user->forceFill([
             'password' => Hash::make((string) $data['password']),

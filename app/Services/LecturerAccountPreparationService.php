@@ -16,11 +16,20 @@ use Spatie\Permission\Models\Role;
 
 class LecturerAccountPreparationService
 {
-    public function __construct(private readonly SubjectSectionLecturerSynchronizationService $sectionLecturerSynchronization) {}
+    public function __construct(
+        private readonly SubjectSectionLecturerSynchronizationService $sectionLecturerSynchronization,
+        private readonly LecturerUsernameGenerator $usernameGenerator,
+    ) {}
 
     public function loginUsernameForLecturer(Lecturer $lecturer): string
     {
-        return sprintf('lec%06d', (int) $lecturer->id);
+        $proposal = $this->usernameGenerator->proposal($lecturer);
+
+        if (($proposal['requires_manual_review'] ?? true) || ($proposal['duplicate'] ?? false) || blank($proposal['proposed_username'])) {
+            throw ValidationException::withMessages(['login_username' => 'يتطلب اسم الدخول مراجعة إدارية قبل إنشاء الحساب.']);
+        }
+
+        return $proposal['proposed_username'];
     }
 
     public function previewBulkPreparation(AcademicTerm $term): array

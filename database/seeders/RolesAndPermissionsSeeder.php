@@ -71,6 +71,17 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::findByName('admin', 'web')->givePermissionTo($lecturerAccountPreparationPermissions);
         Role::findByName('super-admin', 'web')->givePermissionTo($lecturerAccountPreparationPermissions);
 
+        $credentialBatchPermissions = collect([
+            'view lecturer credential batches',
+            'download lecturer credential batches',
+            'delete lecturer credential batches',
+            'reset lecturer passwords',
+        ])->map(fn (string $name) => Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']));
+        Role::findByName('admin', 'web')->givePermissionTo($credentialBatchPermissions->whereIn('name', [
+            'view lecturer credential batches', 'download lecturer credential batches', 'reset lecturer passwords',
+        ]));
+        Role::findByName('super-admin', 'web')->givePermissionTo($credentialBatchPermissions);
+
         $lectureSessionGenerationPermissions = collect([
             'preview lecture-session weekly generation',
             'generate lecture-session weekly schedule',

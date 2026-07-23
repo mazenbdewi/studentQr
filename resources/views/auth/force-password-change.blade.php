@@ -21,6 +21,15 @@
                 @method('PUT')
 
                 <div>
+                    <label for="current_password" class="mb-1 block text-sm font-medium">{{ __('auth.current_password') }}</label>
+                    <input id="current_password" name="current_password" type="password" required autocomplete="current-password"
+                        class="w-full rounded-lg border border-slate-300 px-3 py-2">
+                    @error('current_password')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div>
                     <label for="password" class="mb-1 block text-sm font-medium">{{ __('auth.new_password') }}</label>
                     <input id="password" name="password" type="password" required minlength="8" autocomplete="new-password"
                         class="w-full rounded-lg border border-slate-300 px-3 py-2">

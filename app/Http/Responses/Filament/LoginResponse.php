@@ -16,6 +16,10 @@ class LoginResponse implements Responsable
         $user = Filament::auth()->user();
         $pinLogin = app(PinLoginService::class);
 
+        if ($user && $user->must_change_password) {
+            return redirect()->route('password.force-change.form');
+        }
+
         Log::debug('PIN login debug: filament login response', $pinLogin->debugContext(
             $request,
             $user,

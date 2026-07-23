@@ -1,0 +1,4 @@
+<x-filament-panels::page>
+    <div class="rounded-lg border border-warning-300 bg-warning-50 p-4 text-warning-800">يحتوي هذا الملف على كلمات مرور مؤقتة حساسة. يجب حفظه وتوزيعه بطريقة آمنة ثم حذفه بعد انتهاء الحاجة إليه.</div>
+    <table class="w-full text-right"><thead><tr><th>نوع الدفعة</th><th>الفصل الدراسي</th><th>تاريخ التوليد</th><th>عدد الحسابات</th><th>اسم الملف</th><th>منشئ الدفعة</th><th>SHA-256</th><th>عدد مرات التنزيل</th><th>آخر تنزيل</th><th>الحالة</th></tr></thead><tbody>@foreach($this->batches() as $batch)<tr><td>{{ $batch->batch_type }}</td><td>{{ $batch->academicTerm?->display_name }}</td><td>{{ $batch->generated_at }}</td><td>{{ $batch->record_count }}</td><td>{{ $batch->original_filename }}</td><td>{{ $batch->generatedBy?->name }}</td><td>{{ $batch->sha256 }}</td><td>{{ $batch->downloaded_count }}</td><td>{{ $batch->last_downloaded_at }}</td><td>{{ $batch->status }}</td></tr>@endforeach</tbody></table>
+</x-filament-panels::page>
