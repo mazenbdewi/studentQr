@@ -10,6 +10,7 @@ use App\Models\LecturerAccountGenerationItem;
 use App\Models\LecturerAccountGenerationRun;
 use App\Models\User;
 use App\Services\LecturerAccountPreparationService;
+use App\Services\LecturerBulkPasswordResetService;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
@@ -128,7 +129,7 @@ class LecturerAccountPreparation extends Page implements HasTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    $this->resetTemporaryPasswordsBulkAction(),
+                    $this->resetLecturerPasswordsBulkAction(),
                 ]),
             ])
             ->recordActions([])
@@ -222,14 +223,16 @@ class LecturerAccountPreparation extends Page implements HasTable
             });
     }
 
-    private function resetTemporaryPasswordsBulkAction(): BulkAction
+    private function resetLecturerPasswordsBulkAction(): BulkAction
     {
-        return BulkAction::make('reset-bulk-lecturer-temporary-passwords')
-            ->label(__('lecturer-account-preparation.actions.reset_temporary_passwords'))
+        return BulkAction::make('reset-lecturer-passwords')
+            ->label('إعادة ضبط كلمات مرور المحاضرين')
             ->icon('heroicon-o-key')
             ->color('warning')
             ->requiresConfirmation()
-            ->modalHeading(__('lecturer-account-preparation.actions.reset_temporary_passwords'))
+            ->modalHeading('إعادة ضبط كلمات مرور المحاضرين')
+            ->modalDescription('سيتم إنشاء كلمات مرور مؤقتة جديدة للحسابات المحددة، وستتوقف كلمات المرور الحالية عن العمل فور نجاح العملية. سيُنشأ ملف مشفر قابل للتنزيل، وسيُطلب من كل محاضر تغيير كلمة المرور عند أول تسجيل دخول.')
+            ->visible(fn (): bool => (bool) (Filament::auth()->user()?->hasRole('super-admin') || Filament::auth()->user()?->can('reset lecturer passwords')))
             ->form([
                 Forms\Components\Select::make('academic_term_id')
                     ->label(__('lecture-session.academic_term'))
@@ -241,38 +244,29 @@ class LecturerAccountPreparation extends Page implements HasTable
                     ->searchable()
                     ->preload()
                     ->native(false)
+                    ->nullable(),
+                Forms\Components\Checkbox::make('confirmed_password_reset')
+                    ->label('أؤكد أن كلمات المرور الحالية ستتوقف عن العمل فور نجاح العملية.')
+                    ->accepted()
                     ->required(),
-                Forms\Components\Placeholder::make('one_time_download_warning')
-                    ->label(__('lecturer-account-preparation.one_time_download_title'))
-                    ->content(__('lecturer-account-preparation.one_time_download_warning'))
+                Forms\Components\Placeholder::make('reset_password_warning')
+                    ->label('تنبيه أمني')
+                    ->content('لا يتم عرض كلمات المرور المؤقتة في المتصفح. سيظهر الملف المشفر في صفحة دفعات بيانات الدخول بعد النجاح.')
                     ->columnSpanFull(),
             ])
-            ->action(function (EloquentCollection $records, array $data): ?BinaryFileResponse {
-                $term = AcademicTerm::query()->findOrFail($data['academic_term_id']);
-                /** @var array<int, Lecturer> $lecturers */
-                $lecturers = $records
-                    ->filter(fn (mixed $record): bool => $record instanceof Lecturer)
-                    ->values()
-                    ->all();
-                $result = app(LecturerAccountPreparationService::class)->resetTemporaryPasswords(
-                    $term,
-                    $lecturers,
-                    Filament::auth()->user(),
-                );
+            ->action(function (EloquentCollection $records, array $data): void {
+                $term = filled($data['academic_term_id'] ?? null)
+                    ? AcademicTerm::query()->findOrFail($data['academic_term_id'])
+                    : null;
+                $service = app(LecturerBulkPasswordResetService::class);
+                $preview = $service->preview($records->pluck('user_id')->all(), $term);
+                $service->execute($preview, $preview['fingerprint'], Filament::auth()->user(), $term);
 
-                if ($result['credential_rows'] === []) {
-                    Notification::make()
-                        ->title(__('lecturer-account-preparation.no_credentials_generated'))
-                        ->warning()
-                        ->send();
-
-                    return null;
-                }
-
-                return $this->credentialsExcelResponse(
-                    $term,
-                    $result['credential_rows'],
-                );
+                Notification::make()
+                    ->title('تمت إعادة ضبط كلمات مرور المحاضرين بأمان')
+                    ->body('تم إنشاء ملف مشفر قابل للتنزيل من صفحة دفعات بيانات دخول المحاضرين.')
+                    ->success()
+                    ->send();
             });
     }
 

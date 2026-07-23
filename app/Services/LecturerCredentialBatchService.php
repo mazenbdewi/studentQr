@@ -17,7 +17,15 @@ class LecturerCredentialBatchService
 {
     public function create(string $type, array $rows, ?AcademicTerm $term, ?User $actor): LecturerCredentialBatch
     {
-        $plain = Excel::raw(new LecturerLoginCredentialsExport($rows), ExcelWriter::XLSX);
+        $staged = $this->stageExport(new LecturerLoginCredentialsExport($rows), 'بيانات-دخول-المحاضرين-'.now()->format('Ymd-His').'.xlsx');
+
+        return $this->createFromStaged($type, $staged, count($rows), $term, $actor);
+    }
+
+    /** @return array{original_filename: string, encrypted_file_path: string, sha256: string, encryption_key_version: string} */
+    public function stageExport(object $export, string $filename): array
+    {
+        $plain = Excel::raw($export, ExcelWriter::XLSX);
         $key = $this->key();
         $iv = random_bytes(12);
         $tag = '';
@@ -25,15 +33,36 @@ class LecturerCredentialBatchService
         if ($cipher === false) {
             throw new RuntimeException('Credential workbook encryption failed.');
         }
-        $filename = 'بيانات-دخول-المحاضرين-'.now()->format('Ymd-His').'.xlsx';
         $path = 'lecturer-credentials/'.Str::uuid().'.enc';
         Storage::disk('local')->put($path, $iv.$tag.$cipher);
 
+        if (! Storage::disk('local')->exists($path)) {
+            throw new RuntimeException('Credential workbook encryption storage failed.');
+        }
+
+        return [
+            'original_filename' => $filename,
+            'encrypted_file_path' => $path,
+            'sha256' => hash('sha256', $plain),
+            'encryption_key_version' => (string) config('services.lecturer_credentials.key_version'),
+        ];
+    }
+
+    /** @param array{original_filename: string, encrypted_file_path: string, sha256: string, encryption_key_version: string} $staged */
+    public function createFromStaged(string $type, array $staged, int $recordCount, ?AcademicTerm $term, ?User $actor): LecturerCredentialBatch
+    {
         return LecturerCredentialBatch::query()->create([
-            'academic_term_id' => $term?->id, 'batch_type' => $type, 'original_filename' => $filename,
-            'encrypted_file_path' => $path, 'sha256' => hash('sha256', $plain), 'record_count' => count($rows),
-            'generated_by' => $actor?->id, 'generated_at' => now(), 'status' => 'available', 'encryption_key_version' => config('services.lecturer_credentials.key_version'),
+            'academic_term_id' => $term?->id, 'batch_type' => $type, 'original_filename' => $staged['original_filename'],
+            'encrypted_file_path' => $staged['encrypted_file_path'], 'sha256' => $staged['sha256'], 'record_count' => $recordCount,
+            'generated_by' => $actor?->id, 'generated_at' => now(), 'status' => 'available', 'encryption_key_version' => $staged['encryption_key_version'],
         ]);
+    }
+
+    public function discardStaged(string $path): void
+    {
+        if (str_starts_with($path, 'lecturer-credentials/')) {
+            Storage::disk('local')->delete($path);
+        }
     }
 
     public function decryptedContents(LecturerCredentialBatch $batch): string
