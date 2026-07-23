@@ -40,6 +40,7 @@ return [
         'faculties' => true,
         'halls' => true,
         'users' => true,
+        'lecturer_accounts' => true,
         'backups' => true,
     ],
 ];
