@@ -9,6 +9,11 @@ return [
     'record_title' => 'Subject Record',
 
     'lecturer' => 'Lecturer',
+    'lecturer_helper' => 'Updated automatically from the weekly schedule when the section has one resolved lecturer.',
+    'not_specified' => 'Not specified',
+    'multiple_lecturers_needs_resolution' => 'Multiple lecturers — resolution required',
+    'account_active' => 'Account active',
+    'account_inactive' => 'Account inactive',
     'code' => 'Subject Code',
     'name' => 'Subject Name',
     'subject_type' => 'Subject Type',
@@ -57,16 +62,14 @@ return [
     'students_and_subjects' => 'Students and Subjects',
     'created_at' => 'Created At',
     'updated_at' => 'Updated At',
-'import_excel' => 'Import from Excel',
-'download_subject_students_template' => 'Download Subject Students Template',
+    'import_excel' => 'Import from Excel',
+    'download_subject_students_template' => 'Download Subject Students Template',
     'excel_file' => 'Excel File',
     'import_excel' => 'Import Excel',
     'template_download' => 'Download Template',
-    'excel_file'     => 'Excel File',
+    'excel_file' => 'Excel File',
     'import_success' => 'Subjects imported successfully',
-    'import_failed'  => 'Import failed, please check the file format',
-
-
+    'import_failed' => 'Import failed, please check the file format',
 
     'import_students' => 'Import Subject Students',
 
@@ -78,7 +81,7 @@ return [
     'not_assigned' => 'Not assigned',
     'deleted_at' => 'Deleted At',
     'subject' => 'Subject',
-'not_found_in_row' => 'not found in row :row',
+    'not_found_in_row' => 'not found in row :row',
     'help_title' => 'Subjects Import Instructions',
     'import_with_template' => 'Import Using Template',
     'template_notes' => 'Notes',

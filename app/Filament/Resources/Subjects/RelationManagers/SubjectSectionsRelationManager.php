@@ -12,6 +12,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Tables;
@@ -29,6 +30,10 @@ class SubjectSectionsRelationManager extends RelationManager
 
     public static function getBadge(Model $ownerRecord, string $pageClass): ?string
     {
+        if (! $ownerRecord instanceof Subject) {
+            return null;
+        }
+
         return (string) $ownerRecord->sections()->count();
     }
 
@@ -55,7 +60,26 @@ class SubjectSectionsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('lecturer.name')
                     ->label(__('subjects.lecturer'))
-                    ->placeholder(__('subjects.not_available'))
+                    ->state(function (SubjectSection $record): string {
+                        /** @var User|null $lecturer */
+                        $lecturer = $record->lecturer;
+
+                        if ($record->hasAmbiguousImportedLecturers()) {
+                            return __('subjects.multiple_lecturers_needs_resolution');
+                        }
+
+                        return $lecturer ? (string) $lecturer->name : __('subjects.not_specified');
+                    })
+                    ->color(fn (SubjectSection $record): ?string => $record->hasAmbiguousImportedLecturers() ? 'warning' : null)
+                    ->description(function (SubjectSection $record): ?string {
+                        /** @var User|null $lecturer */
+                        $lecturer = $record->lecturer;
+
+                        return $lecturer ? trim(implode(' · ', array_filter([
+                            $lecturer->login_username,
+                            $lecturer->status === 'active' && $lecturer->is_active ? __('subjects.account_active') : __('subjects.account_inactive'),
+                        ]))) : null;
+                    })
                     ->searchable()
                     ->sortable(),
 
@@ -84,7 +108,7 @@ class SubjectSectionsRelationManager extends RelationManager
     }
 
     /**
-     * @return array<int, Forms\Components\Component>
+     * @return array<int, Component>
      */
     protected function getSectionFormSchema(): array
     {
@@ -133,7 +157,7 @@ class SubjectSectionsRelationManager extends RelationManager
                 ->searchable()
                 ->preload()
                 ->native(false)
-                ->required(),
+                ->helperText(__('subjects.lecturer_helper')),
         ];
     }
 

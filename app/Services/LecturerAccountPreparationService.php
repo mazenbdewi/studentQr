@@ -16,6 +16,8 @@ use Spatie\Permission\Models\Role;
 
 class LecturerAccountPreparationService
 {
+    public function __construct(private readonly SubjectSectionLecturerSynchronizationService $sectionLecturerSynchronization) {}
+
     public function loginUsernameForLecturer(Lecturer $lecturer): string
     {
         return sprintf('lec%06d', (int) $lecturer->id);
@@ -215,6 +217,7 @@ class LecturerAccountPreparationService
             $user->assignRole(User::mapDatabaseRoleToSpatieRole('course_lecturer'));
 
             $lecturer->forceFill(['user_id' => $user->id])->save();
+            $this->synchronizeLecturerSections($lecturer);
 
             return $user;
         });
@@ -226,6 +229,7 @@ class LecturerAccountPreparationService
         $this->ensureUserCanBeLinked($user);
 
         $lecturer->forceFill(['user_id' => $user->id])->save();
+        $this->synchronizeLecturerSections($lecturer);
 
         return $lecturer->refresh();
     }
@@ -246,6 +250,7 @@ class LecturerAccountPreparationService
         ])->save();
 
         $user->assignRole(User::mapDatabaseRoleToSpatieRole('course_lecturer'));
+        $this->synchronizeLecturerSections($lecturer);
 
         return $user->refresh();
     }
@@ -377,6 +382,7 @@ class LecturerAccountPreparationService
         ]);
         $user->assignRole(User::mapDatabaseRoleToSpatieRole('course_lecturer'));
         $lecturer->forceFill(['user_id' => $user->id])->save();
+        $this->synchronizeLecturerSections($lecturer);
 
         LecturerAccountGenerationItem::query()->create([
             'run_id' => $run->id,
@@ -421,6 +427,13 @@ class LecturerAccountPreparationService
             ],
             'completed_at' => now(),
         ]);
+    }
+
+    private function synchronizeLecturerSections(Lecturer $lecturer): void
+    {
+        $this->sectionLecturerSynchronization->synchronizeSections(
+            $lecturer->scheduleSlots()->distinct()->pluck('subject_section_id'),
+        );
     }
 
     private function ensureLoginIdentifierAvailable(string $identifier): void

@@ -10,6 +10,7 @@ use App\Models\SubjectSection;
 use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use App\Services\ScheduleAcademicTermResolver;
+use App\Services\SubjectSectionLecturerSynchronizationService;
 use App\Support\WeeklyScheduleRowNormalizer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +52,7 @@ class WeeklyScheduleImport
     public function __construct(
         private readonly WeeklyScheduleRowNormalizer $normalizer,
         private readonly ScheduleAcademicTermResolver $termResolver,
+        private readonly SubjectSectionLecturerSynchronizationService $sectionLecturerSynchronization,
     ) {}
 
     public function import(
@@ -232,6 +234,13 @@ class WeeklyScheduleImport
                     'summary' => $this->summary,
                     'completed_at' => now(),
                 ]);
+                $sync = $this->sectionLecturerSynchronization->synchronizeBatch($this->batch);
+                $this->summary['section_lecturer_synchronization'] = [
+                    'unique_lecturer_count' => $sync['unique_lecturer_count'],
+                    'no_lecturer_count' => $sync['no_lecturer_count'],
+                    'multiple_lecturers_count' => $sync['multiple_lecturers_count'],
+                ];
+                $this->batch->update(['summary' => $this->summary]);
             });
         } catch (Throwable $exception) {
             $this->batch->update([

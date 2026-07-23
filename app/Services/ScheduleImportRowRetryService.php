@@ -15,6 +15,7 @@ class ScheduleImportRowRetryService
         private readonly WeeklyScheduleRowNormalizer $normalizer,
         private readonly WeeklyScheduleSlotConflictDetector $conflictDetector,
         private readonly ScheduleImportRowResolutionContext $resolutionContext,
+        private readonly SubjectSectionLecturerSynchronizationService $sectionLecturerSynchronization,
     ) {}
 
     public function retryRow(ScheduleImportRow $row): array
@@ -99,6 +100,7 @@ class ScheduleImportRowRetryService
             ...$existing,
         ])->map(fn (mixed $id): int => (int) $id)->unique()->values()->all();
         $row->update(['import_result' => $importResult]);
+        $this->sectionLecturerSynchronization->synchronizeSections([$section->id]);
 
         return [
             'status' => $conflicts === [] ? ($created === [] ? 'already_applied' : 'completed') : 'conflict',

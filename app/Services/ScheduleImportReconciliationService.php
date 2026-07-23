@@ -29,6 +29,7 @@ class ScheduleImportReconciliationService
         private readonly WeeklyScheduleSlotConflictDetector $conflictDetector,
         private readonly ScheduleImportReconciliationSummaryService $summaryService,
         private readonly WeeklyScheduleRowNormalizer $normalizer,
+        private readonly SubjectSectionLecturerSynchronizationService $sectionLecturerSynchronization,
     ) {}
 
     public function mapSubject(
@@ -81,6 +82,7 @@ class ScheduleImportReconciliationService
             $before = $this->rowSnapshot($locked, $actor);
             $locked->update($this->resolutionUpdate($actor, ['resolved_lecturer_id' => $lecturer->id]));
             $result = $this->fillRelatedSlotIdentity($locked, 'lecturer_id', $lecturer->id);
+            $this->synchronizeSectionLecturer($locked);
             $issues = $this->setIssueStatuses(
                 $locked,
                 ScheduleImportIssueWorkflow::LECTURER_ISSUES,
@@ -126,6 +128,7 @@ class ScheduleImportReconciliationService
             $before = $this->rowSnapshot($locked, $actor);
             $locked->update($this->resolutionUpdate($actor, ['resolved_lecturer_id' => $lecturer->id]));
             $result = $this->fillRelatedSlotIdentity($locked, 'lecturer_id', $lecturer->id);
+            $this->synchronizeSectionLecturer($locked);
             $result['created_lecturer_id'] = $lecturer->id;
             $issues = $this->setIssueStatuses($locked, ScheduleImportIssueWorkflow::LECTURER_ISSUES, ScheduleImportIssue::STATUS_RESOLVED, ScheduleImportIssueAction::ACTION_CREATE_LECTURER, $actor, $note, $result);
             $this->finishAction($locked, $issues, ScheduleImportIssueAction::ACTION_CREATE_LECTURER, $actor, $before, $result, $note);
@@ -283,6 +286,8 @@ class ScheduleImportReconciliationService
                     $created[] = $slot->id;
                 }
             }
+
+            $this->sectionLecturerSynchronization->synchronizeSections([$section->id]);
 
             $this->appendReconciliationSlotIds($locked, [...$created, ...$existing]);
             $locked->update($this->resolutionUpdate($actor, [
@@ -723,6 +728,15 @@ class ScheduleImportReconciliationService
             'conflicts' => $conflicts,
             'slot_changes' => $changes,
         ];
+    }
+
+    private function synchronizeSectionLecturer(ScheduleImportRow $row): void
+    {
+        $section = $this->resolutionContext->effectiveSubjectSection($row);
+
+        if ($section instanceof SubjectSection) {
+            $this->sectionLecturerSynchronization->synchronizeSections([$section->id]);
+        }
     }
 
     private function assertNoDifferentStoredIdentity(ScheduleImportRow $row, string $column): void

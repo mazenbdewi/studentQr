@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -61,6 +62,22 @@ class SubjectSection extends Model
     public function lecturer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'lecturer_id')->withTrashed();
+    }
+
+    public function scheduleSlots(): HasMany
+    {
+        return $this->hasMany(SubjectSectionScheduleSlot::class);
+    }
+
+    public function hasAmbiguousImportedLecturers(): bool
+    {
+        return SubjectSectionScheduleSlot::query()
+            ->join('lecturers', 'lecturers.id', '=', 'subject_section_schedule_slots.lecturer_id')
+            ->where('subject_section_schedule_slots.subject_section_id', $this->id)
+            ->where('subject_section_schedule_slots.academic_term_id', $this->academic_term_id)
+            ->whereNotNull('lecturers.user_id')
+            ->distinct('lecturers.user_id')
+            ->count('lecturers.user_id') > 1;
     }
 
     public function getSectionTypeLabelAttribute(): string

@@ -24,6 +24,7 @@ use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\HtmlString;
 use Maatwebsite\Excel\Excel as ExcelWriter;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -59,6 +60,8 @@ class ListLectureSessions extends ListRecords
                 ->icon('heroicon-o-plus')
                 ->color('primary')
                 ->visible(fn (): bool => LectureSessionResource::canCreate()),
+
+            static::recurringHeaderAction(),
 
             Action::make('configure_teaching_period')
                 ->label(__('lecture-session.configure_teaching_period'))
@@ -202,201 +205,244 @@ class ListLectureSessions extends ListRecords
                 ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
                 ->action(fn (): ?BinaryFileResponse => static::downloadLatestGenerationReport('error_report')),
 
-            Action::make('create_recurring')
-                ->label(__('lecture-session.create_recurring'))
-                ->icon('heroicon-o-calendar-days')
-                ->color('warning')
-                ->modalHeading(__('lecture-session.create_recurring_heading'))
-                ->modalDescription(__('lecture-session.create_recurring_description'))
-                ->modalSubmitActionLabel(__('lecture-session.create_recurring_submit'))
-                ->modalWidth('5xl')
-                ->slideOver()
-                ->form([
-                    Section::make(__('lecture-session.recurring_basic_section'))
-                        ->description(__('lecture-session.recurring_basic_description'))
-                        ->columns(2)
-                        ->schema([
-                            Forms\Components\Select::make('subject_id')
-                                ->label(__('lecture-session.subject'))
-                                ->options(fn (): array => LectureSessionResource::scopeSubjectQueryForCurrentUser(Subject::query())
-                                    ->pluck('name', 'id')
-                                    ->all())
-                                ->searchable()
-                                ->preload()
-                                ->native(false)
-                                ->live()
-                                ->afterStateUpdated(function (callable $set, mixed $state): void {
-                                    $set('subject_section_id', null);
-                                    $set('lecturer_id', LectureSessionResource::resolveLecturerIdForSubjectAndSection($state, null));
-                                })
-                                ->required(),
-
-                            Forms\Components\Select::make('subject_section_id')
-                                ->label(__('subjects.section_code'))
-                                ->options(fn (Get $get): array => LectureSessionResource::getSectionOptionsForSubject($get('subject_id')))
-                                ->searchable()
-                                ->preload()
-                                ->native(false)
-                                ->disabled(fn (Get $get): bool => blank($get('subject_id')))
-                                ->required(fn (Get $get): bool => LectureSessionResource::subjectHasSections($get('subject_id')))
-                                ->placeholder(__('subjects.select_subject_first'))
-                                ->live()
-                                ->afterStateUpdated(fn (callable $set, Get $get, mixed $state): mixed => $set(
-                                    'lecturer_id',
-                                    LectureSessionResource::resolveLecturerIdForSubjectAndSection($get('subject_id'), $state),
-                                )),
-
-                            Forms\Components\Select::make('lecturer_id')
-                                ->label(__('lecture-session.lecturer'))
-                                ->options(fn (): array => \App\Models\User::query()
-                                    ->withoutTrashed()
-                                    ->pluck('name', 'id')
-                                    ->all())
-                                ->searchable()
-                                ->preload()
-                                ->native(false)
-                                ->placeholder(__('lecture-session.subject_has_no_lecturer'))
-                                ->disabled()
-                                ->dehydrated(),
-
-                            Forms\Components\Placeholder::make('missing_lecturer_warning')
-                                ->label(__('lecture-session.missing_lecturer_warning_title'))
-                                ->content(__('lecture-session.missing_lecturer_warning'))
-                                ->visible(fn (Get $get): bool => LectureSessionResource::shouldShowMissingLecturerWarning(
-                                    $get('subject_id'),
-                                    $get('subject_section_id'),
-                                ))
-                                ->columnSpanFull()
-                                ->extraAttributes([
-                                    'class' => 'rounded-lg border border-danger-300 bg-danger-50 px-4 py-3 text-sm font-medium text-danger-700 dark:border-danger-500/40 dark:bg-danger-500/10 dark:text-danger-300',
-                                ]),
-
-                            Forms\Components\Select::make('hall_id')
-                                ->label(__('lecture-session.hall'))
-                                ->options(fn (): array => Hall::query()
-                                    ->withoutTrashed()
-                                    ->pluck('name', 'id')
-                                    ->all())
-                                ->searchable()
-                                ->preload()
-                                ->native(false)
-                                ->required(),
-                        ]),
-
-                    Section::make(__('lecture-session.recurring_calendar_section'))
-                        ->description(__('lecture-session.recurring_calendar_description'))
-                        ->columns(2)
-                        ->schema([
-                            Forms\Components\DatePicker::make('date_from')
-                                ->label(__('lecture-session.date_from'))
-                                ->default(now()->toDateString())
-                                ->native(false)
-                                ->live()
-                                ->required(),
-
-                            Forms\Components\DatePicker::make('date_to')
-                                ->label(__('lecture-session.date_to'))
-                                ->default(now()->addMonth()->toDateString())
-                                ->native(false)
-                                ->live()
-                                ->required(),
-
-                            Forms\Components\ToggleButtons::make('weekdays')
-                                ->label(__('lecture-session.weekdays'))
-                                ->options(static::weekdayOptions())
-                                ->default(now()->dayOfWeek)
-                                ->columns([
-                                    'sm' => 2,
-                                    'md' => 4,
-                                    'xl' => 7,
-                                ])
-                                ->colors([
-                                    0 => 'primary',
-                                    1 => 'primary',
-                                    2 => 'primary',
-                                    3 => 'primary',
-                                    4 => 'primary',
-                                    5 => 'primary',
-                                    6 => 'primary',
-                                ])
-                                ->extraAttributes(['class' => 'lecture-weekday-toggle-buttons'])
-                                ->live()
-                                ->required()
-                                ->helperText(__('lecture-session.recurring_weekdays_help'))
-                                ->columnSpanFull(),
-
-                            Forms\Components\Placeholder::make('recurring_preview')
-                                ->label(__('lecture-session.recurring_preview'))
-                                ->content(fn (Get $get): string => static::recurringPreviewText($get))
-                                ->columnSpanFull(),
-                        ]),
-
-                    Section::make(__('lecture-session.recurring_options_section'))
-                        ->description(__('lecture-session.recurring_options_description'))
-                        ->columns(2)
-                        ->schema([
-                            Forms\Components\TimePicker::make('start_time')
-                                ->label(__('lecture-session.start_time'))
-                                ->default('08:00')
-                                ->seconds(false)
-                                ->native(false)
-                                ->required(),
-
-                            Forms\Components\TimePicker::make('end_time')
-                                ->label(__('lecture-session.end_time'))
-                                ->default('09:30')
-                                ->seconds(false)
-                                ->native(false)
-                                ->required()
-                                ->helperText(__('lecture-session.recurring_end_time_help')),
-
-                            Forms\Components\TextInput::make('qr_refresh_rate')
-                                ->label(__('lecture-session.qr_refresh_rate'))
-                                ->numeric()
-                                ->minValue(AppSetting::MIN_QR_REFRESH_RATE)
-                                ->default(fn (): int => AppSetting::defaultQrRefreshRate())
-                                ->required()
-                                ->suffix(__('lecture-session.seconds')),
-
-                            Forms\Components\Select::make('status')
-                                ->label(__('lecture-session.status'))
-                                ->options([
-                                    'scheduled' => __('lecture-session.status_scheduled'),
-                                    'active' => __('lecture-session.status_active'),
-                                    'completed' => __('lecture-session.status_completed'),
-                                    'cancelled' => __('lecture-session.status_cancelled'),
-                                ])
-                                ->default('scheduled')
-                                ->native(false)
-                                ->required(),
-
-                            Forms\Components\Textarea::make('notes')
-                                ->label(__('lecture-session.notes'))
-                                ->rows(3)
-                                ->nullable()
-                                ->columnSpanFull(),
-                        ]),
-                ])
-                ->action(function (array $data): void {
-                    $data = LectureSessionResource::ensureSubjectCanBeUsedByCurrentUser($data);
-                    $result = app(LectureSessionCalendarService::class)->createRecurring($data);
-
-                    $notification = Notification::make()
-                        ->title(__('lecture-session.recurring_created_title'))
-                        ->body(__('lecture-session.recurring_created_body', [
-                            'created' => $result['created'],
-                            'skipped' => $result['skipped'],
-                            'total' => $result['total'],
-                        ]));
-
-                    $result['created'] > 0
-                        ? $notification->success()
-                        : $notification->warning();
-
-                    $notification->send();
-                }),
-
         ];
+    }
+
+    protected static function recurringHeaderAction(): Action
+    {
+        return Action::make('create_recurring')
+            ->label(__('lecture-session.create_recurring'))
+            ->icon('heroicon-o-calendar-days')
+            ->color('warning')
+            ->visible(fn (): bool => LectureSessionResource::canCreate())
+            ->modalHeading(__('lecture-session.create_recurring_heading'))
+            ->modalDescription(__('lecture-session.create_recurring_description'))
+            ->modalSubmitActionLabel(__('lecture-session.create_recurring_submit'))
+            ->modalWidth('7xl')
+            ->slideOver()
+            ->form([
+                Section::make(__('lecture-session.recurring_basic_section'))
+                    ->description(__('lecture-session.recurring_basic_description'))
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\Select::make('academic_term_id')
+                            ->label(__('lecture-session.academic_term'))
+                            ->options(fn (): array => AcademicTerm::query()
+                                ->orderByDesc('id')
+                                ->pluck('display_name', 'id')
+                                ->all())
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(function (callable $set): void {
+                                $set('subject_section_id', null);
+                                $set('lecturer_id', null);
+                            })
+                            ->required(),
+
+                        Forms\Components\Select::make('subject_id')
+                            ->label(__('lecture-session.subject'))
+                            ->options(fn (): array => LectureSessionResource::scopeSubjectQueryForCurrentUser(Subject::query())
+                                ->pluck('name', 'id')
+                                ->all())
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(function (callable $set, Get $get, mixed $state): void {
+                                $set('subject_section_id', null);
+                                $set('lecturer_id', LectureSessionResource::resolveLecturerIdForSubjectAndSection(
+                                    $state,
+                                    null,
+                                    $get('academic_term_id'),
+                                ));
+                            })
+                            ->required(),
+
+                        Forms\Components\Select::make('subject_section_id')
+                            ->label(__('subjects.section_code'))
+                            ->options(fn (Get $get): array => LectureSessionResource::getSectionOptionsForSubject(
+                                $get('subject_id'),
+                                $get('academic_term_id'),
+                            ))
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->disabled(fn (Get $get): bool => blank($get('subject_id')))
+                            ->required(fn (Get $get): bool => LectureSessionResource::subjectHasSections(
+                                $get('subject_id'),
+                                $get('academic_term_id'),
+                            ))
+                            ->placeholder(__('subjects.select_subject_first'))
+                            ->live()
+                            ->afterStateUpdated(fn (callable $set, Get $get, mixed $state): mixed => $set(
+                                'lecturer_id',
+                                LectureSessionResource::resolveLecturerIdForSubjectAndSection(
+                                    $get('subject_id'),
+                                    $state,
+                                    $get('academic_term_id'),
+                                ),
+                            )),
+
+                        Forms\Components\Select::make('lecturer_id')
+                            ->label(__('lecture-session.lecturer'))
+                            ->options(fn (Get $get): array => LectureSessionResource::manualLecturerOptions(
+                                $get('academic_term_id'),
+                                $get('subject_id'),
+                                $get('subject_section_id'),
+                            ))
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->placeholder(__('lecture-session.subject_has_no_lecturer'))
+                            ->disabled(fn (): bool => auth()->user()?->hasRole('course_lecturer') === true)
+                            ->required()
+                            ->dehydrated(),
+
+                        Forms\Components\Select::make('hall_id')
+                            ->label(__('lecture-session.hall'))
+                            ->options(fn (): array => Hall::query()
+                                ->withoutTrashed()
+                                ->where('is_active', true)
+                                ->pluck('name', 'id')
+                                ->all())
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->required(),
+
+                        Forms\Components\Placeholder::make('missing_lecturer_warning')
+                            ->label(__('lecture-session.missing_lecturer_warning_title'))
+                            ->content(__('lecture-session.missing_lecturer_warning'))
+                            ->visible(fn (Get $get): bool => LectureSessionResource::shouldShowMissingLecturerWarning(
+                                $get('subject_id'),
+                                $get('subject_section_id'),
+                                $get('academic_term_id'),
+                            ))
+                            ->columnSpanFull()
+                            ->extraAttributes([
+                                'class' => 'rounded-lg border border-danger-300 bg-danger-50 px-4 py-3 text-sm font-medium text-danger-700 dark:border-danger-500/40 dark:bg-danger-500/10 dark:text-danger-300',
+                            ]),
+                    ]),
+
+                Section::make(__('lecture-session.recurring_calendar_section'))
+                    ->description(__('lecture-session.recurring_calendar_description'))
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\DatePicker::make('date_from')
+                            ->label(__('lecture-session.date_from'))
+                            ->default(now()->toDateString())
+                            ->native(false)
+                            ->live()
+                            ->required(),
+
+                        Forms\Components\DatePicker::make('date_to')
+                            ->label(__('lecture-session.date_to'))
+                            ->default(now()->addMonth()->toDateString())
+                            ->native(false)
+                            ->live()
+                            ->required(),
+
+                        Forms\Components\ToggleButtons::make('weekdays')
+                            ->label(__('lecture-session.weekdays'))
+                            ->options(static::weekdayOptions())
+                            ->multiple()
+                            ->default([now()->dayOfWeek])
+                            ->columns([
+                                'sm' => 2,
+                                'md' => 4,
+                                'xl' => 7,
+                            ])
+                            ->colors([
+                                0 => 'primary',
+                                1 => 'primary',
+                                2 => 'primary',
+                                3 => 'primary',
+                                4 => 'primary',
+                                5 => 'primary',
+                                6 => 'primary',
+                            ])
+                            ->extraAttributes(['class' => 'lecture-weekday-toggle-buttons'])
+                            ->live()
+                            ->required()
+                            ->helperText(__('lecture-session.recurring_weekdays_help'))
+                            ->columnSpanFull(),
+                    ]),
+
+                Section::make(__('lecture-session.recurring_options_section'))
+                    ->description(__('lecture-session.recurring_options_description'))
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\TimePicker::make('start_time')
+                            ->label(__('lecture-session.start_time'))
+                            ->default('08:00')
+                            ->seconds(false)
+                            ->native(false)
+                            ->required(),
+
+                        Forms\Components\TimePicker::make('end_time')
+                            ->label(__('lecture-session.end_time'))
+                            ->default('09:30')
+                            ->seconds(false)
+                            ->native(false)
+                            ->required()
+                            ->helperText(__('lecture-session.recurring_end_time_help')),
+
+                        Forms\Components\Select::make('status')
+                            ->label(__('lecture-session.status'))
+                            ->options([
+                                'scheduled' => __('lecture-session.status_scheduled'),
+                                'active' => __('lecture-session.status_active'),
+                                'completed' => __('lecture-session.status_completed'),
+                                'cancelled' => __('lecture-session.status_cancelled'),
+                            ])
+                            ->default('scheduled')
+                            ->native(false)
+                            ->required(),
+
+                        Forms\Components\TextInput::make('qr_refresh_rate')
+                            ->label(__('lecture-session.qr_refresh_rate'))
+                            ->numeric()
+                            ->minValue(AppSetting::MIN_QR_REFRESH_RATE)
+                            ->default(fn (): int => AppSetting::defaultQrRefreshRate())
+                            ->required()
+                            ->suffix(__('lecture-session.seconds')),
+
+                        Forms\Components\Textarea::make('notes')
+                            ->label(__('lecture-session.notes'))
+                            ->rows(3)
+                            ->nullable()
+                            ->columnSpanFull(),
+                    ]),
+
+                Section::make(__('lecture-session.recurring_preview'))
+                    ->schema([
+                        Forms\Components\Placeholder::make('recurring_preview')
+                            ->hiddenLabel()
+                            ->content(fn (Get $get): string|HtmlString => static::recurringPreviewTable($get))
+                            ->columnSpanFull(),
+                    ]),
+            ])
+            ->action(function (array $data): void {
+                static::ensureRecurringSubjectCanBeUsedByCurrentUser($data);
+
+                $result = app(LectureSessionCalendarService::class)->createRecurring($data);
+
+                $notification = Notification::make()
+                    ->title(__('lecture-session.recurring_created_title'))
+                    ->body(__('lecture-session.recurring_created_body', [
+                        'created' => $result['created'],
+                        'skipped' => $result['skipped'],
+                        'total' => $result['total'],
+                    ]));
+
+                $result['created'] > 0
+                    ? $notification->success()
+                    : $notification->warning();
+
+                $notification->send();
+            });
     }
 
     protected static function applyTodayTabQuery(Builder $query, Carbon $reference): Builder
@@ -451,6 +497,128 @@ class ListLectureSessions extends ListRecords
             5 => __('lecture-session.weekday_friday'),
             6 => __('lecture-session.weekday_saturday'),
         ];
+    }
+
+    protected static function recurringPreviewTable(Get $get): string|HtmlString
+    {
+        $data = [
+            'academic_term_id' => $get('academic_term_id'),
+            'subject_id' => $get('subject_id'),
+            'subject_section_id' => $get('subject_section_id'),
+            'lecturer_id' => $get('lecturer_id'),
+            'hall_id' => $get('hall_id'),
+            'date_from' => $get('date_from'),
+            'date_to' => $get('date_to'),
+            'weekdays' => $get('weekdays'),
+            'start_time' => $get('start_time'),
+            'end_time' => $get('end_time'),
+            'status' => $get('status') ?? 'scheduled',
+            'qr_refresh_rate' => $get('qr_refresh_rate') ?? AppSetting::defaultQrRefreshRate(),
+            'notes' => $get('notes'),
+        ];
+
+        if (blank($data['academic_term_id'])
+            || blank($data['subject_id'])
+            || blank($data['hall_id'])
+            || blank($data['date_from'])
+            || blank($data['date_to'])
+            || blank($data['weekdays'])
+            || blank($data['start_time'])
+            || blank($data['end_time'])) {
+            return __('lecture-session.recurring_preview_empty');
+        }
+
+        try {
+            static::ensureRecurringSubjectCanBeUsedByCurrentUser($data);
+            $preview = app(LectureSessionCalendarService::class)->previewRecurring($data);
+        } catch (\Throwable $exception) {
+            if ($exception instanceof \Illuminate\Validation\ValidationException) {
+                return collect($exception->errors())->flatten()->first() ?? __('lecture-session.recurring_preview_empty');
+            }
+
+            return __('lecture-session.recurring_preview_empty');
+        }
+
+        $weekdayOptions = static::weekdayOptions();
+        $resultLabels = static::recurringResultLabels();
+        $rows = collect($preview['rows'])
+            ->map(function (array $row) use ($weekdayOptions, $resultLabels): string {
+                $cells = [
+                    e($row['date']),
+                    e($weekdayOptions[$row['weekday']] ?? $row['weekday']),
+                    e(substr((string) $row['start_time'], 0, 5)),
+                    e(substr((string) $row['end_time'], 0, 5)),
+                    e($row['subject']),
+                    e($row['section'] ?? __('lecture-session.not_available')),
+                    e($row['lecturer']),
+                    e($row['hall']),
+                    e($resultLabels[$row['result']] ?? $row['result']),
+                ];
+
+                return '<tr><td>'.implode('</td><td>', $cells).'</td></tr>';
+            })
+            ->implode('');
+
+        $headers = collect([
+            __('lecture-session.preview_date'),
+            __('lecture-session.preview_weekday'),
+            __('lecture-session.start_time'),
+            __('lecture-session.end_time'),
+            __('lecture-session.subject'),
+            __('subjects.section_code'),
+            __('lecture-session.lecturer'),
+            __('lecture-session.hall'),
+            __('lecture-session.preview_result'),
+        ])->map(fn (string $header): string => '<th>'.e($header).'</th>')->implode('');
+
+        $summary = __('lecture-session.recurring_preview_summary', [
+            'total' => $preview['total_count'],
+            'existing' => $preview['existing_count'],
+            'conflicts' => $preview['conflict_count'],
+            'ready' => $preview['ready_count'],
+            'skipped' => $preview['skipped_count'],
+        ]);
+
+        return new HtmlString(
+            '<div dir="rtl" class="space-y-3">'
+            .'<p class="text-sm font-medium">'.e($summary).'</p>'
+            .'<div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">'
+            .'<table class="min-w-full divide-y divide-gray-200 text-right text-sm dark:divide-gray-700">'
+            .'<thead class="bg-gray-50 dark:bg-gray-800"><tr>'.$headers.'</tr></thead>'
+            .'<tbody class="divide-y divide-gray-100 dark:divide-gray-800">'.$rows.'</tbody>'
+            .'</table></div></div>',
+        );
+    }
+
+    protected static function recurringResultLabels(): array
+    {
+        return [
+            'ready' => __('lecture-session.recurring_result_ready'),
+            'existing' => __('lecture-session.recurring_result_existing'),
+            'lecturer_conflict' => __('lecture-session.recurring_result_lecturer_conflict'),
+            'hall_conflict' => __('lecture-session.recurring_result_hall_conflict'),
+            'section_conflict' => __('lecture-session.recurring_result_section_conflict'),
+            'outside_teaching_period' => __('lecture-session.recurring_result_outside_teaching_period'),
+        ];
+    }
+
+    protected static function ensureRecurringSubjectCanBeUsedByCurrentUser(array $data): void
+    {
+        $subjectId = $data['subject_id'] ?? null;
+
+        if (blank($subjectId)) {
+            return;
+        }
+
+        $isAllowed = LectureSessionResource::scopeSubjectQueryForCurrentUser(Subject::query())
+            ->whereKey($subjectId)
+            ->exists();
+
+        if (! $isAllowed) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'subject_id' => __('lecture-session.subject_not_assigned_to_lecturer'),
+            ]);
+        }
     }
 
     protected static function recurringPreviewText(Get $get): string
