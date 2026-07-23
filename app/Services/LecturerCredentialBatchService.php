@@ -69,7 +69,12 @@ class LecturerCredentialBatchService
         } $path = (string) $batch->encrypted_file_path;
         if (! str_starts_with($path, 'lecturer-credentials/') || ! Storage::disk('local')->exists($path)) {
             throw new RuntimeException('Credential batch file is unavailable.');
-        } Storage::disk('local')->delete($path);
+        }
+
+        if (! Storage::disk('local')->delete($path)) {
+            throw new RuntimeException('Credential batch file could not be deleted.');
+        }
+
         $batch->forceFill(['status' => 'deleted', 'deleted_at' => now(), 'deleted_by' => $actor?->id, 'encrypted_file_path' => null])->save();
         $this->audit($batch, 'deleted', $actor);
     }

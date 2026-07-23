@@ -40,8 +40,11 @@ class LecturerCredentialBatches extends Page
         $user = Filament::auth()->user();
         abort_unless($user?->hasRole('super-admin') || $user?->can('download lecturer credential batches'), 403);
         $batch = LecturerCredentialBatch::query()->findOrFail($id);
-        abort_if($batch->status === 'deleted', 404);
         try {
+            if ($batch->status === 'deleted') {
+                throw new \RuntimeException('Credential batch is deleted.');
+            }
+
             $contents = $service->decryptedContents($batch);
             $service->recordDownload($batch);
             $service->audit($batch, 'download_prepared', $user);
