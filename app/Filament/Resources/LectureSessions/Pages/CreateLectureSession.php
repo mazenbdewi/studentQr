@@ -12,7 +12,9 @@ class CreateLectureSession extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        return LectureSessionResource::ensureSubjectCanBeUsedByCurrentUser($data);
+        return LectureSessionResource::prepareManualSessionData(
+            LectureSessionResource::ensureSubjectCanBeUsedByCurrentUser($data),
+        );
     }
 
     protected function afterCreate(): void

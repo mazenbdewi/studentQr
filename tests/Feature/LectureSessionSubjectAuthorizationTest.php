@@ -3,6 +3,8 @@
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
 use App\Filament\Resources\LectureSessions\Pages\CreateLectureSession;
 use App\Filament\Resources\LectureSessions\Pages\EditLectureSession;
+use App\Filament\Resources\LectureSessions\Pages\ListLectureSessions;
+use App\Models\AcademicTerm;
 use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\LectureSession;
@@ -10,10 +12,12 @@ use App\Models\Subject;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function (): void {
     Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
+    Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
     Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
 
     Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -34,6 +38,16 @@ function lectureSessionLecturer(string $email): User
     return $user;
 }
 
+function lectureSessionAcademicTerm(): AcademicTerm
+{
+    return AcademicTerm::query()->create([
+        'display_name' => 'اختبار الفصل الصيفي',
+        'canonical_name' => 'manual-session-term-'.uniqid(),
+        'teaching_start_date' => now()->subWeek()->toDateString(),
+        'teaching_end_date' => now()->addWeeks(4)->toDateString(),
+    ]);
+}
+
 function lectureSessionSuperAdmin(): User
 {
     $user = User::factory()->create([
@@ -45,6 +59,21 @@ function lectureSessionSuperAdmin(): User
     ]);
 
     $user->assignRole('super-admin');
+
+    return $user;
+}
+
+function lectureSessionAdmin(): User
+{
+    $user = User::factory()->create([
+        'email' => 'lecture-session-ordinary-admin@example.com',
+        'role' => 'admin',
+        'type' => 'admin',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+
+    $user->assignRole('admin');
 
     return $user;
 }
@@ -65,7 +94,7 @@ function lectureSessionSubject(User $lecturer, string $code): Subject
 function lectureSessionHall(): Hall
 {
     return Hall::query()->create([
-        'code' => 'H-' . fake()->unique()->numerify('###'),
+        'code' => 'H-'.fake()->unique()->numerify('###'),
         'name' => 'Main Hall',
         'floor' => 1,
         'is_active' => true,
@@ -74,7 +103,10 @@ function lectureSessionHall(): Hall
 
 function lectureSessionFormData(Subject $subject, Hall $hall): array
 {
+    $term = AcademicTerm::query()->first() ?? lectureSessionAcademicTerm();
+
     return [
+        'academic_term_id' => $term->id,
         'subject_id' => $subject->id,
         'lecturer_id' => $subject->lecturer_id,
         'hall_id' => $hall->id,
@@ -170,11 +202,125 @@ it('allows super admins to create lecture sessions for any subject', function ()
         ->and($session?->lecturer_id)->toBe($lecturer->id);
 });
 
+it('keeps the manual lecture creation header action available alongside generation actions', function (): void {
+    $admin = lectureSessionSuperAdmin();
+
+    Livewire::actingAs($admin)
+        ->test(ListLectureSessions::class)
+        ->assertSee('إضافة محاضرة')
+        ->assertSee('تحديد تاريخ بداية الأسبوع الأول ونهاية الأسبوع الأخير')
+        ->assertSee('تهيئة حسابات المدرسين')
+        ->assertSee('توليد الجلسات الجاهزة')
+        ->assertSee('تقرير العمليات الناجحة')
+        ->assertSee('تقرير الأخطاء والحالات المستبعدة');
+
+    expect(LectureSession::query()->count())->toBe(0);
+});
+
+it('marks manually created sessions as not generated from the weekly schedule', function (): void {
+    $lecturer = lectureSessionLecturer('manual-marker@example.com');
+    $subject = lectureSessionSubject($lecturer, 'MAN101');
+    $hall = lectureSessionHall();
+    $admin = lectureSessionSuperAdmin();
+
+    Livewire::actingAs($admin)
+        ->test(CreateLectureSession::class)
+        ->fillForm(lectureSessionFormData($subject, $hall))
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $session = LectureSession::query()->firstOrFail();
+
+    expect($session->subject_section_schedule_slot_id)->toBeNull()
+        ->and($session->lecture_session_generation_run_id)->toBeNull()
+        ->and($session->generated_from_weekly_schedule_at)->toBeNull();
+});
+
+it('validates manual session term section lecturer hall date and time rules', function (): void {
+    $lecturer = lectureSessionLecturer('manual-valid@example.com');
+    $inactiveLecturer = lectureSessionLecturer('manual-inactive@example.com');
+    $inactiveLecturer->update(['is_active' => false]);
+    $subject = lectureSessionSubject($lecturer, 'MAN102');
+    $term = lectureSessionAcademicTerm();
+    $otherTerm = lectureSessionAcademicTerm();
+    $section = $subject->sections()->create([
+        'academic_term_id' => $otherTerm->id,
+        'code' => 'T1',
+        'lecturer_id' => $lecturer->id,
+    ]);
+    $hall = lectureSessionHall();
+    $inactiveHall = lectureSessionHall();
+    $inactiveHall->update(['is_active' => false]);
+    $admin = lectureSessionAdmin();
+    $base = lectureSessionFormData($subject, $hall);
+    $base['academic_term_id'] = $term->id;
+
+    Livewire::actingAs($admin)
+        ->test(CreateLectureSession::class)
+        ->fillForm([...$base, 'subject_section_id' => $section->id])
+        ->call('create')
+        ->assertHasFormErrors(['subject_section_id']);
+
+    Livewire::actingAs($admin)
+        ->test(CreateLectureSession::class)
+        ->fillForm([...$base, 'lecturer_id' => $inactiveLecturer->id])
+        ->call('create')
+        ->assertHasFormErrors(['lecturer_id']);
+
+    Livewire::actingAs($admin)
+        ->test(CreateLectureSession::class)
+        ->fillForm([...$base, 'hall_id' => $inactiveHall->id])
+        ->call('create')
+        ->assertHasFormErrors(['hall_id']);
+
+    Livewire::actingAs($admin)
+        ->test(CreateLectureSession::class)
+        ->fillForm([...$base, 'start_time' => '10:00', 'end_time' => '09:00'])
+        ->call('create')
+        ->assertHasErrors(['end_time']);
+
+    Livewire::actingAs($admin)
+        ->test(CreateLectureSession::class)
+        ->fillForm([...$base, 'session_date' => now()->addYear()->toDateString()])
+        ->call('create')
+        ->assertHasErrors(['session_date']);
+
+    expect(LectureSession::query()->count())->toBe(0);
+});
+
+it('allows teaching-period override only with explicit permission and written reason', function (): void {
+    Permission::findOrCreate('override lecture session teaching period', 'web');
+
+    $admin = lectureSessionAdmin();
+    $admin->givePermissionTo('override lecture session teaching period');
+    $lecturer = lectureSessionLecturer('manual-override@example.com');
+    $subject = lectureSessionSubject($lecturer, 'MAN103');
+    $hall = lectureSessionHall();
+    $data = lectureSessionFormData($subject, $hall);
+    $data['session_date'] = now()->addYear()->toDateString();
+
+    Livewire::actingAs($admin)
+        ->test(CreateLectureSession::class)
+        ->fillForm($data)
+        ->call('create')
+        ->assertHasErrors(['session_date']);
+
+    Livewire::actingAs($admin)
+        ->test(CreateLectureSession::class)
+        ->fillForm([...$data, 'teaching_period_override_reason' => 'اعتماد إداري لمحاضرة تعويضية.'])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(LectureSession::query()->count())->toBe(1);
+});
+
 it('uses the selected subject section lecturer when creating a lecture session', function (): void {
     $defaultLecturer = lectureSessionLecturer('default-section-lecturer@example.com');
     $sectionLecturer = lectureSessionLecturer('practical-section-lecturer@example.com');
     $subject = lectureSessionSubject($defaultLecturer, 'SEC101');
+    $term = lectureSessionAcademicTerm();
     $section = $subject->sections()->create([
+        'academic_term_id' => $term->id,
         'code' => 'P1',
         'lecturer_id' => $sectionLecturer->id,
     ]);
@@ -200,7 +346,9 @@ it('allows a lecturer to create sessions for sections assigned to them', functio
     $defaultLecturer = lectureSessionLecturer('default-owner@example.com');
     $sectionLecturer = lectureSessionLecturer('section-owner@example.com');
     $subject = lectureSessionSubject($defaultLecturer, 'SEC102');
+    $term = lectureSessionAcademicTerm();
     $section = $subject->sections()->create([
+        'academic_term_id' => $term->id,
         'code' => 'T1',
         'lecturer_id' => $sectionLecturer->id,
     ]);
@@ -210,7 +358,7 @@ it('allows a lecturer to create sessions for sections assigned to them', functio
 
     expect(LectureSessionResource::scopeSubjectQueryForCurrentUser(Subject::query())->pluck('id')->all())
         ->toBe([$subject->id])
-        ->and(LectureSessionResource::getSectionOptionsForSubject($subject->id))
+        ->and(LectureSessionResource::getSectionOptionsForSubject($subject->id, $term->id))
         ->toBe([$section->id => 'T1']);
 
     Livewire::actingAs($sectionLecturer)
@@ -246,7 +394,7 @@ it('does not default a lecture session lecturer to the authenticated admin when 
             'lecturer_id' => $admin->id,
         ]))
         ->call('create')
-        ->assertHasErrors(['lecturer_id']);
+        ->assertHasFormErrors(['lecturer_id']);
 
     expect(LectureSession::query()->count())->toBe(0);
 });

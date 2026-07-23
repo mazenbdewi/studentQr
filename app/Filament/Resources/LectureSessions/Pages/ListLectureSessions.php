@@ -390,7 +390,10 @@ class ListLectureSessions extends ListRecords
                     $notification->send();
                 }),
 
-            CreateAction::make(),
+            CreateAction::make()
+                ->label(__('lecture-session.create_manual'))
+                ->icon('heroicon-o-plus')
+                ->color('primary'),
         ];
     }
 

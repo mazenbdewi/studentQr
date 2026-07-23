@@ -43,6 +43,8 @@ class ScheduleImportRowPolicy
 
     public const CONFIRM_GROUPED_HALL_ASSIGNMENT_WITH_WARNING = 'confirm grouped hall assignment with warning';
 
+    public const OVERRIDE_LECTURE_SESSION_TEACHING_PERIOD = 'override lecture session teaching period';
+
     public function before(User $user): ?bool
     {
         return $user->isSuperAdmin() ? true : null;

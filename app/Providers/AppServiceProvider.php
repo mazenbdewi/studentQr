@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Activitylog\Models\Activity;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -78,6 +79,18 @@ class AppServiceProvider extends ServiceProvider
             Gate::define($ability, fn ($user): bool => $user->hasRole('admin')
                 || (method_exists($user, 'hasPermissionTo') && $user->hasPermissionTo($ability)));
         }
+
+        Gate::define(
+            ScheduleImportRowPolicy::OVERRIDE_LECTURE_SESSION_TEACHING_PERIOD,
+            function ($user): bool {
+                try {
+                    return method_exists($user, 'hasPermissionTo')
+                        && $user->hasPermissionTo(ScheduleImportRowPolicy::OVERRIDE_LECTURE_SESSION_TEACHING_PERIOD);
+                } catch (PermissionDoesNotExist) {
+                    return false;
+                }
+            },
+        );
     }
 
     private function configureDB(): void
