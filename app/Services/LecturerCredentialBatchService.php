@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exports\LecturerLoginCredentialsExport;
 use App\Models\AcademicTerm;
 use App\Models\LecturerCredentialBatch;
+use App\Models\LecturerCredentialBatchAction;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -54,6 +55,23 @@ class LecturerCredentialBatchService
     {
         $batch->increment('downloaded_count');
         $batch->forceFill(['last_downloaded_at' => now()])->save();
+    }
+
+    public function audit(LecturerCredentialBatch $batch, string $action, ?User $actor = null, array $metadata = []): void
+    {
+        LecturerCredentialBatchAction::query()->create(['lecturer_credential_batch_id' => $batch->id, 'action' => $action, 'performed_by' => $actor?->id, 'request_ip' => request()->ip(), 'safe_metadata' => array_intersect_key($metadata, array_flip(['filename', 'record_count', 'status'])), 'performed_at' => now()]);
+    }
+
+    public function delete(LecturerCredentialBatch $batch, ?User $actor = null): void
+    {
+        if ($batch->status === 'deleted') {
+            return;
+        } $path = (string) $batch->encrypted_file_path;
+        if (! str_starts_with($path, 'lecturer-credentials/') || ! Storage::disk('local')->exists($path)) {
+            throw new RuntimeException('Credential batch file is unavailable.');
+        } Storage::disk('local')->delete($path);
+        $batch->forceFill(['status' => 'deleted', 'deleted_at' => now(), 'deleted_by' => $actor?->id, 'encrypted_file_path' => null])->save();
+        $this->audit($batch, 'deleted', $actor);
     }
 
     private function key(): string

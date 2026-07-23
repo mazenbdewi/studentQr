@@ -3,10 +3,12 @@
 namespace App\Filament\Pages;
 
 use App\Models\LecturerCredentialBatch;
+use App\Services\LecturerCredentialBatchService;
 use BackedEnum;
 use Filament\Facades\Filament;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LecturerCredentialBatches extends Page
 {
@@ -31,5 +33,30 @@ class LecturerCredentialBatches extends Page
     public function batches()
     {
         return LecturerCredentialBatch::query()->with(['academicTerm', 'generatedBy'])->latest('generated_at')->get();
+    }
+
+    public function download(int $id, LecturerCredentialBatchService $service): StreamedResponse
+    {
+        $user = Filament::auth()->user();
+        abort_unless($user?->hasRole('super-admin') || $user?->can('download lecturer credential batches'), 403);
+        $batch = LecturerCredentialBatch::query()->findOrFail($id);
+        abort_if($batch->status === 'deleted', 404);
+        try {
+            $contents = $service->decryptedContents($batch);
+            $service->recordDownload($batch);
+            $service->audit($batch, 'download_prepared', $user);
+
+            return response()->streamDownload(fn () => print ($contents), $batch->original_filename, ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+        } catch (\Throwable) {
+            $service->audit($batch, 'download_failed', $user);
+            abort(422, 'تعذر تحضير ملف بيانات الدخول بأمان.');
+        }
+    }
+
+    public function secureDelete(int $id, LecturerCredentialBatchService $service): void
+    {
+        $user = Filament::auth()->user();
+        abort_unless($user?->hasRole('super-admin') || $user?->can('delete lecturer credential batches'), 403);
+        $service->delete(LecturerCredentialBatch::query()->findOrFail($id), $user);
     }
 }

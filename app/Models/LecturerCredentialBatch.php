@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class LecturerCredentialBatch extends Model
@@ -25,5 +26,10 @@ class LecturerCredentialBatch extends Model
     public function generatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'generated_by');
+    }
+
+    public function actions(): HasMany
+    {
+        return $this->hasMany(LecturerCredentialBatchAction::class);
     }
 }
