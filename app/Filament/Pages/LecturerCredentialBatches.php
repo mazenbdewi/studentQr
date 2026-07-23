@@ -57,6 +57,12 @@ class LecturerCredentialBatches extends Page
     {
         $user = Filament::auth()->user();
         abort_unless($user?->hasRole('super-admin') || $user?->can('delete lecturer credential batches'), 403);
-        $service->delete(LecturerCredentialBatch::query()->findOrFail($id), $user);
+        $batch = LecturerCredentialBatch::query()->findOrFail($id);
+        try {
+            $service->delete($batch, $user);
+        } catch (\Throwable) {
+            $service->audit($batch, 'delete_failed', $user);
+            abort(422, 'تعذر حذف ملف بيانات الدخول بأمان.');
+        }
     }
 }
