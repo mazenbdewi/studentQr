@@ -12,6 +12,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LecturerCredentialBatches extends Page
 {
+    public ?int $detailsBatchId = null;
+
     protected static ?string $slug = 'lecturer-credential-batches';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::Key;
@@ -30,9 +32,50 @@ class LecturerCredentialBatches extends Page
         return 'دفعات بيانات دخول المحاضرين';
     }
 
+    public function getTitle(): string
+    {
+        return 'دفعات بيانات دخول المحاضرين';
+    }
+
     public function batches()
     {
         return LecturerCredentialBatch::query()->with(['academicTerm', 'generatedBy'])->latest('generated_at')->get();
+    }
+
+    public function openDetails(int $id): void
+    {
+        $this->detailsBatchId = LecturerCredentialBatch::query()->findOrFail($id)->id;
+    }
+
+    public function closeDetails(): void
+    {
+        $this->detailsBatchId = null;
+    }
+
+    public function detailsBatch(): ?LecturerCredentialBatch
+    {
+        return $this->detailsBatchId
+            ? LecturerCredentialBatch::query()->with(['academicTerm', 'generatedBy'])->find($this->detailsBatchId)
+            : null;
+    }
+
+    public function batchTypeLabel(string $type): string
+    {
+        return match ($type) {
+            'password_reset' => 'إعادة ضبط كلمات المرور',
+            'account_creation', 'initial_accounts' => 'إنشاء حسابات جديدة',
+            default => 'دفعة بيانات دخول',
+        };
+    }
+
+    public function batchStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'available' => 'متاحة للتنزيل',
+            'deleted' => 'محذوفة بأمان',
+            'failed' => 'فشلت',
+            default => 'غير متاحة',
+        };
     }
 
     public function download(int $id, LecturerCredentialBatchService $service): StreamedResponse

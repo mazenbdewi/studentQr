@@ -50,7 +50,7 @@ it('renders only authorized safe batch actions and metadata', function (): void 
     $batch = credentialPageBatch();
     $admin = credentialPageUser('admin', ['view lecturer credential batches', 'download lecturer credential batches']);
     $super = credentialPageUser('super-admin', ['view lecturer credential batches', 'download lecturer credential batches', 'delete lecturer credential batches']);
-    Livewire::actingAs($admin)->test(LecturerCredentialBatches::class)->assertSee('تنزيل')->assertDontSee('حذف آمن')->assertSee('بيانات-دخول.xlsx')->assertSee('إصدار مفتاح التشفير')->assertDontSee('lecturer-credentials/test.enc');
+    Livewire::actingAs($admin)->test(LecturerCredentialBatches::class)->assertSee('دفعات بيانات دخول المحاضرين')->assertSee('إنشاء حسابات جديدة')->assertSee('تنزيل الملف')->assertDontSee('حذف آمن')->assertSee('بيانات-دخول.xlsx')->assertDontSee('initial_accounts')->assertDontSee('إصدار مفتاح التشفير')->assertDontSee('lecturer-credentials/test.enc')->call('openDetails', $batch->id)->assertSee('تفاصيل الدفعة')->assertSee('إصدار مفتاح التشفير');
     Livewire::actingAs($super)->test(LecturerCredentialBatches::class)->assertSee('تنزيل')->assertSee('حذف آمن');
     $batch->update(['status' => 'deleted', 'encrypted_file_path' => null]);
     expect($batch->fresh()->encrypted_file_path)->toBeNull();
