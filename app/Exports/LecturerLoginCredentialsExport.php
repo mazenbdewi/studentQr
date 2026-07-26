@@ -12,24 +12,24 @@ class LecturerLoginCredentialsExport extends ArabicArrayWorkbookExport
                 'title' => 'بيانات دخول المدرسين',
                 'headings' => [
                     'الرقم',
-                    'اسم المدرس بالعربية',
+                    'اسم المدرس',
                     'اسم الدخول',
                     'كلمة المرور المؤقتة',
                     'حالة الحساب',
                     'الدور',
-                    'يجب تغيير كلمة المرور عند أول دخول',
+                    'تغيير كلمة المرور عند أول دخول',
                     'ملاحظات',
                 ],
                 'rows' => collect($credentialRows)
                     ->values()
                     ->map(fn (array $row, int $index): array => [
                         'الرقم' => $index + 1,
-                        'اسم المدرس بالعربية' => $row['lecturer_name'] ?? '',
+                        'اسم المدرس' => $row['lecturer_name'] ?? '',
                         'اسم الدخول' => $row['login_username'] ?? '',
                         'كلمة المرور المؤقتة' => $row['temporary_password'] ?? '',
                         'حالة الحساب' => $row['account_status'] ?? '',
                         'الدور' => $row['role'] ?? 'course_lecturer',
-                        'يجب تغيير كلمة المرور عند أول دخول' => ($row['must_change_password'] ?? false) ? 'نعم' : 'لا',
+                        'تغيير كلمة المرور عند أول دخول' => ($row['must_change_password'] ?? false) ? 'نعم' : 'لا',
                         'ملاحظات' => $row['notes'] ?? 'يجب تغيير كلمة المرور المؤقتة عند أول تسجيل دخول.',
                     ])
                     ->all(),
