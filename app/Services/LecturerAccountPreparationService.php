@@ -9,6 +9,7 @@ use App\Models\LecturerAccountGenerationRun;
 use App\Models\LectureSession;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -84,61 +85,71 @@ class LecturerAccountPreparationService
 
     public function prepareBulkAccounts(AcademicTerm $term, ?User $actor = null): array
     {
-        @set_time_limit(300);
-        Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
+        $lock = Cache::lock('lecturer-account-preparation:'.$term->id, 600);
 
-        $recoveryLecturerIds = $this->undeliveredTemporaryPasswordLecturerIds($term);
-        $this->markStaleProcessingRunsForRecovery($term);
-        $preview = $this->previewBulkPreparation($term);
-        $run = LecturerAccountGenerationRun::query()->create([
-            'academic_term_id' => $term->id,
-            'started_by' => $actor?->id,
-            'status' => LecturerAccountGenerationRun::STATUS_PROCESSING,
-            'lecturer_count' => $preview['referenced_lecturer_count'],
-            'started_at' => now(),
-        ]);
-        $credentials = [];
-        $usedPlainPasswords = [];
-
-        foreach ($preview['rows'] as $row) {
-            try {
-                $result = DB::transaction(function () use ($row, $run, $recoveryLecturerIds, &$usedPlainPasswords): array {
-                    return $this->processLecturerAccountRow($run, $row, $usedPlainPasswords, $recoveryLecturerIds);
-                });
-
-                if (($result['credential'] ?? null) !== null) {
-                    $credentials[] = $result['credential'];
-                }
-            } catch (\Throwable $exception) {
-                LecturerAccountGenerationItem::query()->create([
-                    'run_id' => $run->id,
-                    'lecturer_id' => $row['lecturer_id'],
-                    'login_username' => $row['login_username'] ?? null,
-                    'result' => LecturerAccountGenerationItem::RESULT_FAILED,
-                    'error_code' => 'unexpected_item_failure',
-                    'message' => __('lecturer-account-preparation.errors.unexpected_item_failure'),
-                ]);
-            }
+        if (! $lock->get()) {
+            throw new \RuntimeException('توجد عملية إنشاء حسابات قيد التنفيذ حاليًا. يرجى الانتظار حتى اكتمالها.');
         }
 
-        $after = $this->previewBulkPreparation($term);
-        $this->completeRun($run);
+        try {
+            @set_time_limit(300);
+            Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
 
-        return [
-            ...$after,
-            'generation_run_id' => (int) $run->id,
-            'created_account_count' => (int) $run->fresh()->created_count,
-            'granted_role_count' => (int) $run->fresh()->role_added_count,
-            'recovered_password_reset_count' => (int) $run->items()
-                ->where('result', LecturerAccountGenerationItem::RESULT_TEMPORARY_PASSWORD_RESET)
-                ->count(),
-            'credential_rows' => $credentials,
-            'error_report' => $run->items()
-                ->where('result', LecturerAccountGenerationItem::RESULT_FAILED)
-                ->get()
-                ->map(fn (LecturerAccountGenerationItem $item): array => $item->only(['lecturer_id', 'login_username', 'error_code', 'message']))
-                ->all(),
-        ];
+            $recoveryLecturerIds = $this->undeliveredTemporaryPasswordLecturerIds($term);
+            $this->markStaleProcessingRunsForRecovery($term);
+            $preview = $this->previewBulkPreparation($term);
+            $run = LecturerAccountGenerationRun::query()->create([
+                'academic_term_id' => $term->id,
+                'started_by' => $actor?->id,
+                'status' => LecturerAccountGenerationRun::STATUS_PROCESSING,
+                'lecturer_count' => $preview['referenced_lecturer_count'],
+                'started_at' => now(),
+            ]);
+            $credentials = [];
+            $usedPlainPasswords = [];
+
+            foreach ($preview['rows'] as $row) {
+                try {
+                    $result = DB::transaction(function () use ($row, $run, $recoveryLecturerIds, &$usedPlainPasswords): array {
+                        return $this->processLecturerAccountRow($run, $row, $usedPlainPasswords, $recoveryLecturerIds);
+                    });
+
+                    if (($result['credential'] ?? null) !== null) {
+                        $credentials[] = $result['credential'];
+                    }
+                } catch (\Throwable $exception) {
+                    LecturerAccountGenerationItem::query()->create([
+                        'run_id' => $run->id,
+                        'lecturer_id' => $row['lecturer_id'],
+                        'login_username' => $row['login_username'] ?? null,
+                        'result' => LecturerAccountGenerationItem::RESULT_FAILED,
+                        'error_code' => 'unexpected_item_failure',
+                        'message' => __('lecturer-account-preparation.errors.unexpected_item_failure'),
+                    ]);
+                }
+            }
+
+            $after = $this->previewBulkPreparation($term);
+            $this->completeRun($run);
+
+            return [
+                ...$after,
+                'generation_run_id' => (int) $run->id,
+                'created_account_count' => (int) $run->fresh()->created_count,
+                'granted_role_count' => (int) $run->fresh()->role_added_count,
+                'recovered_password_reset_count' => (int) $run->items()
+                    ->where('result', LecturerAccountGenerationItem::RESULT_TEMPORARY_PASSWORD_RESET)
+                    ->count(),
+                'credential_rows' => $credentials,
+                'error_report' => $run->items()
+                    ->where('result', LecturerAccountGenerationItem::RESULT_FAILED)
+                    ->get()
+                    ->map(fn (LecturerAccountGenerationItem $item): array => $item->only(['lecturer_id', 'login_username', 'error_code', 'message']))
+                    ->all(),
+            ];
+        } finally {
+            $lock->release();
+        }
     }
 
     /** @param iterable<int, Lecturer> $lecturers */

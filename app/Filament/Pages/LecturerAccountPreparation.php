@@ -173,6 +173,8 @@ class LecturerAccountPreparation extends Page implements HasTable
             ->requiresConfirmation()
             ->modalHeading(__('lecturer-account-preparation.actions.create_bulk_accounts'))
             ->modalSubmitActionLabel(__('lecturer-account-preparation.actions.create_bulk_accounts'))
+            ->closeModalByClickingAway(false)
+            ->closeModalByEscaping(false)
             ->form([
                 Forms\Components\Select::make('academic_term_id')
                     ->label(__('lecture-session.academic_term'))
@@ -194,13 +196,28 @@ class LecturerAccountPreparation extends Page implements HasTable
                     ->label(__('lecturer-account-preparation.one_time_download_title'))
                     ->content(__('lecturer-account-preparation.one_time_download_warning'))
                     ->columnSpanFull(),
+                \Filament\Schemas\Components\View::make('filament.components.lecturer-account-generation-loading')
+                    ->columnSpanFull(),
             ])
             ->action(function (array $data): ?BinaryFileResponse {
-                $term = AcademicTerm::query()->findOrFail($data['academic_term_id']);
-                $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts(
-                    $term,
-                    Filament::auth()->user(),
-                );
+                try {
+                    $term = AcademicTerm::query()->findOrFail($data['academic_term_id']);
+                    $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts(
+                        $term,
+                        Filament::auth()->user(),
+                    );
+                } catch (\RuntimeException $exception) {
+                    Notification::make()->title($exception->getMessage())->warning()->send();
+
+                    return null;
+                } catch (\Throwable) {
+                    Notification::make()
+                        ->title('تعذر إكمال إنشاء الحسابات. لم يتم إنشاء عملية جزئية، ويمكن مراجعة سجل الأخطاء ثم المحاولة مجددًا.')
+                        ->danger()
+                        ->send();
+
+                    return null;
+                }
 
                 Notification::make()
                     ->title(__('lecturer-account-preparation.bulk_completed_title'))
