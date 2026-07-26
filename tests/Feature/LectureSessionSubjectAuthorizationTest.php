@@ -17,6 +17,8 @@ use App\Models\User;
 use App\Services\LectureSessionCalendarService;
 use App\Services\SubjectSectionLecturerSynchronizationService;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -134,6 +136,7 @@ function lectureSessionScheduleBatch(AcademicTerm $term): ImportBatch
 function lectureSessionFormData(Subject $subject, Hall $hall): array
 {
     $term = AcademicTerm::query()->first() ?? lectureSessionAcademicTerm();
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
     $section = SubjectSection::query()->firstOrCreate([
         'subject_id' => $subject->id,
         'academic_term_id' => $term->id,
@@ -244,17 +247,36 @@ it('allows super admins to create lecture sessions for any subject', function ()
         ->and($session?->lecturer_id)->toBe($lecturer->id);
 });
 
-it('keeps the manual lecture creation header action available alongside generation actions', function (): void {
+it('groups lecture session header actions without writing lecture sessions', function (): void {
     $admin = lectureSessionSuperAdmin();
 
-    Livewire::actingAs($admin)
-        ->test(ListLectureSessions::class)
-        ->assertSee('إضافة محاضرة')
-        ->assertSee('تحديد تاريخ بداية الأسبوع الأول ونهاية الأسبوع الأخير')
-        ->assertSee('تهيئة حسابات المدرسين')
-        ->assertSee('توليد الجلسات الجاهزة')
-        ->assertSee('تقرير العمليات الناجحة')
-        ->assertSee('تقرير الأخطاء والحالات المستبعدة');
+    $component = Livewire::actingAs($admin)->test(ListLectureSessions::class);
+    $headerActions = $component->instance()->getCachedHeaderActions();
+    $groups = collect($headerActions)
+        ->filter(fn (mixed $action): bool => $action instanceof ActionGroup)
+        ->values();
+
+    $generationAction = collect($headerActions)
+        ->first(fn (mixed $action): bool => $action instanceof Action && $action->getName() === 'generate_from_weekly_schedule');
+
+    expect($headerActions)->toHaveCount(4)
+        ->and($generationAction)->toBeInstanceOf(Action::class)
+        ->and($generationAction->getExtraAttributes()['class'] ?? null)->toBe('order-1')
+        ->and($groups->map(fn (ActionGroup $group): string => (string) $group->getLabel())->all())
+        ->toBe(['إضافة', 'الإعدادات والتحضير', 'تقارير'])
+        ->and($groups->mapWithKeys(fn (ActionGroup $group): array => [
+            (string) $group->getLabel() => array_keys($group->getFlatActions()),
+        ])->all())
+        ->toBe([
+            'إضافة' => ['create', 'create_recurring'],
+            'الإعدادات والتحضير' => ['configure_teaching_period', 'open_lecturer_account_preparation'],
+            'تقارير' => [
+                'open_weekly_schedule_reconciliation',
+                'open_blocked_weekly_slots',
+                'download_latest_generation_success_report',
+                'download_latest_generation_error_report',
+            ],
+        ]);
 
     expect(LectureSession::query()->count())->toBe(0);
 });
@@ -275,8 +297,11 @@ it('shows the manual lecture creation header action to ordinary administrators w
         ->assertActionVisible('create_recurring')
         ->assertSee('إضافة محاضرة');
 
-    expect(collect($component->instance()->getCachedHeaderActions())->map->getName()->take(2)->values()->all())
-        ->toBe(['create', 'create_recurring']);
+    $addGroup = collect($component->instance()->getCachedHeaderActions())
+        ->first(fn (mixed $action): bool => $action instanceof ActionGroup && $action->getLabel() === 'إضافة');
+
+    expect($addGroup)->toBeInstanceOf(ActionGroup::class)
+        ->and(array_keys($addGroup->getFlatActions()))->toBe(['create', 'create_recurring']);
 
     expect(LectureSession::query()->count())->toBe(0);
 });
@@ -289,10 +314,15 @@ it('does not show the manual lecture creation header action to course lecturers 
     expect($lecturer->can('create manual lecture sessions'))->toBeFalse()
         ->and(LectureSessionResource::canCreate())->toBeFalse();
 
-    Livewire::actingAs($lecturer)
+    $component = Livewire::actingAs($lecturer)
         ->test(ListLectureSessions::class)
         ->assertActionHidden('create')
         ->assertActionHidden('create_recurring');
+
+    $groups = collect($component->instance()->getCachedHeaderActions())
+        ->filter(fn (mixed $action): bool => $action instanceof ActionGroup);
+
+    expect($groups->every(fn (ActionGroup $group): bool => $group->isHidden()))->toBeTrue();
 
     expect(LectureSession::query()->count())->toBe(0);
 });

@@ -3,6 +3,7 @@
 use App\Filament\Pages\ManaraScheduleImport;
 use App\Filament\Pages\WeeklySchedule;
 use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\ImportBatch;
 use App\Models\ScheduleImportIssue;
 use App\Models\ScheduleImportRow;
@@ -35,6 +36,7 @@ function weeklyScheduleUiBatch(string $status, array $summary = []): array
         'display_name' => 'الفصل الصيفي 2025/2026',
         'canonical_name' => 'الفصل الصيفي 2025/2026',
     ]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
     $batch = ImportBatch::query()->create([
         'deduplication_key' => hash('sha256', "weekly-ui-{$status}"),
         'import_type' => ImportBatch::TYPE_WEEKLY_SCHEDULE,
@@ -224,7 +226,6 @@ it('displays recurring weekly slots rather than dated lecture sessions and scope
         'needs_review' => 1,
     ])->and($component->instance()->getTable()->getModel())->toBe(SubjectSectionScheduleSlot::class)
         ->and(array_keys($component->instance()->getTable()->getFilters()))->toBe([
-            'academic_term_id',
             'faculty_id',
             'department_id',
             'subject_id',

@@ -16,6 +16,7 @@ use App\Services\LectureSessionCalendarService;
 use App\Services\LectureSessionGenerationService;
 use App\Support\AcademicTermContext;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -56,90 +57,90 @@ class ListLectureSessions extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make()
-                ->label(__('lecture-session.create_manual'))
+            ActionGroup::make([
+                CreateAction::make()
+                    ->label(__('lecture-session.create_manual'))
+                    ->icon('heroicon-o-plus')
+                    ->color('primary')
+                    ->visible(fn (): bool => LectureSessionResource::canCreate()),
+
+                static::recurringHeaderAction(),
+            ])
+                ->label('إضافة')
                 ->icon('heroicon-o-plus')
-                ->color('primary')
+                ->button()
+                ->extraAttributes(['class' => 'order-2'])
                 ->visible(fn (): bool => LectureSessionResource::canCreate()),
 
-            static::recurringHeaderAction(),
+            ActionGroup::make([
+                Action::make('configure_teaching_period')
+                    ->label('ضبط تواريخ التدريس')
+                    ->icon('heroicon-o-calendar')
+                    ->color('gray')
+                    ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                    ->modalHeading(__('lecture-session.configure_teaching_period_heading'))
+                    ->modalDescription(__('lecture-session.configure_teaching_period_description'))
+                    ->modalSubmitActionLabel(__('lecture-session.configure_teaching_period_submit'))
+                    ->fillForm(function (): array {
+                        $currentTerm = app(AcademicTermContext::class)->current();
 
-            Action::make('configure_teaching_period')
-                ->label(__('lecture-session.configure_teaching_period'))
-                ->icon('heroicon-o-calendar')
-                ->color('gray')
-                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                ->modalHeading(__('lecture-session.configure_teaching_period_heading'))
-                ->modalDescription(__('lecture-session.configure_teaching_period_description'))
-                ->modalSubmitActionLabel(__('lecture-session.configure_teaching_period_submit'))
-                ->fillForm(function (): array {
-                    $currentTerm = app(AcademicTermContext::class)->current();
+                        return [
+                            'teaching_start_date' => $currentTerm?->teaching_start_date?->toDateString(),
+                            'teaching_end_date' => $currentTerm?->teaching_end_date?->toDateString(),
+                        ];
+                    })
+                    ->form([
+                        Forms\Components\Placeholder::make('current_academic_term')
+                            ->label(__('lecture-session.academic_term'))
+                            ->content(function (): string {
+                                $currentTerm = app(AcademicTermContext::class)->current();
 
-                    return [
-                        'teaching_start_date' => $currentTerm?->teaching_start_date?->toDateString(),
-                        'teaching_end_date' => $currentTerm?->teaching_end_date?->toDateString(),
-                    ];
-                })
-                ->form([
-                    Forms\Components\Placeholder::make('current_academic_term')
-                        ->label(__('lecture-session.academic_term'))
-                        ->content(function (): string {
-                            $currentTerm = app(AcademicTermContext::class)->current();
+                                return $currentTerm ? $currentTerm->display_name : 'لا يوجد فصل دراسي حالي محدد.';
+                            })
+                            ->badge(),
 
-                            return $currentTerm ? $currentTerm->display_name : 'لا يوجد فصل دراسي حالي محدد.';
-                        })
-                        ->badge(),
+                        Forms\Components\DatePicker::make('teaching_start_date')
+                            ->label(__('lecture-session.teaching_start_date'))
+                            ->native(false)
+                            ->required(),
 
-                    Forms\Components\DatePicker::make('teaching_start_date')
-                        ->label(__('lecture-session.teaching_start_date'))
-                        ->native(false)
-                        ->required(),
+                        Forms\Components\DatePicker::make('teaching_end_date')
+                            ->label(__('lecture-session.teaching_end_date'))
+                            ->native(false)
+                            ->required(),
+                    ])
+                    ->action(function (array $data): void {
+                        app(AcademicTermContext::class)
+                            ->requireCurrent()
+                            ->update([
+                                'teaching_start_date' => $data['teaching_start_date'],
+                                'teaching_end_date' => $data['teaching_end_date'],
+                            ]);
 
-                    Forms\Components\DatePicker::make('teaching_end_date')
-                        ->label(__('lecture-session.teaching_end_date'))
-                        ->native(false)
-                        ->required(),
-                ])
-                ->action(function (array $data): void {
-                    app(AcademicTermContext::class)
-                        ->requireCurrent()
-                        ->update([
-                            'teaching_start_date' => $data['teaching_start_date'],
-                            'teaching_end_date' => $data['teaching_end_date'],
-                        ]);
+                        Notification::make()
+                            ->title(__('lecture-session.teaching_period_saved_title'))
+                            ->success()
+                            ->send();
+                    }),
 
-                    Notification::make()
-                        ->title(__('lecture-session.teaching_period_saved_title'))
-                        ->success()
-                        ->send();
-                }),
-
-            Action::make('open_lecturer_account_preparation')
-                ->label(__('lecture-session.open_lecturer_account_preparation'))
-                ->icon('heroicon-o-user-group')
-                ->color('gray')
-                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                ->url(fn (): string => LecturerAccountPreparation::getUrl()),
-
-            Action::make('open_weekly_schedule_reconciliation')
-                ->label(__('lecture-session.open_weekly_schedule_reconciliation'))
-                ->icon('heroicon-o-clipboard-document-check')
-                ->color('gray')
-                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                ->url(fn (): string => ScheduleImportReconciliationIndex::getUrl()),
-
-            Action::make('open_blocked_weekly_slots')
-                ->label('الخانات المحجوبة من توليد الجلسات')
-                ->icon('heroicon-o-exclamation-triangle')
-                ->color('gray')
-                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                ->url(fn (): string => BlockedWeeklySlots::getUrl()),
+                Action::make('open_lecturer_account_preparation')
+                    ->label(__('lecture-session.open_lecturer_account_preparation'))
+                    ->icon('heroicon-o-user-group')
+                    ->color('gray')
+                    ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                    ->url(fn (): string => LecturerAccountPreparation::getUrl()),
+            ])
+                ->label('الإعدادات والتحضير')
+                ->icon('heroicon-o-cog-6-tooth')
+                ->button()
+                ->extraAttributes(['class' => 'order-4'])
+                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule()),
 
             Action::make('generate_from_weekly_schedule')
                 ->label('توليد الجلسات من البرنامج الأسبوعي')
                 ->icon('heroicon-o-sparkles')
                 ->color('primary')
-                ->extraAttributes(['class' => 'order-first'])
+                ->extraAttributes(['class' => 'order-1'])
                 ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
                 ->modalHeading(__('lecture-session.generate_from_weekly_schedule_heading'))
                 ->modalDescription(__('lecture-session.generate_from_weekly_schedule_description'))
@@ -193,19 +194,40 @@ class ListLectureSessions extends ListRecords
                         ->send();
                 }),
 
-            Action::make('download_latest_generation_success_report')
-                ->label(__('lecture-session.successful_operations_report'))
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('gray')
-                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                ->action(fn (): ?BinaryFileResponse => static::downloadLatestGenerationReport('success_report')),
+            ActionGroup::make([
+                Action::make('open_weekly_schedule_reconciliation')
+                    ->label(__('lecture-session.open_weekly_schedule_reconciliation'))
+                    ->icon('heroicon-o-clipboard-document-check')
+                    ->color('gray')
+                    ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                    ->url(fn (): string => ScheduleImportReconciliationIndex::getUrl()),
 
-            Action::make('download_latest_generation_error_report')
-                ->label(__('lecture-session.error_report'))
-                ->icon('heroicon-o-exclamation-triangle')
-                ->color('gray')
-                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                ->action(fn (): ?BinaryFileResponse => static::downloadLatestGenerationReport('error_report')),
+                Action::make('open_blocked_weekly_slots')
+                    ->label('الخانات المحجوبة من توليد الجلسات')
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->color('gray')
+                    ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                    ->url(fn (): string => BlockedWeeklySlots::getUrl()),
+
+                Action::make('download_latest_generation_success_report')
+                    ->label(__('lecture-session.successful_operations_report'))
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
+                    ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                    ->action(fn (): ?BinaryFileResponse => static::downloadLatestGenerationReport('success_report')),
+
+                Action::make('download_latest_generation_error_report')
+                    ->label(__('lecture-session.error_report'))
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->color('gray')
+                    ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                    ->action(fn (): ?BinaryFileResponse => static::downloadLatestGenerationReport('error_report')),
+            ])
+                ->label('تقارير')
+                ->icon('heroicon-o-document-chart-bar')
+                ->button()
+                ->extraAttributes(['class' => 'order-3'])
+                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule()),
 
         ];
     }

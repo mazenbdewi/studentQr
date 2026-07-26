@@ -1,6 +1,8 @@
 <?php
 
 use App\Filament\Resources\LectureSessions\Pages\ListLectureSessions;
+use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\LectureSession;
 use App\Models\Subject;
@@ -14,6 +16,14 @@ beforeEach(function (): void {
     Carbon::setTestNow(Carbon::parse('2026-05-19 10:00:00'));
 
     Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
+
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'Tabs Test Term',
+        'canonical_name' => 'tabs-test-term-'.uniqid(),
+        'teaching_start_date' => '2026-05-01',
+        'teaching_end_date' => '2026-05-31',
+    ]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
 
     Filament::setCurrentPanel(Filament::getPanel('admin'));
 });
@@ -60,6 +70,7 @@ function lectureSessionTabsHall(): Hall
 function lectureSessionTabsRecord(Subject $subject, Hall $hall, array $overrides): LectureSession
 {
     return LectureSession::query()->create([
+        'academic_term_id' => AcademicTerm::query()->sole()->id,
         'subject_id' => $subject->id,
         'lecturer_id' => $subject->lecturer_id,
         'hall_id' => $hall->id,

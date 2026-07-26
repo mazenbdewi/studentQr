@@ -25,6 +25,16 @@ html[lang="ar"] body {
     font-family: "Cairo", sans-serif;
 }
 
+/* Keep grouped record-page actions inside narrow administrative viewports. */
+.fi-header-actions-ctn {
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+.fi-header-actions-ctn > .fi-ac {
+    flex-wrap: wrap;
+}
+
 
 * {
     transition: all 0.18s cubic-bezier(.4, 0, .2, 1);
