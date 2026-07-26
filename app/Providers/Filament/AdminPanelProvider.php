@@ -6,7 +6,6 @@ use Andreia\FilamentNordTheme\FilamentNordThemePlugin;
 use App\Filament\Pages\AcademicTermArchive;
 use App\Filament\Pages\AcademicTermManagement;
 use App\Filament\Pages\Auth\Login;
-use App\Filament\Pages\BlockedWeeklySlots;
 use App\Filament\Pages\DatabaseBackups;
 use App\Filament\Pages\LecturerAccountPreparation;
 use App\Filament\Pages\LecturerCredentialBatches;
@@ -97,7 +96,6 @@ class AdminPanelProvider extends PanelProvider
                 WeeklyScheduleReports::class,
                 LecturerAccountPreparation::class,
                 LecturerCredentialBatches::class,
-                BlockedWeeklySlots::class,
                 ScheduleImportReconciliationIndex::class,
                 ScheduleImportReconciliationReport::class,
                 PortalSettings::class,

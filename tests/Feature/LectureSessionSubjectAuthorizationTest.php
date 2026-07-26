@@ -261,23 +261,49 @@ it('groups lecture session header actions without writing lecture sessions', fun
 
     expect($headerActions)->toHaveCount(4)
         ->and($generationAction)->toBeInstanceOf(Action::class)
-        ->and($generationAction->getExtraAttributes()['class'] ?? null)->toBe('order-1')
         ->and($groups->map(fn (ActionGroup $group): string => (string) $group->getLabel())->all())
-        ->toBe(['إضافة', 'الإعدادات والتحضير', 'تقارير'])
+        ->toBe(['إضافة', 'تقارير', 'الإعدادات'])
         ->and($groups->mapWithKeys(fn (ActionGroup $group): array => [
             (string) $group->getLabel() => array_keys($group->getFlatActions()),
         ])->all())
         ->toBe([
             'إضافة' => ['create', 'create_recurring'],
-            'الإعدادات والتحضير' => ['configure_teaching_period', 'open_lecturer_account_preparation'],
             'تقارير' => [
                 'open_weekly_schedule_reconciliation',
                 'download_latest_generation_success_report',
-                'download_latest_generation_error_report',
             ],
+            'الإعدادات' => ['configure_teaching_period', 'open_lecturer_account_preparation'],
         ]);
 
     expect(LectureSession::query()->count())->toBe(0);
+});
+
+it('redirects the legacy blocked weekly slots URL to the current term reconciliation report', function (): void {
+    $admin = lectureSessionSuperAdmin();
+    $term = lectureSessionAcademicTerm();
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
+    $lecturer = lectureSessionLecturer('legacy-redirect-lecturer@example.com');
+    $subject = lectureSessionSubject($lecturer, 'REDIRECT101');
+    $section = $subject->sections()->create([
+        'academic_term_id' => $term->id,
+        'code' => 'R1',
+        'lecturer_id' => $lecturer->id,
+    ]);
+    $batch = lectureSessionScheduleBatch($term);
+
+    SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $batch->id,
+        'academic_term_id' => $term->id,
+        'subject_id' => $subject->id,
+        'subject_section_id' => $section->id,
+        'weekday' => 1,
+        'start_time' => '08:00',
+        'end_time' => '09:00',
+    ]);
+
+    $this->actingAs($admin)
+        ->get('/admin/blocked-weekly-slots')
+        ->assertRedirect('/admin/schedule-import-reconciliation/'.$batch->uuid);
 });
 
 it('shows the manual lecture creation header action to ordinary administrators with the explicit manual permission', function (): void {

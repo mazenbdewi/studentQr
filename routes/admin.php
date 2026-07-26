@@ -5,6 +5,7 @@ use App\Exports\Templates\HallsTemplateExport;
 use App\Exports\Templates\LectureSessionsTemplateExport;
 use App\Exports\Templates\StudentsTemplateExport;
 use App\Exports\Templates\SubjectsTemplateExport;
+use App\Http\Controllers\Admin\BlockedWeeklySlotsCompatibilityRedirectController;
 use App\Http\Controllers\Admin\DatabaseBackupDownloadController;
 use App\Http\Controllers\Admin\ManaraEnrollmentImportErrorDownloadController;
 use App\Http\Controllers\Admin\ManaraScheduleImportErrorDownloadController;
@@ -57,6 +58,10 @@ Route::middleware(['auth', 'role:super-admin|admin', 'pin.verified'])
     ->get('/admin/manara-schedule-import/errors/{fileName}', ManaraScheduleImportErrorDownloadController::class)
     ->where('fileName', 'manara-schedule-errors-[0-9]{8}-[0-9]{6}-[A-Fa-f0-9-]{36}\.xlsx')
     ->name('admin.manara-schedule-import.errors.download');
+
+Route::middleware(['auth', 'pin.verified'])
+    ->get('/admin/blocked-weekly-slots', BlockedWeeklySlotsCompatibilityRedirectController::class)
+    ->name('admin.blocked-weekly-slots.compatibility-redirect');
 
 Route::middleware(['auth', 'pin.verified'])
     ->get('/admin/schedule-import-reconciliation/{batch}/export', ScheduleImportReconciliationExportController::class)
