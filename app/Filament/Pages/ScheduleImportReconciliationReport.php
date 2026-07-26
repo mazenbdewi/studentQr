@@ -107,6 +107,10 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
     {
         return $table
             ->query(fn (): Builder => $this->queryForTab($this->activeTab))
+            ->paginated()
+            ->emptyStateHeading(fn (): string => $this->batchRecord->scheduleImportRows()->doesntExist()
+                ? 'لا توجد حالات تحتاج إلى مراجعة في عملية الاستيراد هذه.'
+                : 'تمت معالجة جميع حالات مراجعة الاستيراد بنجاح.')
             ->columns([
                 TextColumn::make('source_row_number')->label(__('schedule-import-reconciliation.fields.row'))->sortable(),
                 TextColumn::make('source_payload.subject_code')->label(__('schedule-import-reconciliation.fields.subject_code'))->searchable(),

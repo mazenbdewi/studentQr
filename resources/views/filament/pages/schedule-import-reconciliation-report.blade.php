@@ -1,4 +1,9 @@
 <x-filament-panels::page>
+    <div wire:loading class="flex items-center justify-center gap-3 rounded-xl border border-primary-200 bg-primary-50 p-4 text-primary-900 dark:border-primary-800 dark:bg-primary-950 dark:text-primary-100" role="status" dir="rtl">
+        <div class="h-5 w-5 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600"></div>
+        <span class="font-semibold">جاري تحميل تقرير مراجعة الاستيراد...</span>
+    </div>
+
     @php($counts = $this->tabCounts())
     @php($summary = $this->remediationSummary())
 

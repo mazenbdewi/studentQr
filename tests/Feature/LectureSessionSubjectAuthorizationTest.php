@@ -272,7 +272,6 @@ it('groups lecture session header actions without writing lecture sessions', fun
             'الإعدادات والتحضير' => ['configure_teaching_period', 'open_lecturer_account_preparation'],
             'تقارير' => [
                 'open_weekly_schedule_reconciliation',
-                'open_blocked_weekly_slots',
                 'download_latest_generation_success_report',
                 'download_latest_generation_error_report',
             ],

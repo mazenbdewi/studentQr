@@ -3,14 +3,17 @@
 namespace App\Filament\Pages;
 
 use App\Exports\BlockedWeeklySlotsExport;
+use App\Models\ImportBatch;
 use App\Models\LectureSessionGenerationRun;
 use App\Models\User;
 use App\Services\BlockedWeeklySlotReconciliationService;
 use App\Services\BlockedWeeklySlotReportService;
 use App\Services\GroupedHallAssignmentPreparationService;
+use App\Support\AcademicTermContext;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
@@ -23,6 +26,8 @@ class BlockedWeeklySlots extends Page
     protected static ?string $slug = 'blocked-weekly-slots';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::ExclamationTriangle;
+
+    protected static bool $shouldRegisterNavigation = false;
 
     protected string $view = 'filament.pages.blocked-weekly-slots';
 
@@ -77,6 +82,30 @@ class BlockedWeeklySlots extends Page
 
     /** @var array<string, mixed>|null */
     public ?array $groupedHallPreview = null;
+
+    public function mount(): mixed
+    {
+        abort_unless(static::canAccess(), 403);
+
+        $term = app(AcademicTermContext::class)->current();
+        $batches = $term === null ? collect() : ImportBatch::query()
+            ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
+            ->whereIn('status', [ImportBatch::STATUS_COMPLETED, ImportBatch::STATUS_COMPLETED_WITH_ERRORS])
+            ->whereHas('academicTerms', fn ($query) => $query->whereKey($term->id))
+            ->whereHas('scheduleSlots', fn ($query) => $query->where('academic_term_id', $term->id))
+            ->get();
+
+        if ($batches->count() === 1) {
+            return redirect(ScheduleImportReconciliationReport::getUrl(['batch' => $batches->first()->uuid]));
+        }
+
+        Notification::make()
+            ->title('يرجى اختيار عملية استيراد برنامج أسبوعي للفصل الدراسي الحالي.')
+            ->warning()
+            ->send();
+
+        return redirect(ScheduleImportReconciliationIndex::getUrl());
+    }
 
     public static function canAccess(): bool
     {

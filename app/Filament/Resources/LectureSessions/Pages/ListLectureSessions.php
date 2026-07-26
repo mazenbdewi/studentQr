@@ -3,13 +3,13 @@
 namespace App\Filament\Resources\LectureSessions\Pages;
 
 use App\Exports\LectureSessionGenerationReportExport;
-use App\Filament\Pages\BlockedWeeklySlots;
 use App\Filament\Pages\LecturerAccountPreparation;
-use App\Filament\Pages\ScheduleImportReconciliationIndex;
+use App\Filament\Pages\ScheduleImportReconciliationReport;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
 use App\Models\AcademicTerm;
 use App\Models\AppSetting;
 use App\Models\Hall;
+use App\Models\ImportBatch;
 use App\Models\LectureSessionGenerationRun;
 use App\Models\Subject;
 use App\Services\LectureSessionCalendarService;
@@ -233,18 +233,15 @@ class ListLectureSessions extends ListRecords
 
             ActionGroup::make([
                 Action::make('open_weekly_schedule_reconciliation')
-                    ->label(__('lecture-session.open_weekly_schedule_reconciliation'))
+                    ->label('مراجعة استيراد البرنامج الأسبوعي')
                     ->icon('heroicon-o-clipboard-document-check')
                     ->color('gray')
                     ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                    ->url(fn (): string => ScheduleImportReconciliationIndex::getUrl()),
-
-                Action::make('open_blocked_weekly_slots')
-                    ->label('الخانات المحجوبة من توليد الجلسات')
-                    ->icon('heroicon-o-exclamation-triangle')
-                    ->color('gray')
-                    ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                    ->url(fn (): string => BlockedWeeklySlots::getUrl()),
+                    ->disabled(fn (): bool => static::currentWeeklyScheduleBatch() === null)
+                    ->tooltip(fn (): ?string => static::currentWeeklyScheduleBatch() === null ? 'لا توجد عملية استيراد برنامج أسبوعي للفصل الدراسي الحالي.' : null)
+                    ->url(fn (): ?string => ($batch = static::currentWeeklyScheduleBatch()) instanceof ImportBatch
+                        ? ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid])
+                        : null),
 
                 Action::make('download_latest_generation_success_report')
                     ->label(__('lecture-session.successful_operations_report'))
@@ -733,6 +730,24 @@ class ListLectureSessions extends ListRecords
     protected static function canGenerateFromWeeklySchedule(): bool
     {
         return (bool) auth()->user()?->hasAnyRole(['super-admin', 'admin']);
+    }
+
+    protected static function currentWeeklyScheduleBatch(): ?ImportBatch
+    {
+        $term = app(AcademicTermContext::class)->current();
+
+        if (! $term instanceof AcademicTerm) {
+            return null;
+        }
+
+        $batches = ImportBatch::query()
+            ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
+            ->whereIn('status', [ImportBatch::STATUS_COMPLETED, ImportBatch::STATUS_COMPLETED_WITH_ERRORS])
+            ->whereHas('academicTerms', fn (Builder $query): Builder => $query->whereKey($term->id))
+            ->whereHas('scheduleSlots', fn (Builder $query): Builder => $query->where('academic_term_id', $term->id))
+            ->get();
+
+        return $batches->count() === 1 ? $batches->first() : null;
     }
 
     protected static function weeklyGenerationPreviewText(Get $get): string
