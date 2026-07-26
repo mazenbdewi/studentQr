@@ -14,7 +14,6 @@ use App\Models\SubjectSectionScheduleSlot;
 use App\Support\AcademicTermContext;
 use BackedEnum;
 use Filament\Actions\Action;
-use Filament\Actions\ActionGroup;
 use Filament\Facades\Filament;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
@@ -299,8 +298,6 @@ class WeeklySchedule extends Page implements HasTable
 
     protected function getHeaderActions(): array
     {
-        $queryParameters = fn (): array => array_filter($this->currentReportFilters(), fn ($value): bool => $value !== null);
-
         return [
             Action::make('import_weekly_schedule')
                 ->label('استيراد البرنامج الأسبوعي')
@@ -308,20 +305,6 @@ class WeeklySchedule extends Page implements HasTable
                 ->color('primary')
                 ->visible(fn (): bool => ManaraScheduleImport::canAccess())
                 ->url(fn (): string => ManaraScheduleImport::getUrl()),
-            ActionGroup::make([
-                Action::make('excel')
-                    ->label(__('weekly-schedule.actions.excel'))
-                    ->icon(Heroicon::ArrowDownTray)
-                    ->url(fn (): string => route('admin.weekly-schedule-reports.excel', ['type' => \App\Services\WeeklyScheduleReportService::COMPREHENSIVE, ...$queryParameters()], false)),
-                Action::make('print')
-                    ->label(__('weekly-schedule.actions.print'))
-                    ->icon(Heroicon::Printer)
-                    ->url(fn (): string => route('admin.weekly-schedule-reports.pdf', ['type' => \App\Services\WeeklyScheduleReportService::COMPREHENSIVE, ...$queryParameters()], false)),
-            ])
-                ->label('تصدير وطباعة')
-                ->icon(Heroicon::ArrowDownTray)
-                ->button()
-                ->visible(fn (): bool => Filament::auth()->user()?->can('export', SubjectSectionScheduleSlot::class) ?? false),
         ];
     }
 }
