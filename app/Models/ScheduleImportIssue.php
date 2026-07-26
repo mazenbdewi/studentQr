@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class ScheduleImportIssue extends Model
 {
@@ -121,6 +122,20 @@ class ScheduleImportIssue extends Model
             self::STATUS_INTENTIONALLY_UNSCHEDULED,
             self::STATUS_RETRY_FAILED,
         ];
+    }
+
+    public static function label(?string $issueType): string
+    {
+        if (blank($issueType)) {
+            return __('hall.not_specified');
+        }
+
+        $translationKey = 'schedule-import-reconciliation.issue_types.'.$issueType;
+        $label = __($translationKey);
+
+        return $label === $translationKey
+            ? Str::of($issueType)->replace('_', ' ')->headline()->toString()
+            : $label;
     }
 
     /** @return BelongsTo<ScheduleImportRow, $this> */

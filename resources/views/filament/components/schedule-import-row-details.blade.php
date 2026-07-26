@@ -33,6 +33,17 @@
         </section>
     @endif
 
+    @if ($row->issues?->isNotEmpty())
+        <section>
+            <h3 class="font-semibold text-gray-950 dark:text-white">{{ __('schedule-import-reconciliation.fields.issue_type') }}</h3>
+            <div class="mt-2 flex flex-wrap gap-2">
+                @foreach ($row->issues->pluck('issue_type')->unique() as $issueType)
+                    <span class="rounded-full bg-gray-100 px-3 py-1 text-gray-800 dark:bg-gray-800 dark:text-gray-100">{{ \App\Models\ScheduleImportIssue::label($issueType) }}</span>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
     <section>
         <h3 class="font-semibold text-gray-950 dark:text-white">{{ __('schedule-import-reconciliation.fields.canonical_resolution') }}</h3>
         <div class="mt-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">

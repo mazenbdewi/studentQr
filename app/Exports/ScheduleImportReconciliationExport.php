@@ -51,7 +51,7 @@ class ScheduleImportReconciliationExport implements FromCollection, WithHeadings
                         $row->isExcludedFromWeeklySchedule() ? $row->exclusion_note : null,
                         $row->isExcludedFromWeeklySchedule() ? $row->excludedFromWeeklyScheduleBy?->name : null,
                         $row->isExcludedFromWeeklySchedule() ? $row->excluded_from_weekly_schedule_at?->toDateTimeString() : null,
-                        $issue?->issue_type,
+                        ScheduleImportIssue::label($issue?->issue_type),
                         $issue?->severity,
                         $issue?->reason_ar,
                         $issue instanceof ScheduleImportIssue ? $issue->resolution_status : $row->current_reconciliation_status,

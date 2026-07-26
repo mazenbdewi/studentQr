@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Models\ScheduleImportIssue;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
@@ -24,7 +25,7 @@ class ManaraScheduleImportErrorsExport implements FromCollection, WithColumnWidt
             $error['weekday'] ?? null,
             $error['time_range'] ?? null,
             $error['error_message'] ?? null,
-            $error['issue_type'] ?? null,
+            ScheduleImportIssue::label($error['issue_type'] ?? null),
             $error['severity'] ?? null,
             $error['resolution_status'] ?? null,
             $error['resolved_subject'] ?? null,

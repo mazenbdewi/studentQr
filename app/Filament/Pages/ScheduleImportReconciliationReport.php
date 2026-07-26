@@ -114,7 +114,11 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
                 TextColumn::make('normalized_payload.section_code')->label(__('schedule-import-reconciliation.fields.normalized_section'))->badge(),
                 TextColumn::make('issues.issue_type')
                     ->label(__('schedule-import-reconciliation.fields.issue_type'))
-                    ->state(fn (ScheduleImportRow $record): string => $record->issues->pluck('issue_type')->unique()->implode('، '))
+                    ->state(fn (ScheduleImportRow $record): string => $record->issues
+                        ->pluck('issue_type')
+                        ->unique()
+                        ->map(fn (string $issueType): string => ScheduleImportIssue::label($issueType))
+                        ->implode('، '))
                     ->wrap(),
                 TextColumn::make('required_action')
                     ->label(__('schedule-import-reconciliation.fields.required_action'))
@@ -442,6 +446,7 @@ class ScheduleImportReconciliationReport extends Page implements HasTable
             ->icon(Heroicon::Eye)
             ->modalContent(fn (ScheduleImportRow $record) => view('filament.components.schedule-import-row-details', [
                 'row' => $record->load([
+                    'issues',
                     'resolvedSubject',
                     'resolvedSubjectSection',
                     'resolvedLecturer',

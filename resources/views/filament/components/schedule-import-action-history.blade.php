@@ -15,7 +15,7 @@
             </div>
             @if ($action->issue)
                 <div class="mt-2 text-gray-700 dark:text-gray-200">
-                    {{ __('schedule-import-reconciliation.fields.issue_type') }}: {{ $action->issue->issue_type }}
+                    {{ __('schedule-import-reconciliation.fields.issue_type') }}: {{ \App\Models\ScheduleImportIssue::label($action->issue->issue_type) }}
                 </div>
             @endif
             @if ($notApplicableOutcome)
