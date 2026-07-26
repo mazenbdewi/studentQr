@@ -12,6 +12,8 @@ use App\Models\Subject;
 use App\Models\SubjectSection;
 use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -302,14 +304,23 @@ it('renders weekly schedule actions without the duplicate reconciliation report 
     $component = Livewire::withQueryParams(['batch' => $batch->uuid])
         ->actingAs(weeklyScheduleUiAdmin())
         ->test(WeeklySchedule::class)
-        ->assertSee(__('weekly-schedule.actions.reports'))
+        ->assertSee('استيراد البرنامج الأسبوعي')
+        ->assertSee('تصدير وطباعة')
         ->assertSee('C1')
         ->assertDontSee('O1')
-        ->assertDontSee(__('weekly-schedule.actions.reconciliation'));
+        ->assertDontSee(__('weekly-schedule.actions.reconciliation'))
+        ->assertDontSee('مراجعة استيراد البرنامج الأسبوعي');
 
-    expect(collect($component->instance()->getCachedHeaderActions())->map(
-        fn ($action): string => $action->getName(),
-    )->all())->toBe(['reports', 'excel', 'print'])
+    $headerActions = $component->instance()->getCachedHeaderActions();
+    $exportGroup = collect($headerActions)->sole(fn (mixed $action): bool => $action instanceof ActionGroup);
+
+    expect($headerActions)->toHaveCount(2)
+        ->and($exportGroup->getLabel())->toBe('تصدير وطباعة')
+        ->and($headerActions[0]->getName())->toBe('import_weekly_schedule')
+        ->and(array_keys($exportGroup->getFlatActions()))->toBe(['excel', 'print'])
+        ->and(collect($exportGroup->getFlatActions())->map(
+            fn (Action $action): ?string => $action->getUrl(),
+        )->filter()->join(' '))->not->toContain('schedule-import-reconciliation')
         ->and([
             'batches' => ImportBatch::query()->count(),
             'slots' => SubjectSectionScheduleSlot::query()->count(),
