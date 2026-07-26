@@ -42,6 +42,7 @@ return [
         'role_granted' => 'Course lecturer role granted',
         'role_missing' => 'Course lecturer role missing',
         'missing_course_lecturer_role' => 'Missing course lecturer role',
+        'missing_login_username' => 'Missing login username',
         'ready' => 'Ready for generation',
     ],
     'readiness_filter' => [
@@ -55,6 +56,7 @@ return [
         'existing_account' => 'The account already exists and is ready.',
         'account_created' => 'The account was created.',
         'role_added' => 'The course lecturer role was added.',
+        'username_assigned' => 'The login username was assigned.',
         'skipped' => 'The item was skipped.',
         'temporary_password_reset' => 'The temporary password was reset.',
         'temporary_password_reset_after_failed_download' => 'The temporary password was reset because the previous credentials download did not complete.',

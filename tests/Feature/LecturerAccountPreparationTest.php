@@ -10,6 +10,7 @@ use App\Models\ImportBatch;
 use App\Models\Lecturer;
 use App\Models\LecturerAccountGenerationItem;
 use App\Models\LecturerAccountGenerationRun;
+use App\Models\LecturerCredentialBatch;
 use App\Models\LectureSession;
 use App\Models\Subject;
 use App\Models\SubjectSection;
@@ -189,9 +190,83 @@ it('bulk creates linked course lecturer accounts with Arabic names and nullable 
         ->and(DB::table('lecturer_account_generation_runs')->where('summary', 'like', '%'.$temporaryPassword.'%')->exists())->toBeFalse();
 });
 
+it('persists a stable approved login username for a manually created lecturer account', function (): void {
+    lecturerAccountPreparationAdmin();
+    $fixture = lecturerBulkPreparationFixture();
+
+    $user = app(LecturerAccountPreparationService::class)->createLoginAccount(
+        $fixture['lecturer'],
+        'manual-lecturer@example.test',
+        'TemporaryPassword123!',
+        'TemporaryPassword123!',
+    );
+
+    expect($user->fresh()->login_username)->toMatch('/^[a-z]+'.$user->id.'$/')
+        ->and($fixture['lecturer']->fresh()->user_id)->toBe($user->id)
+        ->and(app(PinLoginService::class)->findUserForLogin($user->fresh()->login_username)?->id)->toBe($user->id);
+});
+
+it('assigns a missing username to a linked lecturer account without changing its password', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    $user = User::factory()->create([
+        'email' => 'linked-without-username@example.test',
+        'login_username' => null,
+        'password' => Hash::make('keep-linked-password'),
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+    $user->assignRole(Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']));
+    $fixture['lecturer']->forceFill(['user_id' => $user->id])->save();
+    $passwordHash = $user->password;
+    $credentialBatchCount = LecturerCredentialBatch::query()->count();
+
+    $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+
+    expect($result['created_account_count'])->toBe(0)
+        ->and($result['credential_rows'])->toBe([])
+        ->and($user->fresh()->login_username)->toMatch('/^[a-z]+'.$user->id.'$/')
+        ->and($user->fresh()->password)->toBe($passwordHash)
+        ->and(LecturerCredentialBatch::query()->count())->toBe($credentialBatchCount)
+        ->and(LecturerAccountGenerationItem::query()->where('result', LecturerAccountGenerationItem::RESULT_USERNAME_ASSIGNED)->value('login_username'))
+        ->toBe($user->fresh()->login_username)
+        ->and(LecturerAccountGenerationItem::query()->where('result', LecturerAccountGenerationItem::RESULT_TEMPORARY_PASSWORD_RESET)->exists())
+        ->toBeFalse();
+});
+
+it('includes an assigned username in credentials exported after resetting a linked lecturer password', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    $user = User::factory()->create([
+        'email' => 'reset-without-username@example.test',
+        'login_username' => null,
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+    $user->assignRole(Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']));
+    $fixture['lecturer']->forceFill(['user_id' => $user->id])->save();
+
+    $result = app(LecturerAccountPreparationService::class)->resetTemporaryPasswords(
+        $fixture['term'],
+        collect([$fixture['lecturer']->fresh()]),
+    );
+    $spreadsheet = spreadsheetFromXlsxBytes(Excel::raw(
+        new LecturerLoginCredentialsExport($result['credential_rows']),
+        ExcelWriter::XLSX,
+    ));
+
+    expect($user->fresh()->login_username)->toMatch('/^[a-z]+'.$user->id.'$/')
+        ->and($result['credential_rows'][0]['login_username'])->toBe($user->fresh()->login_username)
+        ->and($spreadsheet->getSheetByName('بيانات دخول المدرسين')?->getCell('C2')->getValue())
+        ->toBe($user->fresh()->login_username);
+});
+
 it('exports one-time lecturer credentials as private Arabic RTL xlsx for newly created accounts only', function (): void {
     Storage::fake('public');
     $fixture = lecturerBulkPreparationFixture();
+    addBulkLecturerSlot($fixture, 213, 'مدرس جديد ثان');
     $existingLecturer = addBulkLecturerSlot($fixture, 212, 'مدرس موجود');
     $existingUser = User::factory()->create([
         'name' => 'مدرس موجود',
@@ -206,7 +281,6 @@ it('exports one-time lecturer credentials as private Arabic RTL xlsx for newly c
     $existingLecturer->forceFill(['user_id' => $existingUser->id])->save();
 
     $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
-    $temporaryPassword = $result['credential_rows'][0]['temporary_password'];
     $xlsx = Excel::raw(new LecturerLoginCredentialsExport($result['credential_rows']), ExcelWriter::XLSX);
     $spreadsheet = spreadsheetFromXlsxBytes($xlsx);
     $credentialsSheet = $spreadsheet->getSheetByName('بيانات دخول المدرسين');
@@ -221,7 +295,10 @@ it('exports one-time lecturer credentials as private Arabic RTL xlsx for newly c
         ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
     );
 
-    expect($result['credential_rows'])->toHaveCount(1)
+    $exportedRows = collect($result['credential_rows'])->values();
+    $exportedUsernames = $exportedRows->pluck('login_username');
+
+    expect($result['credential_rows'])->toHaveCount(2)
         ->and($response->headers->get('content-type'))->toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         ->and((string) $response->headers->get('content-disposition'))->toContain('.xlsx')
         ->and($credentialsSheet)->not->toBeNull()
@@ -229,13 +306,21 @@ it('exports one-time lecturer credentials as private Arabic RTL xlsx for newly c
         ->and($credentialsSheet->getRightToLeft())->toBeTrue()
         ->and($instructionsSheet->getRightToLeft())->toBeTrue()
         ->and($credentialsSheet->getCell('A1')->getValue())->toBe('الرقم')
-        ->and($credentialsSheet->getCell('B1')->getValue())->toBe('اسم المدرس بالعربية')
+        ->and($credentialsSheet->getCell('B1')->getValue())->toBe('اسم المدرس')
         ->and($credentialsSheet->getCell('C1')->getValue())->toBe('اسم الدخول')
         ->and($credentialsSheet->getCell('D1')->getValue())->toBe('كلمة المرور المؤقتة')
+        ->and($credentialsSheet->getCell('G1')->getValue())->toBe('تغيير كلمة المرور عند أول دخول')
         ->and($credentialsSheet->getCell('B2')->getValue())->toBe('محمد ابراهيم علي')
-        ->and($credentialsSheet->getCell('C2')->getValue())->toBe($result['credential_rows'][0]['login_username'])
-        ->and($credentialsSheet->getCell('D2')->getValue())->toBe($temporaryPassword)
-        ->and($credentialsSheet->getCell('B3')->getValue())->toBeNull()
+        ->and($credentialsSheet->getCell('C2')->getValue())->toBe($exportedRows[0]['login_username'])
+        ->and($credentialsSheet->getCell('D2')->getValue())->toBe($exportedRows[0]['temporary_password'])
+        ->and($credentialsSheet->getCell('G2')->getValue())->toBe('نعم')
+        ->and($credentialsSheet->getCell('C3')->getValue())->toBe($exportedRows[1]['login_username'])
+        ->and($credentialsSheet->getCell('D3')->getValue())->toBe($exportedRows[1]['temporary_password'])
+        ->and($credentialsSheet->getCell('G3')->getValue())->toBe('نعم')
+        ->and($exportedUsernames)->not->toContain('')
+        ->and($exportedUsernames->unique())->toHaveCount(2)
+        ->and($exportedRows->every(fn (array $row): bool => User::query()->where('login_username', $row['login_username'])->value('login_username') === $row['login_username']))->toBeTrue()
+        ->and($exportedRows->every(fn (array $row): bool => Hash::check($row['temporary_password'], (string) User::query()->where('login_username', $row['login_username'])->value('password'))))->toBeTrue()
         ->and($values)->toContain('يجب تغيير كلمة المرور المؤقتة عند أول تسجيل دخول.')
         ->and($values)->not->toContain('مدرس موجود')
         ->and($values)->not->toContain('existing-secret-password')
@@ -243,6 +328,30 @@ it('exports one-time lecturer credentials as private Arabic RTL xlsx for newly c
         ->and(collect($values)->filter(fn (string $value): bool => str_contains($value, '$2y$') || str_contains($value, '$argon')))->toBeEmpty()
         ->and(Storage::disk('public')->allFiles())->toBeEmpty()
         ->and($gitStatus)->toBe([]);
+});
+
+it('signs a prepared lecturer in with the exported username and temporary password before forcing a password change', function (): void {
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $fixture = lecturerBulkPreparationFixture();
+    $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+    $credential = $result['credential_rows'][0];
+    $lecturer = $fixture['lecturer']->fresh()->user;
+
+    expect($lecturer->email)->toBeNull()
+        ->and($credential['login_username'])->toBe($lecturer->login_username)
+        ->and($credential['login_username'])->not->toBeEmpty()
+        ->and(Hash::check($credential['temporary_password'], $lecturer->password))->toBeTrue();
+
+    Livewire::test(Login::class)
+        ->fillForm([
+            'email' => $credential['login_username'],
+            'password' => $credential['temporary_password'],
+        ])
+        ->call('authenticate')
+        ->assertRedirect(route('password.force-change.form'));
+
+    $this->assertAuthenticatedAs($lecturer);
+    expect($lecturer->fresh()->must_change_password)->toBeTrue();
 });
 
 it('exports lecturer account success and error reports as xlsx without plaintext passwords', function (): void {

@@ -42,6 +42,7 @@ return [
         'role_granted' => 'صلاحية مدرس مقرر ممنوحة',
         'role_missing' => 'صلاحية مدرس مقرر غير ممنوحة',
         'missing_course_lecturer_role' => 'ينقصه دور مدرس مقرر',
+        'missing_login_username' => 'ينقصه اسم دخول',
         'ready' => 'جاهز لتوليد الجلسات',
     ],
     'readiness_filter' => [
@@ -55,6 +56,7 @@ return [
         'existing_account' => 'الحساب موجود وجاهز.',
         'account_created' => 'تم إنشاء الحساب.',
         'role_added' => 'تم منح دور مدرس مقرر.',
+        'username_assigned' => 'تم تعيين اسم الدخول.',
         'skipped' => 'تم استبعاد الحالة.',
         'temporary_password_reset' => 'تمت إعادة تعيين كلمة المرور المؤقتة.',
         'temporary_password_reset_after_failed_download' => 'تمت إعادة تعيين كلمة المرور المؤقتة لأن تنزيل بيانات الدخول السابق لم يكتمل.',

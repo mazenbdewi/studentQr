@@ -13,6 +13,8 @@ class LecturerAccountGenerationItem extends Model
 
     public const RESULT_ROLE_ADDED = 'role_added';
 
+    public const RESULT_USERNAME_ASSIGNED = 'username_assigned';
+
     public const RESULT_TEMPORARY_PASSWORD_RESET = 'temporary_password_reset';
 
     public const RESULT_SKIPPED = 'skipped';

@@ -43,10 +43,24 @@ class LecturerAccountPreparationService
             ->orderBy('name')
             ->get();
 
-        $rows = $lecturers->map(function (Lecturer $lecturer): array {
+        $rows = $lecturers->map(function ($lecturer): array {
+            /** @var Lecturer $lecturer */
+            /** @var User|null $user */
+            $user = $lecturer->user;
+
             $status = $this->bulkPreparationStatus($lecturer);
-            $loginUsername = $lecturer->user_id ? $this->loginUsernameForLecturer($lecturer) : null;
+            $loginUsername = $user?->login_username;
             $blockedReason = null;
+
+            if ($status === 'needs_login_username') {
+                try {
+                    $loginUsername = $this->loginUsernameForLecturer($lecturer);
+                } catch (ValidationException) {
+                    $status = 'blocked';
+                    $blockedReason = 'invalid_login_username';
+                    $loginUsername = null;
+                }
+            }
 
             if ($status === 'needs_create' && $loginUsername !== null && $this->loginIdentifierExists($loginUsername)) {
                 $status = 'blocked';
@@ -234,9 +248,11 @@ class LecturerAccountPreparationService
                 'title' => $lecturer->title,
             ]);
 
-            $user->assignRole(User::mapDatabaseRoleToSpatieRole('course_lecturer'));
-
             $lecturer->forceFill(['user_id' => $user->id])->save();
+            $lecturer->setRelation('user', $user);
+            $this->ensureLoginUsername($lecturer, $user);
+
+            $user->assignRole(User::mapDatabaseRoleToSpatieRole('course_lecturer'));
             $this->synchronizeLecturerSections($lecturer);
 
             return $user;
@@ -302,6 +318,10 @@ class LecturerAccountPreparationService
             return 'missing_course_lecturer_role';
         }
 
+        if (blank($user->login_username)) {
+            return 'missing_login_username';
+        }
+
         return 'ready';
     }
 
@@ -323,6 +343,7 @@ class LecturerAccountPreparationService
             'ready' => 'ready',
             'missing_account' => 'needs_create',
             'missing_course_lecturer_role' => 'needs_course_lecturer_role',
+            'missing_login_username' => 'needs_login_username',
             default => 'blocked',
         };
     }
@@ -385,6 +406,26 @@ class LecturerAccountPreparationService
             return [];
         }
 
+        if ($row['status'] === 'needs_login_username') {
+            $user = $lecturer->user;
+
+            if (! $user instanceof User) {
+                throw new \RuntimeException('The lecturer account link is no longer available.');
+            }
+
+            $loginUsername = $this->ensureLoginUsername($lecturer, $user);
+            LecturerAccountGenerationItem::query()->create([
+                'run_id' => $run->id,
+                'lecturer_id' => $lecturer->id,
+                'user_id' => $user->id,
+                'login_username' => $loginUsername,
+                'result' => LecturerAccountGenerationItem::RESULT_USERNAME_ASSIGNED,
+                'message' => __('lecturer-account-preparation.results.username_assigned'),
+            ]);
+
+            return [];
+        }
+
         $temporaryPassword = $this->newTemporaryPassword($usedPlainPasswords);
         $user = User::query()->create([
             'name' => $lecturer->name,
@@ -400,9 +441,7 @@ class LecturerAccountPreparationService
         ]);
         $lecturer->forceFill(['user_id' => $user->id])->save();
         $lecturer->setRelation('user', $user);
-        $loginUsername = $this->loginUsernameForLecturer($lecturer);
-        $this->ensureLoginIdentifierAvailable($loginUsername);
-        $user->forceFill(['login_username' => $loginUsername])->save();
+        $loginUsername = $this->ensureLoginUsername($lecturer, $user);
         $user->assignRole(User::mapDatabaseRoleToSpatieRole('course_lecturer'));
         $this->synchronizeLecturerSections($lecturer);
 
@@ -505,6 +544,7 @@ class LecturerAccountPreparationService
 
     private function resetTemporaryPasswordForLinkedLecturer(Lecturer $lecturer, User $user, array &$usedPlainPasswords): array
     {
+        $this->ensureLoginUsername($lecturer, $user);
         $temporaryPassword = $this->newTemporaryPassword($usedPlainPasswords);
         $user->forceFill([
             'password' => Hash::make($temporaryPassword),
@@ -515,6 +555,23 @@ class LecturerAccountPreparationService
         $user->assignRole(User::mapDatabaseRoleToSpatieRole('course_lecturer'));
 
         return $this->credentialRow($lecturer, $user->fresh(), $temporaryPassword);
+    }
+
+    private function ensureLoginUsername(Lecturer $lecturer, User $user): string
+    {
+        $existing = strtolower(trim((string) $user->login_username));
+
+        if ($existing !== '') {
+            return $existing;
+        }
+
+        $lecturer->forceFill(['user_id' => $user->id]);
+        $lecturer->setRelation('user', $user);
+        $loginUsername = $this->loginUsernameForLecturer($lecturer);
+        $this->ensureLoginIdentifierAvailable($loginUsername);
+        $user->forceFill(['login_username' => $loginUsername])->save();
+
+        return $loginUsername;
     }
 
     private function undeliveredTemporaryPasswordLecturerIds(AcademicTerm $term): Collection
