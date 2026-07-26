@@ -315,17 +315,6 @@ class WeeklySchedule extends Page implements HasTable
                 ->icon(Heroicon::Printer)
                 ->visible(fn (): bool => Filament::auth()->user()?->can('export', SubjectSectionScheduleSlot::class) ?? false)
                 ->url(fn (): string => route('admin.weekly-schedule-reports.pdf', ['type' => \App\Services\WeeklyScheduleReportService::COMPREHENSIVE, ...$queryParameters()], false)),
-            Action::make('reconciliation')
-                ->label(__('weekly-schedule.actions.reconciliation'))
-                ->icon(Heroicon::ClipboardDocumentCheck)
-                ->url(function () use ($queryParameters): string {
-                    $batchId = $queryParameters()['import_batch_id'] ?? null;
-                    $batch = $batchId ? ImportBatch::find($batchId) : null;
-
-                    return $batch instanceof ImportBatch
-                        ? ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid])
-                        : ScheduleImportReconciliationIndex::getUrl();
-                }),
         ];
     }
 }

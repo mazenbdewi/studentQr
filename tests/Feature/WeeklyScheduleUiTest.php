@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Pages\ManaraScheduleImport;
+use App\Filament\Pages\ScheduleImportReconciliationReport;
 use App\Filament\Pages\WeeklySchedule;
 use App\Models\AcademicTerm;
 use App\Models\AppSetting;
@@ -130,7 +131,9 @@ it('shows a warning notification with result links for completed with errors', f
             __('manara-schedule-import.download_errors'),
         )
         ->and($component->get('weeklyScheduleUrl'))->toContain('weekly-schedule')->toContain($batch->uuid)
-        ->and($component->get('reconciliationUrl'))->toContain('schedule-import-reconciliation')->toContain($batch->uuid);
+        ->and($component->get('reconciliationUrl'))->toBe(
+            ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid]),
+        );
 });
 
 it('shows a danger notification only for a failed batch without an imported timetable', function (): void {
@@ -237,4 +240,82 @@ it('displays recurring weekly slots rather than dated lecture sessions and scope
         ]);
 
     $this->assertDatabaseCount('lecture_sessions', 0);
+});
+
+it('renders weekly schedule actions without the duplicate reconciliation report action or database writes', function (): void {
+    [$term, $batch] = weeklyScheduleUiBatch(ImportBatch::STATUS_COMPLETED);
+    $subject = Subject::query()->create([
+        'code' => 'CURRENT-WS-ACTION',
+        'name' => 'مادة الفصل الحالي',
+        'subject_type' => Subject::TYPE_THEORETICAL,
+        'is_active' => true,
+    ]);
+    $currentSection = SubjectSection::query()->create([
+        'academic_term_id' => $term->id,
+        'subject_id' => $subject->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'C1',
+        'raw_section_number' => '1',
+    ]);
+    SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $batch->id,
+        'academic_term_id' => $term->id,
+        'subject_id' => $subject->id,
+        'subject_section_id' => $currentSection->id,
+        'weekday' => 1,
+        'start_time' => '08:00:00',
+        'end_time' => '09:00:00',
+    ]);
+    $otherTerm = AcademicTerm::query()->create([
+        'display_name' => 'فصل آخر معزول',
+        'canonical_name' => 'other-weekly-schedule-action-term',
+    ]);
+    $otherBatch = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', 'other-weekly-schedule-action-batch'),
+        'import_type' => ImportBatch::TYPE_WEEKLY_SCHEDULE,
+        'status' => ImportBatch::STATUS_COMPLETED,
+    ]);
+    $otherBatch->academicTerms()->attach($otherTerm->id, ['row_count' => 1]);
+    $otherSection = SubjectSection::query()->create([
+        'academic_term_id' => $otherTerm->id,
+        'subject_id' => $subject->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'O1',
+        'raw_section_number' => '1',
+    ]);
+    SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $otherBatch->id,
+        'academic_term_id' => $otherTerm->id,
+        'subject_id' => $subject->id,
+        'subject_section_id' => $otherSection->id,
+        'weekday' => 1,
+        'start_time' => '10:00:00',
+        'end_time' => '11:00:00',
+    ]);
+    $before = [
+        'batches' => ImportBatch::query()->count(),
+        'slots' => SubjectSectionScheduleSlot::query()->count(),
+        'rows' => ScheduleImportRow::query()->count(),
+        'issues' => ScheduleImportIssue::query()->count(),
+    ];
+
+    $component = Livewire::withQueryParams(['batch' => $batch->uuid])
+        ->actingAs(weeklyScheduleUiAdmin())
+        ->test(WeeklySchedule::class)
+        ->assertSee(__('weekly-schedule.actions.reports'))
+        ->assertSee('C1')
+        ->assertDontSee('O1')
+        ->assertDontSee(__('weekly-schedule.actions.reconciliation'));
+
+    expect(collect($component->instance()->getCachedHeaderActions())->map(
+        fn ($action): string => $action->getName(),
+    )->all())->toBe(['reports', 'excel', 'print'])
+        ->and([
+            'batches' => ImportBatch::query()->count(),
+            'slots' => SubjectSectionScheduleSlot::query()->count(),
+            'rows' => ScheduleImportRow::query()->count(),
+            'issues' => ScheduleImportIssue::query()->count(),
+        ])->toBe($before)
+        ->and($component->instance()->getTable()->getQuery()->pluck('academic_term_id')->unique()->all())
+        ->toBe([$term->id]);
 });
