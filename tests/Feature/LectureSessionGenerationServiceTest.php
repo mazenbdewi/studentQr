@@ -14,6 +14,7 @@ use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use App\Services\LectureSessionGenerationService;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Excel as ExcelWriter;
 use Maatwebsite\Excel\Facades\Excel;
@@ -125,6 +126,24 @@ function lectureSessionGenerationFixture(array $slotOverrides = []): array
         'slot',
     );
 }
+
+it('loads persisted sessions once when previewing generation candidates', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    try {
+        $preview = app(LectureSessionGenerationService::class)->preview($fixture['term']);
+        $lectureSessionQueries = collect(DB::getQueryLog())
+            ->filter(fn (array $query): bool => str_contains($query['query'], 'lecture_sessions'));
+    } finally {
+        DB::disableQueryLog();
+    }
+
+    expect($preview['candidate_session_count'])->toBe(3)
+        ->and($lectureSessionQueries->count())->toBe(1);
+});
 
 it('generates dated sessions from weekly slots using the linked lecturer login account', function (): void {
     Carbon::setTestNow('2026-07-22 12:00:00');

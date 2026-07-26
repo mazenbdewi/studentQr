@@ -27,6 +27,9 @@ class LectureSessionGenerationService
 
     private const STATUS_CONFLICT = 'conflict';
 
+    /** @var array<int, SubjectSectionScheduleSlot> */
+    private array $reportSlots = [];
+
     public function preview(AcademicTerm $term): array
     {
         $this->ensureCurrentTerm($term);
@@ -75,6 +78,9 @@ class LectureSessionGenerationService
             ->orderBy('id')
             ->get();
 
+        $this->reportSlots = $slots->keyBy('id')->all();
+        $evaluationContext = $this->candidateEvaluationContext($dateRange['start'], $dateRange['end']);
+
         $preview['source_slot_count'] = $slots->count();
 
         foreach ($slots as $slot) {
@@ -96,7 +102,7 @@ class LectureSessionGenerationService
 
             foreach ($sessionDates as $sessionDate) {
                 $candidate = $this->candidateForSlot($slot, $sessionDate);
-                $evaluation = $this->evaluateCandidate($candidate, $plannedCandidates);
+                $evaluation = $this->evaluateCandidate($candidate, $plannedCandidates, $evaluationContext);
                 $candidate = [
                     ...$candidate,
                     ...$evaluation,
@@ -273,10 +279,14 @@ class LectureSessionGenerationService
         $errorReport = $this->sessionErrorReportRows($preview['blocked_slots'], $preview['conflicts'], $unsafeSourceSlotIds);
         $createdCount = 0;
         $skipped = $preview['already_existing_count'] + $preview['manual_existing_count'];
+        $freshEvaluationContext = $this->candidateEvaluationContext(
+            CarbonImmutable::parse($preview['teaching_start_date']),
+            CarbonImmutable::parse($preview['teaching_end_date']),
+        );
 
         foreach ($safeCandidates as $candidate) {
             try {
-                $freshEvaluation = $this->evaluateCandidate($candidate, []);
+                $freshEvaluation = $this->evaluateCandidate($candidate, [], $freshEvaluationContext);
 
                 if ($freshEvaluation['status'] === self::STATUS_ALREADY_EXISTS || $freshEvaluation['status'] === self::STATUS_MANUAL_EXISTS) {
                     $skipped++;
@@ -569,8 +579,12 @@ class LectureSessionGenerationService
         ];
     }
 
-    private function evaluateCandidate(array $candidate, array $plannedCandidates): array
+    private function evaluateCandidate(array $candidate, array $plannedCandidates, ?array $evaluationContext = null): array
     {
+        if ($evaluationContext !== null) {
+            return $this->evaluateCandidateFromContext($candidate, $plannedCandidates, $evaluationContext);
+        }
+
         $sourceExists = LectureSession::query()
             ->where('subject_section_schedule_slot_id', $candidate['source_slot_id'])
             ->whereDate('session_date', $candidate['session_date'])
@@ -616,6 +630,117 @@ class LectureSessionGenerationService
         }
 
         return ['status' => self::STATUS_TO_CREATE, 'reason' => null];
+    }
+
+    /**
+     * Loads existing sessions once for the selected teaching range, replacing the
+     * per-candidate existence and overlap queries that caused Livewire timeouts.
+     *
+     * @return array{source_dates: array<string, true>, manual_sessions: array<string, true>, sessions_by_date: array<string, array<int, LectureSession>>}
+     */
+    private function candidateEvaluationContext(CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        $sessions = LectureSession::query()
+            ->whereBetween('session_date', [$start->toDateString(), $end->toDateString()])
+            ->get([
+                'id',
+                'subject_section_schedule_slot_id',
+                'subject_id',
+                'subject_section_id',
+                'lecturer_id',
+                'hall_id',
+                'session_date',
+                'start_time',
+                'end_time',
+            ]);
+
+        $sourceDates = [];
+        $manualSessions = [];
+
+        foreach ($sessions as $session) {
+            $date = $session->session_date->toDateString();
+
+            if ($session->subject_section_schedule_slot_id !== null) {
+                $sourceDates[$session->subject_section_schedule_slot_id.'|'.$date] = true;
+
+                continue;
+            }
+
+            $manualSessions[$this->manualSessionKey([
+                'subject_id' => $session->subject_id,
+                'subject_section_id' => $session->subject_section_id,
+                'lecturer_user_id' => $session->lecturer_id,
+                'hall_id' => $session->hall_id,
+                'session_date' => $date,
+                'start_time' => (string) $session->start_time,
+                'end_time' => (string) $session->end_time,
+            ])] = true;
+        }
+
+        return [
+            'source_dates' => $sourceDates,
+            'manual_sessions' => $manualSessions,
+            'sessions_by_date' => $sessions
+                ->groupBy(fn (LectureSession $session): string => $session->session_date->toDateString())
+                ->map(fn (Collection $dateSessions): array => $dateSessions->all())
+                ->all(),
+        ];
+    }
+
+    /** @param array<string, mixed> $candidate @param array<int, array<string, mixed>> $plannedCandidates @param array{source_dates: array<string, true>, manual_sessions: array<string, true>, sessions_by_date: array<string, array<int, LectureSession>>} $evaluationContext */
+    private function evaluateCandidateFromContext(array $candidate, array $plannedCandidates, array $evaluationContext): array
+    {
+        if (isset($evaluationContext['source_dates'][$candidate['source_slot_id'].'|'.$candidate['session_date']])) {
+            return ['status' => self::STATUS_ALREADY_EXISTS, 'reason' => 'source_date_already_generated'];
+        }
+
+        if (isset($evaluationContext['manual_sessions'][$this->manualSessionKey($candidate)])) {
+            return ['status' => self::STATUS_MANUAL_EXISTS, 'reason' => 'matching_manual_session_exists'];
+        }
+
+        foreach ($evaluationContext['sessions_by_date'][$candidate['session_date']] ?? [] as $session) {
+            if (! $this->timesOverlap((string) $session->start_time, (string) $session->end_time, $candidate['start_time'], $candidate['end_time'])) {
+                continue;
+            }
+
+            if (
+                (int) $session->subject_section_id === (int) $candidate['subject_section_id']
+                || (int) $session->lecturer_id === (int) $candidate['lecturer_user_id']
+                || (int) $session->hall_id === (int) $candidate['hall_id']
+            ) {
+                return [
+                    'status' => self::STATUS_CONFLICT,
+                    'reason' => 'persisted_session_overlap',
+                    'conflicting_session_id' => $session->id,
+                ];
+            }
+        }
+
+        $plannedConflict = $this->plannedConflict($candidate, $plannedCandidates);
+
+        if ($plannedConflict !== null) {
+            return [
+                'status' => self::STATUS_CONFLICT,
+                'reason' => 'weekly_schedule_overlap',
+                'conflicting_source_slot_id' => $plannedConflict['source_slot_id'],
+            ];
+        }
+
+        return ['status' => self::STATUS_TO_CREATE, 'reason' => null];
+    }
+
+    /** @param array<string, mixed> $candidate */
+    private function manualSessionKey(array $candidate): string
+    {
+        return implode('|', [
+            $candidate['subject_id'],
+            $candidate['subject_section_id'],
+            $candidate['lecturer_user_id'],
+            $candidate['hall_id'],
+            $candidate['session_date'],
+            $candidate['start_time'],
+            $candidate['end_time'],
+        ]);
     }
 
     private function persistedConflict(array $candidate): ?LectureSession
@@ -667,11 +792,32 @@ class LectureSessionGenerationService
         return $startA < $endB && $endA > $startB;
     }
 
-    private function sessionSuccessReportRow(array $candidate, string $result): array
+    private function reportSlot(int|string|null $slotId): ?SubjectSectionScheduleSlot
     {
+        $id = (int) $slotId;
+
+        if ($id <= 0) {
+            return null;
+        }
+
+        if (isset($this->reportSlots[$id])) {
+            return $this->reportSlots[$id];
+        }
+
         $slot = SubjectSectionScheduleSlot::query()
             ->with(['subject', 'subjectSection', 'lecturer.user', 'hall'])
-            ->find($candidate['source_slot_id']);
+            ->find($id);
+
+        if ($slot instanceof SubjectSectionScheduleSlot) {
+            $this->reportSlots[$id] = $slot;
+        }
+
+        return $slot;
+    }
+
+    private function sessionSuccessReportRow(array $candidate, string $result): array
+    {
+        $slot = $this->reportSlot($candidate['source_slot_id']);
         $lecturerUser = $slot?->lecturer?->user;
 
         return [
@@ -712,9 +858,7 @@ class LectureSessionGenerationService
 
     private function sessionErrorReportRow(array $source, string $code, string $reason): array
     {
-        $slot = SubjectSectionScheduleSlot::query()
-            ->with(['subject', 'subjectSection', 'lecturer.user', 'hall'])
-            ->find($source['source_slot_id'] ?? null);
+        $slot = $this->reportSlot($source['source_slot_id'] ?? null);
 
         return [
             'الموعد الأسبوعي المصدر' => $source['source_slot_id'] ?? null,

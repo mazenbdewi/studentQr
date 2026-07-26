@@ -61,6 +61,8 @@ it('renders an action-scoped generation loading state without generating session
 
     expect($loadingView)->toContain('wire:loading')
         ->toContain('wire:target="callMountedAction"')
+        ->toContain('fixed inset-0 z-[9999] flex items-center justify-center')
+        ->toContain('backdrop-blur-sm')
         ->toContain('animate-spin')
         ->toContain('animate-pulse')
         ->toContain('عملية توليد الجلسات قيد التنفيذ')

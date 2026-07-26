@@ -1,12 +1,12 @@
 <div
     wire:loading
     wire:target="callMountedAction"
-    class="absolute inset-0 z-20 flex min-h-full items-center justify-center rounded-xl bg-white/95 p-8 text-right dark:bg-gray-950/95"
+    class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4 text-right backdrop-blur-sm"
     dir="rtl"
     role="status"
     aria-live="assertive"
 >
-    <div class="w-full max-w-lg space-y-5">
+    <div class="w-full max-w-md space-y-5 rounded-2xl bg-white p-8 text-center shadow-2xl dark:bg-gray-950">
         <div class="mx-auto h-16 w-16 animate-spin rounded-full border-4 border-primary-200 border-t-primary-600 dark:border-primary-900 dark:border-t-primary-400"></div>
 
         <div class="space-y-2 text-center">
