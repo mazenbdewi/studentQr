@@ -26,6 +26,7 @@ use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\HtmlString;
 use Maatwebsite\Excel\Excel as ExcelWriter;
 use Maatwebsite\Excel\Facades\Excel;
@@ -147,6 +148,24 @@ class ListLectureSessions extends ListRecords
                 ->modalSubmitActionLabel(__('lecture-session.generate_from_weekly_schedule_submit'))
                 ->modalWidth('4xl')
                 ->requiresConfirmation()
+                ->closeModalByClickingAway(false)
+                ->closeModalByEscaping(false)
+                ->modalCloseButton(false)
+                ->extraModalWindowAttributes(['class' => 'relative'])
+                ->modalSubmitAction(function (Action $action): Action {
+                    return $action
+                        ->label(new HtmlString('<span wire:loading.remove wire:target="callMountedAction">توليد الجلسات الجاهزة</span><span wire:loading wire:target="callMountedAction">جارٍ توليد الجلسات...</span>'))
+                        ->extraAttributes([
+                            'wire:loading.attr' => 'disabled',
+                            'wire:target' => 'callMountedAction',
+                        ]);
+                })
+                ->modalCancelAction(function (Action $action): Action {
+                    return $action->extraAttributes([
+                        'wire:loading.attr' => 'disabled',
+                        'wire:target' => 'callMountedAction',
+                    ]);
+                })
                 ->fillForm(function (): array {
                     $currentTerm = app(AcademicTermContext::class)->current();
 
@@ -165,33 +184,63 @@ class ListLectureSessions extends ListRecords
                         ->label(__('lecture-session.weekly_generation_preview'))
                         ->content(fn (Get $get): string => static::weeklyGenerationPreviewText($get))
                         ->columnSpanFull(),
+
+                    Forms\Components\Placeholder::make('weekly_generation_loading')
+                        ->hiddenLabel()
+                        ->content(fn (): HtmlString => new HtmlString(view('filament.components.lecture-session-generation-loading', [
+                            'readySessionCount' => static::weeklyGenerationReadySessionCount(),
+                        ])->render()))
+                        ->columnSpanFull(),
                 ])
                 ->action(function (array $data): void {
                     $term = app(AcademicTermContext::class)->requireCurrent();
-                    $generator = app(LectureSessionGenerationService::class);
-                    $preview = $generator->preview($term);
+                    $lock = Cache::lock('lecture-session-generation:'.$term->id, 600);
 
-                    if (! ($preview['ready_for_partial_generation'] ?? false)) {
+                    if (! $lock->get()) {
                         Notification::make()
-                            ->title(__('lecture-session.weekly_generation_not_ready_title'))
-                            ->body(static::weeklyGenerationPreviewTextForResult($preview))
-                            ->danger()
+                            ->title('توجد عملية توليد جلسات قيد التنفيذ حاليًا. يرجى الانتظار حتى اكتمالها.')
+                            ->warning()
                             ->send();
 
                         return;
                     }
 
-                    $result = $generator->generateReadySessions($term, auth()->user());
+                    try {
+                        $generator = app(LectureSessionGenerationService::class);
+                        $preview = $generator->preview($term);
 
-                    Notification::make()
-                        ->title(__('lecture-session.weekly_generation_completed_title'))
-                        ->body(__('lecture-session.weekly_generation_completed_body', [
-                            'created' => $result['created_session_count'],
-                            'skipped' => $result['skipped_session_count'],
-                            'total' => $result['candidate_session_count'],
-                        ]))
-                        ->success()
-                        ->send();
+                        if (! ($preview['ready_for_partial_generation'] ?? false)) {
+                            Notification::make()
+                                ->title(__('lecture-session.weekly_generation_not_ready_title'))
+                                ->body(static::weeklyGenerationPreviewTextForResult($preview))
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        $result = $generator->generateReadySessions($term, auth()->user());
+
+                        Notification::make()
+                            ->title('تم توليد جلسات المحاضرات بنجاح.')
+                            ->body(implode("\n", [
+                                'الجلسات الجديدة: '.$result['created_session_count'],
+                                'الجلسات الموجودة مسبقًا: '.($result['already_existing_count'] + $result['manual_existing_count']),
+                                'الجلسات المحجوبة: '.$result['blocked_slot_count'],
+                                'الحالات التي تحتاج مراجعة: '.$result['conflict_count'],
+                            ]))
+                            ->success()
+                            ->send();
+
+                        $this->resetTable();
+                    } catch (\Throwable) {
+                        Notification::make()
+                            ->title('تعذر إكمال توليد جلسات المحاضرات. لم يتم تنفيذ طلب آخر تلقائيًا. يرجى مراجعة سجل العملية ثم المحاولة مجددًا.')
+                            ->danger()
+                            ->send();
+                    } finally {
+                        $lock->release();
+                    }
                 }),
 
             ActionGroup::make([
@@ -715,6 +764,17 @@ class ListLectureSessions extends ListRecords
         return static::weeklyGenerationPreviewTextForResult(
             app(LectureSessionGenerationService::class)->preview($term),
         );
+    }
+
+    protected static function weeklyGenerationReadySessionCount(): int
+    {
+        $term = app(AcademicTermContext::class)->current();
+
+        if (! $term instanceof AcademicTerm) {
+            return 0;
+        }
+
+        return (int) app(LectureSessionGenerationService::class)->preview($term)['to_create_count'];
     }
 
     protected static function weeklyGenerationPreviewTextForResult(array $preview): string
