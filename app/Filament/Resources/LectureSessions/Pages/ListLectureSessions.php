@@ -207,18 +207,6 @@ class ListLectureSessions extends ListRecords
 
                     try {
                         $generator = app(LectureSessionGenerationService::class);
-                        $preview = $generator->preview($term);
-
-                        if (! ($preview['ready_for_partial_generation'] ?? false)) {
-                            Notification::make()
-                                ->title(__('lecture-session.weekly_generation_not_ready_title'))
-                                ->body(static::weeklyGenerationPreviewTextForResult($preview))
-                                ->danger()
-                                ->send();
-
-                            return;
-                        }
-
                         $result = $generator->generateReadySessions($term, auth()->user());
 
                         Notification::make()
