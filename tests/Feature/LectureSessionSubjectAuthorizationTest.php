@@ -250,7 +250,11 @@ it('allows super admins to create lecture sessions for any subject', function ()
 it('groups lecture session header actions without writing lecture sessions', function (): void {
     $admin = lectureSessionSuperAdmin();
 
-    $component = Livewire::actingAs($admin)->test(ListLectureSessions::class);
+    $component = Livewire::actingAs($admin)
+        ->test(ListLectureSessions::class)
+        ->assertSee('مراجعة استيراد البرنامج الأسبوعي')
+        ->assertDontSee('تقرير العمليات الناجحة')
+        ->assertDontSee('تقارير');
     $headerActions = $component->instance()->getCachedHeaderActions();
     $groups = collect($headerActions)
         ->filter(fn (mixed $action): bool => $action instanceof ActionGroup)
@@ -258,22 +262,38 @@ it('groups lecture session header actions without writing lecture sessions', fun
 
     $generationAction = collect($headerActions)
         ->first(fn (mixed $action): bool => $action instanceof Action && $action->getName() === 'generate_from_weekly_schedule');
+    $reconciliationAction = collect($headerActions)
+        ->first(fn (mixed $action): bool => $action instanceof Action && $action->getName() === 'open_weekly_schedule_reconciliation');
 
     expect($headerActions)->toHaveCount(4)
         ->and($generationAction)->toBeInstanceOf(Action::class)
+        ->and($reconciliationAction)->toBeInstanceOf(Action::class)
         ->and($groups->map(fn (ActionGroup $group): string => (string) $group->getLabel())->all())
-        ->toBe(['إضافة', 'تقارير', 'الإعدادات'])
+        ->toBe(['إضافة', 'الإعدادات'])
         ->and($groups->mapWithKeys(fn (ActionGroup $group): array => [
             (string) $group->getLabel() => array_keys($group->getFlatActions()),
         ])->all())
         ->toBe([
             'إضافة' => ['create', 'create_recurring'],
-            'تقارير' => [
-                'open_weekly_schedule_reconciliation',
-                'download_latest_generation_success_report',
-            ],
             'الإعدادات' => ['configure_teaching_period', 'open_lecturer_account_preparation'],
-        ]);
+        ])
+        ->and(array_map(
+            fn (Action|ActionGroup $action): string => $action instanceof ActionGroup
+                ? (string) $action->getLabel()
+                : $action->getName(),
+            $headerActions,
+        ))
+        ->toBe([
+            'generate_from_weekly_schedule',
+            'إضافة',
+            'open_weekly_schedule_reconciliation',
+            'الإعدادات',
+        ])
+        ->and(collect($headerActions)->contains(
+            fn (Action|ActionGroup $action): bool => $action instanceof Action
+                && $action->getName() === 'download_latest_generation_success_report',
+        ))
+        ->toBeFalse();
 
     expect(LectureSession::query()->count())->toBe(0);
 });

@@ -116,3 +116,23 @@ it('releases the term-scoped generation lock on either completion path', functio
         ->toContain('$lock->release();')
         ->toContain('تعذر إكمال توليد جلسات المحاضرات. لم يتم تنفيذ طلب آخر تلقائيًا. يرجى مراجعة سجل العملية ثم المحاولة مجددًا.');
 });
+
+it('renders the simplified header without changing generation-run audit records', function (): void {
+    $admin = lectureSessionGenerationLoadingAdmin();
+    $term = lectureSessionGenerationLoadingTerm();
+    $run = LectureSessionGenerationRun::query()->create([
+        'academic_term_id' => $term->id,
+        'teaching_start_date' => $term->teaching_start_date,
+        'teaching_end_date' => $term->teaching_end_date,
+        'status' => 'completed',
+        'summary' => ['success_report' => [['رقم الجلسة' => 1]]],
+        'started_at' => now()->subMinute(),
+        'completed_at' => now()->subMinute(),
+    ]);
+    $before = LectureSessionGenerationRun::query()->count();
+
+    Livewire::actingAs($admin)->test(ListLectureSessions::class);
+
+    expect(LectureSessionGenerationRun::query()->count())->toBe($before)
+        ->and(LectureSessionGenerationRun::query()->find($run->id))->not->toBeNull();
+});

@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\LectureSessions\Pages;
 
-use App\Exports\LectureSessionGenerationReportExport;
 use App\Filament\Pages\LecturerAccountPreparation;
 use App\Filament\Pages\ScheduleImportReconciliationReport;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
@@ -10,7 +9,6 @@ use App\Models\AcademicTerm;
 use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\ImportBatch;
-use App\Models\LectureSessionGenerationRun;
 use App\Models\Subject;
 use App\Services\LectureSessionCalendarService;
 use App\Services\LectureSessionGenerationService;
@@ -28,9 +26,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\HtmlString;
-use Maatwebsite\Excel\Excel as ExcelWriter;
-use Maatwebsite\Excel\Facades\Excel;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ListLectureSessions extends ListRecords
 {
@@ -132,10 +127,9 @@ class ListLectureSessions extends ListRecords
                         Notification::make()
                             ->title('تم توليد جلسات المحاضرات بنجاح.')
                             ->body(implode("\n", [
-                                'الجلسات الجديدة: '.$result['created_session_count'],
-                                'الجلسات الموجودة مسبقًا: '.($result['already_existing_count'] + $result['manual_existing_count']),
-                                'الجلسات المحجوبة: '.$result['blocked_slot_count'],
-                                'الحالات التي تحتاج مراجعة: '.$result['conflict_count'],
+                                '• الجلسات الجديدة: '.$result['created_session_count'],
+                                '• الجلسات الموجودة مسبقًا: '.($result['already_existing_count'] + $result['manual_existing_count']),
+                                '• الحالات التي تحتاج مراجعة: '.$result['conflict_count'],
                             ]))
                             ->success()
                             ->send();
@@ -165,29 +159,16 @@ class ListLectureSessions extends ListRecords
                 ->button()
                 ->visible(fn (): bool => LectureSessionResource::canCreate()),
 
-            ActionGroup::make([
-                Action::make('open_weekly_schedule_reconciliation')
-                    ->label('مراجعة استيراد البرنامج الأسبوعي')
-                    ->icon('heroicon-o-clipboard-document-check')
-                    ->color('gray')
-                    ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                    ->disabled(fn (): bool => static::currentWeeklyScheduleBatch() === null)
-                    ->tooltip(fn (): ?string => static::currentWeeklyScheduleBatch() === null ? 'لا توجد عملية استيراد برنامج أسبوعي للفصل الدراسي الحالي.' : null)
-                    ->url(fn (): ?string => ($batch = static::currentWeeklyScheduleBatch()) instanceof ImportBatch
-                        ? ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid])
-                        : null),
-
-                Action::make('download_latest_generation_success_report')
-                    ->label(__('lecture-session.successful_operations_report'))
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->color('gray')
-                    ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                    ->action(fn (): ?BinaryFileResponse => static::downloadLatestGenerationReport('success_report')),
-            ])
-                ->label('تقارير')
-                ->icon('heroicon-o-document-chart-bar')
-                ->button()
-                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule()),
+            Action::make('open_weekly_schedule_reconciliation')
+                ->label('مراجعة استيراد البرنامج الأسبوعي')
+                ->icon('heroicon-o-clipboard-document-check')
+                ->color('gray')
+                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
+                ->disabled(fn (): bool => static::currentWeeklyScheduleBatch() === null)
+                ->tooltip(fn (): ?string => static::currentWeeklyScheduleBatch() === null ? 'لا توجد عملية استيراد برنامج أسبوعي للفصل الدراسي الحالي.' : null)
+                ->url(fn (): ?string => ($batch = static::currentWeeklyScheduleBatch()) instanceof ImportBatch
+                    ? ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid])
+                    : null),
 
             ActionGroup::make([
                 Action::make('configure_teaching_period')
@@ -808,32 +789,5 @@ class ListLectureSessions extends ListRecords
         return $summary."\n".__('lecture-session.weekly_generation_preview_blocked', [
             'issues' => $issues !== '' ? $issues : __('lecture-session.not_available'),
         ]);
-    }
-
-    protected static function downloadLatestGenerationReport(string $key): ?BinaryFileResponse
-    {
-        $run = LectureSessionGenerationRun::query()
-            ->latest('completed_at')
-            ->latest('id')
-            ->first();
-        $rows = $run?->summary[$key] ?? [];
-
-        if ($rows === []) {
-            Notification::make()
-                ->title(__('lecture-session.not_available'))
-                ->warning()
-                ->send();
-
-            return null;
-        }
-
-        $success = $key === 'success_report';
-
-        return Excel::download(
-            $success ? LectureSessionGenerationReportExport::success($rows) : LectureSessionGenerationReportExport::errors($rows),
-            $success ? 'lecture-session-generation-success.xlsx' : 'lecture-session-generation-errors.xlsx',
-            ExcelWriter::XLSX,
-            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-        );
     }
 }
