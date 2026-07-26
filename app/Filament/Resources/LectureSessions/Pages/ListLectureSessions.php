@@ -14,6 +14,7 @@ use App\Models\LectureSessionGenerationRun;
 use App\Models\Subject;
 use App\Services\LectureSessionCalendarService;
 use App\Services\LectureSessionGenerationService;
+use App\Support\AcademicTermContext;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms;
@@ -71,24 +72,23 @@ class ListLectureSessions extends ListRecords
                 ->modalHeading(__('lecture-session.configure_teaching_period_heading'))
                 ->modalDescription(__('lecture-session.configure_teaching_period_description'))
                 ->modalSubmitActionLabel(__('lecture-session.configure_teaching_period_submit'))
-                ->form([
-                    Forms\Components\Select::make('academic_term_id')
-                        ->label(__('lecture-session.academic_term'))
-                        ->options(fn (): array => AcademicTerm::query()
-                            ->orderByDesc('id')
-                            ->pluck('display_name', 'id')
-                            ->all())
-                        ->searchable()
-                        ->preload()
-                        ->native(false)
-                        ->live()
-                        ->afterStateUpdated(function (callable $set, mixed $state): void {
-                            $term = $state ? AcademicTerm::query()->find($state) : null;
+                ->fillForm(function (): array {
+                    $currentTerm = app(AcademicTermContext::class)->current();
 
-                            $set('teaching_start_date', $term?->teaching_start_date?->toDateString());
-                            $set('teaching_end_date', $term?->teaching_end_date?->toDateString());
+                    return [
+                        'teaching_start_date' => $currentTerm?->teaching_start_date?->toDateString(),
+                        'teaching_end_date' => $currentTerm?->teaching_end_date?->toDateString(),
+                    ];
+                })
+                ->form([
+                    Forms\Components\Placeholder::make('current_academic_term')
+                        ->label(__('lecture-session.academic_term'))
+                        ->content(function (): string {
+                            $currentTerm = app(AcademicTermContext::class)->current();
+
+                            return $currentTerm ? $currentTerm->display_name : 'لا يوجد فصل دراسي حالي محدد.';
                         })
-                        ->required(),
+                        ->badge(),
 
                     Forms\Components\DatePicker::make('teaching_start_date')
                         ->label(__('lecture-session.teaching_start_date'))
@@ -101,8 +101,8 @@ class ListLectureSessions extends ListRecords
                         ->required(),
                 ])
                 ->action(function (array $data): void {
-                    AcademicTerm::query()
-                        ->findOrFail($data['academic_term_id'])
+                    app(AcademicTermContext::class)
+                        ->requireCurrent()
                         ->update([
                             'teaching_start_date' => $data['teaching_start_date'],
                             'teaching_end_date' => $data['teaching_end_date'],
@@ -136,27 +136,29 @@ class ListLectureSessions extends ListRecords
                 ->url(fn (): string => BlockedWeeklySlots::getUrl()),
 
             Action::make('generate_from_weekly_schedule')
-                ->label(__('lecture-session.generate_from_weekly_schedule'))
+                ->label('توليد الجلسات من البرنامج الأسبوعي')
                 ->icon('heroicon-o-sparkles')
-                ->color('success')
+                ->color('primary')
+                ->extraAttributes(['class' => 'order-first'])
                 ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
                 ->modalHeading(__('lecture-session.generate_from_weekly_schedule_heading'))
                 ->modalDescription(__('lecture-session.generate_from_weekly_schedule_description'))
                 ->modalSubmitActionLabel(__('lecture-session.generate_from_weekly_schedule_submit'))
                 ->modalWidth('4xl')
                 ->requiresConfirmation()
+                ->fillForm(function (): array {
+                    $currentTerm = app(AcademicTermContext::class)->current();
+
+                    return ['academic_term_id' => $currentTerm?->id];
+                })
                 ->form([
-                    Forms\Components\Select::make('academic_term_id')
-                        ->label(__('lecture-session.academic_term'))
-                        ->options(fn (): array => AcademicTerm::query()
-                            ->orderByDesc('id')
-                            ->pluck('display_name', 'id')
-                            ->all())
-                        ->searchable()
-                        ->preload()
-                        ->native(false)
-                        ->live()
+                    Forms\Components\Hidden::make('academic_term_id')
                         ->required(),
+
+                    Forms\Components\Placeholder::make('current_academic_term')
+                        ->label(__('lecture-session.academic_term'))
+                        ->content(fn (): string => app(AcademicTermContext::class)->requireCurrent()->display_name)
+                        ->badge(),
 
                     Forms\Components\Placeholder::make('weekly_generation_preview')
                         ->label(__('lecture-session.weekly_generation_preview'))
@@ -164,7 +166,7 @@ class ListLectureSessions extends ListRecords
                         ->columnSpanFull(),
                 ])
                 ->action(function (array $data): void {
-                    $term = AcademicTerm::query()->findOrFail($data['academic_term_id']);
+                    $term = app(AcademicTermContext::class)->requireCurrent();
                     $generator = app(LectureSessionGenerationService::class);
                     $preview = $generator->preview($term);
 

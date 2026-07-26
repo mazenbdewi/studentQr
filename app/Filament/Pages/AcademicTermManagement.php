@@ -38,7 +38,7 @@ class AcademicTermManagement extends Page
 
     public function getTitle(): string
     {
-        return 'إدارة الفصل الدراسي الحالي';
+        return 'إدارة الفصل الدراسي النشط';
     }
 
     protected function getHeaderActions(): array
@@ -49,7 +49,7 @@ class AcademicTermManagement extends Page
     public function activateAction(): Action
     {
         return Action::make('activate')
-            ->label('تعيين هذا الفصل كفصل دراسي حالي')
+            ->label('تعيين  الفصل الدراسي النشط')
             ->requiresConfirmation()
             ->schema([
                 Select::make('term')
@@ -57,7 +57,7 @@ class AcademicTermManagement extends Page
                     ->options(fn (): array => AcademicTerm::query()->orderByDesc('id')->pluck('display_name', 'id')->all())
                     ->required(),
             ])
-            ->modalHeading('تعيين هذا الفصل كفصل دراسي حالي')
+            ->modalHeading('تعيين هذا الفصل كفصل دراسي نشط ')
             ->modalDescription('سيتم إخفاء بيانات الفصل الحالي من صفحات التشغيل اليومية، لكنها ستبقى محفوظة في الأرشيف ولن يتم حذف حسابات المستخدمين أو تغيير كلمات مرورهم.')
             ->action(function (array $data, array $arguments): void {
                 $term = AcademicTerm::query()->findOrFail($arguments['term'] ?? $data['term'] ?? null);
