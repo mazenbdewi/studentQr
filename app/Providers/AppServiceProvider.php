@@ -54,6 +54,7 @@ class AppServiceProvider extends ServiceProvider
     private function configurePolicies(): void
     {
         Gate::before(fn ($user): ?bool => $user->isSuperAdmin() ? true : null);
+        Gate::define('manageAcademicTerms', fn ($user): bool => $user->isAdmin());
 
         foreach ($this->policies as $model => $policy) {
             Gate::policy($model, $policy);

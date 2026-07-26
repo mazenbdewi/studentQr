@@ -2,7 +2,6 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\AcademicTerm;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\Hall;
@@ -12,6 +11,7 @@ use App\Models\ScheduleImportIssue;
 use App\Models\ScheduleImportRow;
 use App\Models\Subject;
 use App\Models\SubjectSectionScheduleSlot;
+use App\Support\AcademicTermContext;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -79,10 +79,15 @@ class WeeklySchedule extends Page implements HasTable
         return __('weekly-schedule.title');
     }
 
+    public function currentTermWarning(): ?string
+    {
+        return app(AcademicTermContext::class)->current() ? null : 'لا يوجد فصل دراسي حالي محدد. يرجى تعيين الفصل الدراسي الحالي.';
+    }
+
     public function table(Table $table): Table
     {
         return $table
-            ->query(SubjectSectionScheduleSlot::query()->with([
+            ->query(SubjectSectionScheduleSlot::query()->forCurrentAcademicTerm()->with([
                 'academicTerm',
                 'subject.department.faculty',
                 'subjectSection',
@@ -155,11 +160,6 @@ class WeeklySchedule extends Page implements HasTable
                     ->wrap(),
             ])
             ->filters([
-                SelectFilter::make('academic_term_id')
-                    ->label(__('weekly-schedule.filters.academic_term'))
-                    ->options(fn (): array => AcademicTerm::query()->orderByDesc('id')->pluck('display_name', 'id')->all())
-                    ->searchable()
-                    ->preload(),
                 SelectFilter::make('faculty_id')
                     ->label(__('weekly-schedule.filters.faculty'))
                     ->options(fn (): array => Faculty::query()->withoutTrashed()->orderBy('name')->pluck('name', 'id')->all())

@@ -2,6 +2,7 @@
 
 use App\Exports\LectureSessionGenerationReportExport;
 use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\ImportBatch;
 use App\Models\Lecturer;
@@ -26,6 +27,7 @@ function lectureSessionGenerationFixture(array $slotOverrides = []): array
         'teaching_start_date' => '2026-09-07',
         'teaching_end_date' => '2026-09-21',
     ]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
 
     $admin = User::factory()->create([
         'role' => 'super_admin',

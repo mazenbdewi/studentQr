@@ -29,6 +29,7 @@ class LectureSessionGenerationService
 
     public function preview(AcademicTerm $term): array
     {
+        $this->ensureCurrentTerm($term);
         $term->refresh();
 
         $dateRange = $this->dateRange($term);
@@ -344,6 +345,14 @@ class LectureSessionGenerationService
             'success_report' => $successReport,
             'error_report' => $errorReport,
         ];
+    }
+
+    private function ensureCurrentTerm(AcademicTerm $term): void
+    {
+        $currentId = app(\App\Support\AcademicTermContext::class)->currentId();
+        if ($currentId === null || $currentId !== (int) $term->id) {
+            throw ValidationException::withMessages(['academic_term_id' => 'لا يمكن إنشاء جلسات إلا للفصل الدراسي الحالي.']);
+        }
     }
 
     /** @return array{start: ?CarbonImmutable, end: ?CarbonImmutable} */

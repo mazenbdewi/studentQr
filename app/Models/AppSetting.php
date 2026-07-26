@@ -6,10 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class AppSetting extends Model
 {
+    public const CURRENT_ACADEMIC_TERM_ID_KEY = 'current_academic_term_id';
+
     public const DEFAULT_QR_REFRESH_RATE_KEY = 'default_qr_refresh_rate';
+
     public const LECTURER_CAN_EDIT_LECTURE_SESSIONS_KEY = 'lecturer_can_edit_lecture_sessions';
+
     public const LECTURER_CAN_DELETE_LECTURE_SESSIONS_KEY = 'lecturer_can_delete_lecture_sessions';
+
     public const FALLBACK_QR_REFRESH_RATE = 120;
+
     public const MIN_QR_REFRESH_RATE = 10;
 
     protected $fillable = [
@@ -75,5 +81,12 @@ class AppSetting extends Model
     public static function lecturerCanDeleteLectureSessions(): bool
     {
         return self::boolean(self::LECTURER_CAN_DELETE_LECTURE_SESSIONS_KEY);
+    }
+
+    public static function currentAcademicTermId(): ?int
+    {
+        $id = self::integer(self::CURRENT_ACADEMIC_TERM_ID_KEY);
+
+        return $id > 0 ? $id : null;
     }
 }

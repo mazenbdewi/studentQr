@@ -37,7 +37,7 @@ class SubjectsRelationManager extends RelationManager
         return $table
             ->modelLabel(__('enrollments.singular'))
             ->pluralModelLabel(__('enrollments.plural'))
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->forCurrentAcademicTerm()->with([
                 'subject',
                 'academicTerm',
                 'theoreticalSection',
@@ -100,11 +100,6 @@ class SubjectsRelationManager extends RelationManager
                     ->label(__('enrollments.status'))
                     ->options(Enrollment::statusOptions()),
 
-                Tables\Filters\SelectFilter::make('academic_term_id')
-                    ->label(__('enrollments.academic_term'))
-                    ->relationship('academicTerm', 'display_name')
-                    ->searchable()
-                    ->preload(),
             ])
             ->headerActions([
                 CreateAction::make()

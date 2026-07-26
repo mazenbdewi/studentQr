@@ -509,6 +509,7 @@ class LectureSessionResource extends Resource
         LectureSession::syncExpiredSessions();
 
         $query = parent::getEloquentQuery()
+            ->forCurrentAcademicTerm()
             ->with(['subject', 'subjectSection', 'lecturer', 'hall'])
             ->withCount([
                 'attendances as actual_attendance_count' => fn (Builder $query) => $query

@@ -15,6 +15,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class AttendanceResource extends Resource
 {
@@ -24,7 +25,6 @@ class AttendanceResource extends Resource
 
     // protected static ?string $recordTitleAttribute = 'Attendance';
     protected static ?string $recordTitleAttribute = 'id';
-
 
     public static function getModelLabel(): string
     {
@@ -48,9 +48,8 @@ class AttendanceResource extends Resource
 
     public static function getRecordTitle($record): ?string
     {
-        return __('attendance.record_title') . ' #' . $record->id;
+        return __('attendance.record_title').' #'.$record->id;
     }
-
 
     public static function form(Schema $schema): Schema
     {
@@ -65,6 +64,12 @@ class AttendanceResource extends Resource
     public static function table(Table $table): Table
     {
         return AttendancesTable::configure($table);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->whereHas('lectureSession', fn (Builder $query) => $query->forCurrentAcademicTerm());
     }
 
     public static function getRelations(): array
@@ -83,9 +88,9 @@ class AttendanceResource extends Resource
             'edit' => EditAttendance::route('/{record}/edit'),
         ];
     }
+
     public static function canAccess(): bool
     {
         return auth()->user()->hasAnyRole(['super-admin', 'admin', 'manager', 'course_lecturer']);
     }
-
 }

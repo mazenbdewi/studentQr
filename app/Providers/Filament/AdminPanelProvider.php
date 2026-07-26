@@ -3,6 +3,8 @@
 namespace App\Providers\Filament;
 
 use Andreia\FilamentNordTheme\FilamentNordThemePlugin;
+use App\Filament\Pages\AcademicTermArchive;
+use App\Filament\Pages\AcademicTermManagement;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\BlockedWeeklySlots;
 use App\Filament\Pages\DatabaseBackups;
@@ -87,6 +89,8 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->pages([
                 Dashboard::class,
+                AcademicTermManagement::class,
+                AcademicTermArchive::class,
                 ManaraEnrollmentImport::class,
                 ManaraScheduleImport::class,
                 WeeklySchedule::class,

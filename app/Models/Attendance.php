@@ -3,21 +3,24 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Attendance extends Model
 {
-    public function lectureSession()
+    /** @return BelongsTo<LectureSession, $this> */
+    public function lectureSession(): BelongsTo
     {
         return $this->belongsTo(LectureSession::class)->withTrashed();
     }
 
-    public function student()
+    /** @return BelongsTo<Student, $this> */
+    public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class)->withTrashed();
     }
 
-//     public function student()
-// {
-//     return $this->belongsTo(Student::class, 'student_id');
-// }
+    //     public function student()
+    // {
+    //     return $this->belongsTo(Student::class, 'student_id');
+    // }
 }

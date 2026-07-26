@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -65,5 +66,17 @@ class SubjectSectionScheduleSlot extends Model
     public function lectureSessions(): HasMany
     {
         return $this->hasMany(LectureSession::class, 'subject_section_schedule_slot_id');
+    }
+
+    public function scopeForAcademicTerm(Builder $query, int $academicTermId): Builder
+    {
+        return $query->where('academic_term_id', $academicTermId);
+    }
+
+    public function scopeForCurrentAcademicTerm(Builder $query): Builder
+    {
+        $id = app(\App\Support\AcademicTermContext::class)->currentId();
+
+        return $id === null ? $query->whereRaw('1 = 0') : $this->scopeForAcademicTerm($query, $id);
     }
 }

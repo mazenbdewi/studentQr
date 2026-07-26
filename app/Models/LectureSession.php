@@ -72,6 +72,18 @@ class LectureSession extends Model
         });
     }
 
+    public function scopeForAcademicTerm(Builder $query, int $academicTermId): Builder
+    {
+        return $query->where('academic_term_id', $academicTermId);
+    }
+
+    public function scopeForCurrentAcademicTerm(Builder $query): Builder
+    {
+        $id = app(\App\Support\AcademicTermContext::class)->currentId();
+
+        return $id === null ? $query->whereRaw('1 = 0') : $this->scopeForAcademicTerm($query, $id);
+    }
+
     public function canManageQr(?Authenticatable $user): bool
     {
         if (! $user instanceof User) {
