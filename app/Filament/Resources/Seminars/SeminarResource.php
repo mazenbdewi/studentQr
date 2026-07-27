@@ -42,6 +42,31 @@ class SeminarResource extends Resource
         return 25;
     }
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canViewAny(): bool
+    {
+        return auth()->user()?->hasAnyRole(['super-admin', 'admin', 'manager']) ?? false;
+    }
+
+    public static function canCreate(): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canEdit($record): bool
+    {
+        return static::canViewAny();
+    }
+
+    public static function canDelete($record): bool
+    {
+        return static::canViewAny();
+    }
+
     public static function getModelLabel(): string
     {
         return __('teacher.seminar');
@@ -216,16 +241,12 @@ class SeminarResource extends Resource
     {
         $query = parent::getEloquentQuery();
 
-        if (auth()->user()?->hasRole('course_lecturer')) {
-            $query->where('created_by', auth()->id());
-        }
-
         return $query;
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole(['super-admin', 'admin', 'manager', 'course_lecturer']) ?? false;
+        return static::canViewAny();
     }
 
     protected static function registrationFieldOptions(): array
