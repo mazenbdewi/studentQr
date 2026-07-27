@@ -30,8 +30,8 @@ it('shows direct upload progress and no academic term selector', function (): vo
         ->assertHasFormErrors(['file'])
         ->assertSee(__('manara-schedule-import.upload_loading'))
         ->assertSee(__('manara-schedule-import.import_loading'))
-        ->assertSee('المرحلة الثالثة: تهيئة حسابات المستخدمين')
-        ->assertSee('تهيئة حسابات المستخدمين')
+        ->assertDontSee('المرحلة الثالثة: تهيئة حسابات المستخدمين')
+        ->assertDontSee('تهيئة حسابات المستخدمين')
         ->assertDontSee('academic_term_id');
 });
 

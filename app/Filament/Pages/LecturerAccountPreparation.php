@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Exports\LecturerAccountReportExport;
+use App\Exports\LecturerLoginCredentialsExport;
 use App\Models\AcademicTerm;
 use App\Models\Lecturer;
 use App\Models\LecturerAccountGenerationItem;
@@ -121,6 +122,7 @@ class LecturerAccountPreparation extends Page implements HasTable
                     }),
             ])
             ->headerActions([
+                $this->createBulkAccountsAction(),
                 $this->previewBulkPreparationAction(),
                 $this->downloadLatestSuccessReportAction(),
                 $this->downloadLatestErrorReportAction(),
@@ -160,6 +162,52 @@ class LecturerAccountPreparation extends Page implements HasTable
                     ->content(fn (Get $get): string => $this->bulkPreparationPreviewText($get))
                     ->columnSpanFull(),
             ]);
+    }
+
+    private function createBulkAccountsAction(): Action
+    {
+        return Action::make('create-bulk-lecturer-accounts')
+            ->label('تهيئة حسابات المستخدمين')
+            ->icon('heroicon-o-user-plus')
+            ->color('success')
+            ->requiresConfirmation()
+            ->modalHeading('تهيئة حسابات المستخدمين')
+            ->modalSubmitActionLabel('تهيئة حسابات المستخدمين')
+            ->closeModalByClickingAway(false)
+            ->closeModalByEscaping(false)
+            ->form([
+                Forms\Components\Select::make('academic_term_id')
+                    ->label(__('lecture-session.academic_term'))
+                    ->options(fn (): array => AcademicTerm::query()->orderByDesc('id')->pluck('display_name', 'id')->all())
+                    ->default(fn (): ?int => app(\App\Support\AcademicTermContext::class)->currentId())
+                    ->searchable()->preload()->native(false)->required(),
+                Forms\Components\Placeholder::make('bulk_account_preparation_preview')
+                    ->label(__('lecturer-account-preparation.actions.preview_bulk_preparation'))
+                    ->content(fn (Get $get): string => $this->bulkPreparationPreviewText($get))
+                    ->columnSpanFull(),
+                \Filament\Schemas\Components\View::make('filament.components.lecturer-account-generation-loading')->columnSpanFull(),
+            ])
+            ->action(function (array $data): ?BinaryFileResponse {
+                try {
+                    $term = AcademicTerm::query()->findOrFail($data['academic_term_id']);
+                    $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($term, Filament::auth()->user());
+                    Notification::make()->title('تمت تهيئة حسابات المستخدمين')->body(__('lecturer-account-preparation.bulk_completed_body', [
+                        'created' => $result['created_account_count'], 'roles' => $result['granted_role_count'], 'blocked' => $result['blocked_count'],
+                    ]))->success()->send();
+
+                    return $result['credential_rows'] === [] ? null : Excel::download(
+                        new LecturerLoginCredentialsExport($result['credential_rows']),
+                        'lecturer-login-credentials-'.$this->safeFilenameSegment($term->display_name).'-'.now()->format('Ymd-His').'.xlsx',
+                        ExcelWriter::XLSX,
+                    );
+                } catch (\RuntimeException $exception) {
+                    Notification::make()->title($exception->getMessage())->warning()->send();
+                } catch (\Throwable) {
+                    Notification::make()->title('تعذر إكمال تهيئة الحسابات. يمكن المحاولة مجددًا.')->danger()->send();
+                }
+
+                return null;
+            });
     }
 
     private function resetLecturerPasswordsBulkAction(): BulkAction
@@ -337,5 +385,12 @@ class LecturerAccountPreparation extends Page implements HasTable
             ExcelWriter::XLSX,
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
         );
+    }
+
+    private function safeFilenameSegment(string $value): string
+    {
+        $segment = preg_replace('/[^\pL\pN\-]+/u', '-', $value) ?: 'academic-term';
+
+        return trim($segment, '-') ?: 'academic-term';
     }
 }

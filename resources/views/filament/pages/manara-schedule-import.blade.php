@@ -174,29 +174,5 @@
             </div>
         @endif
 
-        <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-            <h2 class="text-base font-semibold text-gray-950 dark:text-white">المرحلة الثالثة: تهيئة حسابات المستخدمين</h2>
-            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">إنشاء أو استكمال حسابات المستخدمين الناتجين عن عملية الاستيراد، وتجهيز أسماء المستخدمين وكلمات المرور المؤقتة عند الحاجة.</p>
-
-            @if ($accountsPrepared)
-                <span class="mt-4 inline-flex rounded-full bg-success-100 px-3 py-1 text-xs font-semibold text-success-800 dark:bg-success-900 dark:text-success-200">تمت تهيئة حسابات المستخدمين</span>
-            @elseif ($this->hasNoAccountsNeedingPreparation())
-                <div class="mt-4 rounded-md border border-success-200 bg-success-50 p-3 text-sm font-semibold text-success-800 dark:border-success-800 dark:bg-success-950 dark:text-success-200">لا توجد حسابات تحتاج إلى التهيئة.</div>
-            @endif
-
-            <div class="mt-4">
-                <x-filament::button
-                    wire:click="prepareUserAccounts"
-                    wire:target="prepareUserAccounts"
-                    wire:loading.attr="disabled"
-                    :disabled="! $this->canPrepareUserAccounts() || $accountsPrepared"
-                    icon="heroicon-o-user-plus"
-                    color="success"
-                >
-                    <span wire:loading.remove wire:target="prepareUserAccounts">تهيئة حسابات المستخدمين</span>
-                    <span wire:loading wire:target="prepareUserAccounts" class="inline-flex items-center gap-2"><x-filament::loading-indicator class="h-4 w-4" /> جارٍ تهيئة حسابات المستخدمين...</span>
-                </x-filament::button>
-            </div>
-        </section>
     </div>
 </x-filament-panels::page>

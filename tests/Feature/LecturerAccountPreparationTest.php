@@ -621,12 +621,13 @@ it('forces password change before protected access and clears the flag after suc
         ->and(Hash::check('new-secure-password', $user->fresh()->password))->toBeTrue();
 });
 
-it('keeps account preparation out of this table header and shows no individual account actions', function (): void {
+it('shows the dedicated bulk account preparation action without individual account actions', function (): void {
     lecturerBulkPreparationFixture();
 
     Livewire::actingAs(lecturerAccountPreparationAdmin())
         ->test(LecturerAccountPreparation::class)
         ->assertTableHeaderActionsExistInOrder([
+            'create-bulk-lecturer-accounts',
             'preview-bulk-lecturer-account-preparation',
         ])
         ->assertTableActionDoesNotExist('create-login-account')
