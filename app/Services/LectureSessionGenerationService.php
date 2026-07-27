@@ -825,7 +825,7 @@ class LectureSessionGenerationService
             'رمز المادة' => $slot?->subject?->getAttribute('code') ?? '',
             'الشعبة' => $slot?->subjectSection?->getAttribute('code') ?? (string) $candidate['subject_section_id'],
             'المدرس' => $slot?->lecturer?->getAttribute('name') ?? (string) ($candidate['lecturer_identity_id'] ?? ''),
-            'اسم دخول المدرس' => $lecturerUser instanceof User ? ($lecturerUser->login_username ?? $lecturerUser->email) : null,
+            'اسم دخول المدرس' => $lecturerUser instanceof User ? $lecturerUser->login_username : null,
             'القاعة' => $slot?->hall?->getAttribute('name') ?? (string) $candidate['hall_id'],
             'التاريخ' => $candidate['session_date'],
             'اليوم' => $this->weekdayLabelForDate((string) $candidate['session_date']),

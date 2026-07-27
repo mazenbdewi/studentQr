@@ -86,8 +86,8 @@ class LecturerAccountPreparation extends Page implements HasTable
                             : __('lecturer-account-preparation.statuses.missing_account');
                     })
                     ->wrap(),
-                TextColumn::make('user.email')
-                    ->label(__('lecturer-account-preparation.fields.email'))
+                TextColumn::make('user.login_username')
+                    ->label('اسم المستخدم')
                     ->placeholder(__('lecture-session.not_available'))
                     ->searchable(),
                 TextColumn::make('account_status')

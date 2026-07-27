@@ -8,8 +8,18 @@ use App\Models\ScheduleImportRow;
 use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use App\Services\ScheduleImportReconciliationService;
+use Spatie\Permission\Models\Role;
 
 require_once __DIR__.'/../Support/ScheduleImportReconciliationFixtures.php';
+
+beforeEach(function (): void {
+    Role::findOrCreate('super-admin', 'web');
+    User::created(function (User $user): void {
+        if ($user->role === 'super_admin') {
+            $user->assignRole('super-admin');
+        }
+    });
+});
 
 function identityAssignmentRow(string $issueType, ?int $lecturerId = null, ?int $hallId = null): array
 {

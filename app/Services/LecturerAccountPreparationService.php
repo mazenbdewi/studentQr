@@ -234,12 +234,10 @@ class LecturerAccountPreparationService
     {
         $this->ensureLecturerIsUnlinked($lecturer);
         $this->ensurePasswordConfirmed($password, $passwordConfirmation);
-        $this->ensureEmailIsUnique($email);
 
-        return DB::transaction(function () use ($lecturer, $email, $password): User {
+        return DB::transaction(function () use ($lecturer, $password): User {
             $user = User::query()->create([
                 'name' => $lecturer->name,
-                'email' => $email,
                 'password' => Hash::make($password),
                 'role' => 'course_lecturer',
                 'type' => 'lecturer',
@@ -429,7 +427,6 @@ class LecturerAccountPreparationService
         $temporaryPassword = $this->newTemporaryPassword($usedPlainPasswords);
         $user = User::query()->create([
             'name' => $lecturer->name,
-            'email' => null,
             'login_username' => null,
             'password' => Hash::make($temporaryPassword),
             'must_change_password' => true,
@@ -512,7 +509,6 @@ class LecturerAccountPreparationService
             ->where(function ($query) use ($identifier): void {
                 $query
                     ->where('login_username', $identifier)
-                    ->orWhere('email', $identifier)
                     ->orWhere('student_number', $identifier);
             })
             ->exists();
@@ -626,15 +622,6 @@ class LecturerAccountPreparationService
         if ($password !== $passwordConfirmation) {
             throw ValidationException::withMessages([
                 'password' => __('validation.confirmed', ['attribute' => __('lecturer-account-preparation.fields.password')]),
-            ]);
-        }
-    }
-
-    private function ensureEmailIsUnique(string $email): void
-    {
-        if (User::withTrashed()->where('email', $email)->exists()) {
-            throw ValidationException::withMessages([
-                'email' => __('validation.unique', ['attribute' => __('lecturer-account-preparation.fields.email')]),
             ]);
         }
     }

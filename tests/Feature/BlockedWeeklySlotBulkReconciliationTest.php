@@ -24,14 +24,19 @@ use Spatie\Permission\Models\Role;
 function blockedSlotActor(): User
 {
     Role::findOrCreate('course_lecturer', 'web');
+    Role::findOrCreate('super-admin', 'web');
 
-    return User::factory()->create([
-        'email' => 'super@admin.com',
+    $actor = User::factory()->create([
+        'login_username' => 'blocked-slot-admin',
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',
         'is_active' => true,
     ]);
+
+    $actor->assignRole('super-admin');
+
+    return $actor;
 }
 
 /** @return array{term: AcademicTerm, batch: ImportBatch, subject: Subject, section: SubjectSection} */
@@ -139,7 +144,6 @@ function readyLecturer(string $name = 'مدرس جاهز'): Lecturer
 {
     $user = User::factory()->create([
         'name' => $name,
-        'email' => null,
         'login_username' => 'lec'.random_int(100000, 999999),
         'role' => 'course_lecturer',
         'type' => 'lecturer',

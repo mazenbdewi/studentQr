@@ -12,6 +12,7 @@ use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use App\Services\AcademicTermActivationService;
 use App\Support\AcademicTermContext;
+use Spatie\Permission\Models\Role;
 
 function lifecycleTerm(string $name): AcademicTerm
 {
@@ -32,6 +33,8 @@ it('activates a term without changing historical academic data or users', functi
     $new = lifecycleTerm('الفصل الجديد');
     AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $old->id);
     $actor = User::factory()->create(['role' => 'super_admin', 'password' => 'secret', 'login_username' => 'admin-old', 'must_change_password' => false]);
+    Role::findOrCreate('super-admin', 'web');
+    $actor->assignRole('super-admin');
     $student = \App\Models\Student::query()->create(['name' => 'طالب', 'student_number' => '1001']);
     $subject = Subject::query()->create(['code' => 'TERM-1', 'name' => 'مادة', 'subject_type' => Subject::TYPE_THEORETICAL]);
     $section = SubjectSection::query()->create(['academic_term_id' => $old->id, 'subject_id' => $subject->id, 'code' => 'T1']);

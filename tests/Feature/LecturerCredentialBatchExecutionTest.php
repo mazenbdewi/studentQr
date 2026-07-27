@@ -31,7 +31,7 @@ beforeEach(function (): void {
 function credentialExecutionUser(string $role, array $permissions = []): User
 {
     $user = User::factory()->create([
-        'role' => $role,
+        'role' => $role === 'super-admin' ? 'super_admin' : $role,
         'type' => 'admin',
         'status' => 'active',
         'is_active' => true,

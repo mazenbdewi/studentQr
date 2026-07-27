@@ -27,9 +27,9 @@ class UsersTemplateInstructionsSheet implements FromCollection, ShouldAutoSize, 
             ->implode(' | ');
 
         return collect([
-            [__('user.import_instruction_required_columns'), 'name, email, password, role'],
+            [__('user.import_instruction_required_columns'), 'name, login_username, password, role'],
             [__('user.import_instruction_name'), __('user.import_name_help')],
-            [__('user.import_instruction_email'), __('user.import_email_help')],
+            [__('user.import_instruction_login_username'), __('user.import_login_username_help')],
             [__('user.import_instruction_password'), __('user.import_password_help_text')],
             [__('user.import_instruction_role'), __('user.import_role_help_text')],
             [__('user.accepted_roles'), $acceptedRoles->keys()->implode(', ')],

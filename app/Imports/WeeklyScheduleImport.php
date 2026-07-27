@@ -357,10 +357,7 @@ class WeeklyScheduleImport
         });
 
         User::query()
-            ->where(function ($query): void {
-                $query->where('role', 'course_lecturer')
-                    ->orWhereHas('roles', fn ($roles) => $roles->where('name', 'course_lecturer'));
-            })
+            ->whereHas('roles', fn ($roles) => $roles->where('name', 'course_lecturer'))
             ->get(['id', 'name'])
             ->each(function (User $user): void {
                 $this->lecturerUsers[$this->normalizer->normalizeKey($user->name)][] = $user;

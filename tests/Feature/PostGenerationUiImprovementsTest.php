@@ -5,6 +5,7 @@ use App\Filament\Pages\BlockedWeeklySlots;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
 use App\Filament\Resources\LectureSessions\Pages\ListLectureSessions;
 use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Attendance;
 use App\Models\Hall;
 use App\Models\ImportBatch;
@@ -24,6 +25,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Excel as ExcelWriter;
 use Maatwebsite\Excel\Facades\Excel;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function (): void {
@@ -31,6 +33,8 @@ beforeEach(function (): void {
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
     Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
+    $permission = Permission::findOrCreate('export blocked weekly slot reports', 'web');
+    Role::findByName('super-admin', 'web')->givePermissionTo($permission);
 });
 
 afterEach(function (): void {
@@ -108,12 +112,16 @@ function postGenerationHall(string $code = 'H-1'): Hall
 
 function postGenerationTerm(): AcademicTerm
 {
-    return AcademicTerm::query()->create([
+    $term = AcademicTerm::query()->create([
         'display_name' => 'الفصل الصيفي 2025/2026',
         'canonical_name' => 'summer-2025-2026',
         'teaching_start_date' => '2026-07-22',
         'teaching_end_date' => '2026-08-31',
     ]);
+
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
+
+    return $term;
 }
 
 function postGenerationBatch(AcademicTerm $term): ImportBatch
@@ -288,7 +296,7 @@ it('exports blocked slot report as xlsx with Arabic RTL worksheets', function ()
 });
 
 it('downloads the blocked slot workbook with xlsx filename and excel mime type', function (): void {
-    postGenerationAdmin();
+    $this->actingAs(postGenerationAdmin());
     postGenerationBlockedReportFixture(withConflict: true);
 
     $response = (new BlockedWeeklySlots)->downloadBlockedWeeklySlots();

@@ -1,6 +1,8 @@
 <?php
 
 use App\Filament\Widgets\TodaysLecturesWidget;
+use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\LectureSession;
 use App\Models\Subject;
@@ -9,6 +11,11 @@ use Filament\Facades\Filament;
 use Livewire\Livewire;
 
 it('shows only today lecture sessions for the current account owner', function (): void {
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'فصل ودجت اليوم',
+        'canonical_name' => 'todays-lectures-'.str()->uuid(),
+    ]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
     $lecturer = User::factory()->create([
         'role' => 'course_lecturer',
         'type' => 'lecturer',
@@ -46,6 +53,7 @@ it('shows only today lecture sessions for the current account owner', function (
 
     $ownTodaySession = LectureSession::query()->create([
         'subject_id' => $subject->id,
+        'academic_term_id' => $term->id,
         'lecturer_id' => $lecturer->id,
         'hall_id' => $hall->id,
         'session_date' => today(),
@@ -56,6 +64,7 @@ it('shows only today lecture sessions for the current account owner', function (
 
     $otherTodaySession = LectureSession::query()->create([
         'subject_id' => $otherSubject->id,
+        'academic_term_id' => $term->id,
         'lecturer_id' => $otherLecturer->id,
         'hall_id' => $hall->id,
         'session_date' => today(),
@@ -66,6 +75,7 @@ it('shows only today lecture sessions for the current account owner', function (
 
     $ownTomorrowSession = LectureSession::query()->create([
         'subject_id' => $subject->id,
+        'academic_term_id' => $term->id,
         'lecturer_id' => $lecturer->id,
         'hall_id' => $hall->id,
         'session_date' => today()->addDay(),

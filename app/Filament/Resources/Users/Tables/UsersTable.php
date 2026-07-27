@@ -23,9 +23,10 @@ class UsersTable
                 TextColumn::make('name')
                     ->label(__('user.name'))
                     ->searchable(),
-                TextColumn::make('email')
-                    ->label(__('user.email'))
-                    ->searchable(),
+                TextColumn::make('login_username')
+                    ->label('اسم المستخدم')
+                    ->searchable()
+                    ->sortable(),
                 TextColumn::make('role')
                     ->label(__('user.role'))
                     ->badge()

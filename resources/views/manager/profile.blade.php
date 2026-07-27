@@ -164,6 +164,7 @@
 @section('content')
 <div class="profile-card">
     <h2 class="profile-title">{{ __('manager.profile_title') }}</h2>
+    <p class="section-help">اسم المستخدم: {{ auth()->user()->login_username }}</p>
 
     @if (session('success'))
         <div class="alert alert-success">
@@ -193,18 +194,6 @@
                    class="form-input {{ $errors->has('name') ? 'is-invalid' : '' }}"
                    required>
             @error('name')
-                <div class="field-error">{{ $message }}</div>
-            @enderror
-        </div>
-
-        <div class="form-group">
-            <label class="form-label">{{ __('manager.email') }}</label>
-            <input type="email"
-                   name="email"
-                   value="{{ old('email', auth()->user()->email) }}"
-                   class="form-input {{ $errors->has('email') ? 'is-invalid' : '' }}"
-                   required>
-            @error('email')
                 <div class="field-error">{{ $message }}</div>
             @enderror
         </div>

@@ -8,7 +8,6 @@ use Filament\Auth\Http\Responses\Contracts\LoginResponse;
 use Filament\Auth\Pages\Login as BaseLogin;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
-use Filament\Models\Contracts\FilamentUser;
 use Filament\Schemas\Components\Component;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -56,7 +55,7 @@ class Login extends BaseLogin
 
         $data = $this->form->getState();
         $pinLogin = app(PinLoginService::class);
-        $login = (string) ($data['email'] ?? '');
+        $login = (string) ($data['login_username'] ?? '');
         $password = (string) ($data['password'] ?? '');
         $user = $pinLogin->findUserForLogin($login);
         $credentials = $this->getCredentialsFromFormData($data);
@@ -68,10 +67,7 @@ class Login extends BaseLogin
             $this->throwFailureValidationException();
         }
 
-        if (
-            ($user instanceof FilamentUser)
-            && (! $user->canAccessPanel(Filament::getCurrentOrDefaultPanel()))
-        ) {
+        if (! $user->canAccessPanel(Filament::getCurrentOrDefaultPanel())) {
             $this->fireFailedEvent(Filament::auth(), $user, $credentials);
             $this->throwFailureValidationException();
         }
@@ -85,8 +81,8 @@ class Login extends BaseLogin
 
     protected function getEmailFormComponent(): Component
     {
-        return TextInput::make('email')
-            ->label(__('auth.login_identifier'))
+        return TextInput::make('login_username')
+            ->label('اسم المستخدم')
             ->required()
             ->autocomplete()
             ->autofocus();
@@ -99,7 +95,7 @@ class Login extends BaseLogin
     protected function getCredentialsFromFormData(#[SensitiveParameter] array $data): array
     {
         return [
-            'login' => $data['email'] ?? null,
+            'login_username' => $data['login_username'] ?? null,
             'password' => $data['password'] ?? null,
         ];
     }

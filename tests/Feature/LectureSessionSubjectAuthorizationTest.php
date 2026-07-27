@@ -33,10 +33,10 @@ beforeEach(function (): void {
     Filament::setCurrentPanel(Filament::getPanel('admin'));
 });
 
-function lectureSessionLecturer(string $email): User
+function lectureSessionLecturer(string $loginUsername): User
 {
     $user = User::factory()->create([
-        'email' => $email,
+        'login_username' => str_replace('@example.com', '', $loginUsername),
         'role' => 'course_lecturer',
         'type' => 'lecturer',
         'status' => 'active',
@@ -61,7 +61,7 @@ function lectureSessionAcademicTerm(): AcademicTerm
 function lectureSessionSuperAdmin(): User
 {
     $user = User::factory()->create([
-        'email' => 'lecture-session-admin@example.com',
+        'login_username' => 'lecture-session-admin',
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',
@@ -76,7 +76,7 @@ function lectureSessionSuperAdmin(): User
 function lectureSessionAdmin(): User
 {
     $user = User::factory()->create([
-        'email' => 'lecture-session-ordinary-admin@example.com',
+        'login_username' => 'lecture-session-ordinary-admin',
         'role' => 'admin',
         'type' => 'admin',
         'status' => 'active',

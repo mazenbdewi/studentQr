@@ -205,6 +205,7 @@ body {
  @section('content')
 <div class="profile-container">
     <h1 class="profile-title">{{ __('teacher.profile_title') }}</h1>
+    <p class="profile-subtitle">اسم المستخدم: {{ auth()->user()->login_username }}</p>
 
  
     @if (session('success'))
@@ -230,11 +231,6 @@ body {
         <div class="form-group">
             <label for="name" class="form-label">{{ __('teacher.full_name') }}</label>
             <input type="text" id="name" name="name" value="{{ old('name', auth()->user()->name) }}" class="form-input" required>
-        </div>
-
-        <div class="form-group">
-            <label for="email" class="form-label">{{ __('teacher.email') }}</label>
-            <input type="email" id="email" name="email" value="{{ old('email', auth()->user()->email) }}" class="form-input" required>
         </div>
 
         <div class="form-group">

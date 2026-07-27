@@ -20,7 +20,7 @@ beforeEach(function (): void {
 
 function credentialPageUser(string $role, array $permissions = []): User
 {
-    $user = User::factory()->create(['role' => $role, 'type' => $role, 'status' => 'active', 'is_active' => true]);
+    $user = User::factory()->create(['role' => $role === 'super-admin' ? 'super_admin' : $role, 'type' => $role === 'course_lecturer' ? 'lecturer' : 'admin', 'status' => 'active', 'is_active' => true]);
     $user->assignRole($role);
     if ($permissions) {
         $user->givePermissionTo($permissions);

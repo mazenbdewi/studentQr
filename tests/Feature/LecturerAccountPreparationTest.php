@@ -34,6 +34,7 @@ function lecturerAccountPreparationAdmin(): User
     Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
 
     $admin = User::factory()->create([
+        'login_username' => 'lecturer-preparation-admin',
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',
@@ -144,19 +145,15 @@ it('previews bulk lecturer accounts using deterministic usernames without creati
         ->and(User::query()->count())->toBe($usersBefore);
 });
 
-it('supports nullable email schema and refuses unsafe rollback for username only accounts', function (): void {
+it('uses login usernames without an email schema dependency', function (): void {
     $user = User::factory()->create([
-        'email' => null,
         'login_username' => 'lec000999',
         'role' => 'course_lecturer',
         'type' => 'lecturer',
         'status' => 'active',
         'is_active' => true,
     ]);
-    $migration = require database_path('migrations/2026_07_22_000004_add_login_username_to_users_for_bulk_lecturer_accounts.php');
-
-    expect($user->fresh()->email)->toBeNull()
-        ->and(fn () => $migration->down())->toThrow(RuntimeException::class);
+    expect($user->fresh()->login_username)->toBe('lec000999');
 });
 
 it('bulk creates linked course lecturer accounts with Arabic names and nullable email', function (): void {
@@ -173,7 +170,6 @@ it('bulk creates linked course lecturer accounts with Arabic names and nullable 
     expect($result['created_account_count'])->toBe(1)
         ->and($result['credential_rows'])->toHaveCount(1)
         ->and($user->name)->toBe('محمد ابراهيم علي')
-        ->and($user->email)->toBeNull()
         ->and($user->login_username)->toMatch('/^[a-z]+'.$user->id.'$/')
         ->and($user->must_change_password)->toBeTrue()
         ->and($user->status)->toBe('active')
@@ -209,7 +205,6 @@ it('persists a stable approved login username for a manually created lecturer ac
 it('assigns a missing username to a linked lecturer account without changing its password', function (): void {
     $fixture = lecturerBulkPreparationFixture();
     $user = User::factory()->create([
-        'email' => 'linked-without-username@example.test',
         'login_username' => null,
         'password' => Hash::make('keep-linked-password'),
         'role' => 'course_lecturer',
@@ -238,7 +233,6 @@ it('assigns a missing username to a linked lecturer account without changing its
 it('includes an assigned username in credentials exported after resetting a linked lecturer password', function (): void {
     $fixture = lecturerBulkPreparationFixture();
     $user = User::factory()->create([
-        'email' => 'reset-without-username@example.test',
         'login_username' => null,
         'role' => 'course_lecturer',
         'type' => 'lecturer',
@@ -337,14 +331,13 @@ it('signs a prepared lecturer in with the exported username and temporary passwo
     $credential = $result['credential_rows'][0];
     $lecturer = $fixture['lecturer']->fresh()->user;
 
-    expect($lecturer->email)->toBeNull()
-        ->and($credential['login_username'])->toBe($lecturer->login_username)
+    expect($credential['login_username'])->toBe($lecturer->login_username)
         ->and($credential['login_username'])->not->toBeEmpty()
         ->and(Hash::check($credential['temporary_password'], $lecturer->password))->toBeTrue();
 
     Livewire::test(Login::class)
         ->fillForm([
-            'email' => $credential['login_username'],
+            'login_username' => $credential['login_username'],
             'password' => $credential['temporary_password'],
         ])
         ->call('authenticate')
@@ -357,7 +350,7 @@ it('signs a prepared lecturer in with the exported username and temporary passwo
 it('exports lecturer account success and error reports as xlsx without plaintext passwords', function (): void {
     $fixture = lecturerBulkPreparationFixture();
     addBulkLecturerSlot($fixture, 212, 'مدرس ثان');
-    User::factory()->create(['email' => 'lec000211', 'role' => 'course_lecturer']);
+    User::factory()->create(['login_username' => 'lec000211', 'role' => 'course_lecturer']);
 
     $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
     $temporaryPassword = $result['credential_rows'][0]['temporary_password'];
@@ -405,10 +398,10 @@ it('exports lecturer account success and error reports as xlsx without plaintext
         ->and(collect([...$successValues, ...$errorValues])->filter(fn (string $value): bool => str_contains($value, '$2y$') || str_contains($value, '$argon')))->toBeEmpty();
 });
 
-it('blocks username collisions with username email and student number', function (string $column): void {
+it('blocks username collisions with an existing login username', function (): void {
     $fixture = lecturerBulkPreparationFixture();
     User::factory()->create([
-        $column => 'lec000211',
+        'login_username' => 'lec000211',
         'role' => 'course_lecturer',
         'type' => 'lecturer',
         'status' => 'active',
@@ -420,24 +413,19 @@ it('blocks username collisions with username email and student number', function
     expect($preview['accounts_to_create_count'])->toBe(1)
         ->and($preview['blocked_count'])->toBe(0)
         ->and($preview['rows'][0]['login_username'])->toBeNull();
-})->with(['login_username', 'email', 'student_number']);
-
-it('rejects cross column login ambiguity and still supports each identifier when unique', function (): void {
-    User::factory()->create(['email' => 'shared-login', 'role' => 'course_lecturer']);
-    User::factory()->create(['login_username' => 'shared-login', 'role' => 'course_lecturer']);
-    $emailUser = User::factory()->create(['email' => 'unique-login@example.test', 'role' => 'course_lecturer']);
-    $student = User::factory()->create(['student_number' => 'S100', 'role' => 'course_lecturer']);
-
-    expect(app(PinLoginService::class)->findUserForLogin('shared-login'))->toBeNull()
-        ->and(app(PinLoginService::class)->findUserForLogin($emailUser->email)?->id)->toBe($emailUser->id)
-        ->and(app(PinLoginService::class)->findUserForLogin('S100')?->id)->toBe($student->id);
 });
 
-it('allows actual filament login using login username existing email and student number', function (): void {
+it('resolves only login usernames for authentication', function (): void {
+    $user = User::factory()->create(['login_username' => 'shared-login', 'role' => 'course_lecturer']);
+
+    expect(app(PinLoginService::class)->findUserForLogin('shared-login')?->id)->toBe($user->id)
+        ->and(app(PinLoginService::class)->findUserForLogin('S100'))->toBeNull();
+});
+
+it('allows actual filament login using login usernames only', function (): void {
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
     $lecturer = User::factory()->create([
-        'email' => null,
         'login_username' => 'lec000211',
         'password' => Hash::make('temporary-password'),
         'role' => 'course_lecturer',
@@ -448,36 +436,35 @@ it('allows actual filament login using login username existing email and student
     $lecturer->assignRole('course_lecturer');
     $admin = lecturerAccountPreparationAdmin();
     $admin->forceFill(['password' => Hash::make('admin-password')])->save();
-    $studentNumberUser = User::factory()->create([
-        'email' => 'student-number-login@example.test',
-        'student_number' => 'STU-LOGIN-1',
+    $secondLecturer = User::factory()->create([
+        'login_username' => 'lec000212',
         'password' => Hash::make('student-password'),
         'role' => 'course_lecturer',
         'type' => 'lecturer',
         'status' => 'active',
         'is_active' => true,
     ]);
-    $studentNumberUser->assignRole('course_lecturer');
+    $secondLecturer->assignRole('course_lecturer');
 
     Livewire::test(Login::class)
-        ->fillForm(['email' => 'lec000211', 'password' => 'temporary-password'])
+        ->fillForm(['login_username' => 'lec000211', 'password' => 'temporary-password'])
         ->call('authenticate');
 
     $this->assertAuthenticatedAs($lecturer);
     auth()->logout();
 
     Livewire::test(Login::class)
-        ->fillForm(['email' => $admin->email, 'password' => 'admin-password'])
+        ->fillForm(['login_username' => $admin->login_username, 'password' => 'admin-password'])
         ->call('authenticate');
 
     $this->assertAuthenticatedAs($admin);
     auth()->logout();
 
     Livewire::test(Login::class)
-        ->fillForm(['email' => 'STU-LOGIN-1', 'password' => 'student-password'])
+        ->fillForm(['login_username' => 'lec000212', 'password' => 'student-password'])
         ->call('authenticate');
 
-    $this->assertAuthenticatedAs($studentNumberUser);
+    $this->assertAuthenticatedAs($secondLecturer);
 });
 
 it('generates unique credentials only for new users and is idempotent for existing links', function (): void {
@@ -499,7 +486,7 @@ it('generates unique credentials only for new users and is idempotent for existi
 it('adds a missing role without resetting an existing linked account password', function (): void {
     $fixture = lecturerBulkPreparationFixture();
     $user = User::factory()->create([
-        'email' => 'existing@example.test',
+        'login_username' => 'existing-linked-user',
         'password' => Hash::make('keep-this-password'),
         'role' => 'admin',
         'type' => 'admin',
@@ -519,7 +506,7 @@ it('adds a missing role without resetting an existing linked account password', 
 it('commits successful lecturers when another lecturer is blocked', function (): void {
     $fixture = lecturerBulkPreparationFixture();
     addBulkLecturerSlot($fixture, 212, 'مدرس ثان');
-    User::factory()->create(['email' => 'unrelated@example.test', 'role' => 'course_lecturer']);
+    User::factory()->create(['login_username' => 'unrelated-user', 'role' => 'course_lecturer']);
 
     $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
 
@@ -564,7 +551,6 @@ it('recovers an interrupted bulk generation by resetting undelivered created acc
     $lostPlain = 'lost-temporary-password';
     $linkedUser = User::factory()->create([
         'name' => 'محمد ابراهيم علي',
-        'email' => null,
         'login_username' => 'lec000211',
         'password' => Hash::make($lostPlain),
         'must_change_password' => true,

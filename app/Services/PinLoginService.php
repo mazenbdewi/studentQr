@@ -132,19 +132,14 @@ class PinLoginService
     /** @return Collection<int, User> */
     public function matchingUsersForLogin(string $login): Collection
     {
-        $login = trim($login);
+        $login = strtolower(trim($login));
 
         if ($login === '') {
             return collect();
         }
 
         return User::query()
-            ->where(function ($query) use ($login): void {
-                $query
-                    ->where('email', $login)
-                    ->orWhere('login_username', $login)
-                    ->orWhere('student_number', $login);
-            })
+            ->where('login_username', $login)
             ->get()
             ->unique('id')
             ->values();

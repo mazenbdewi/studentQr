@@ -22,7 +22,6 @@ class User extends Authenticatable implements FilamentUser
 
     protected $fillable = [
         'name',
-        'email',
         'login_username',
         'password',
         'must_change_password',
@@ -51,7 +50,6 @@ class User extends Authenticatable implements FilamentUser
     ];
 
     protected $casts = [
-        'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'must_change_password' => 'boolean',
         'is_active' => 'boolean',
@@ -66,15 +64,19 @@ class User extends Authenticatable implements FilamentUser
 
     public function isSuperAdmin(): bool
     {
-        return $this->email === 'super@admin.com'
-            || $this->role === 'super_admin'
-            || $this->hasRole(['super-admin', 'super_admin']);
+        return $this->hasRole('super-admin');
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $user): void {
+            $user->login_username = strtolower(trim((string) $user->login_username));
+        });
     }
 
     public function isAdmin(): bool
     {
-        return (string) $this->getAttribute('role') === 'admin'
-            || $this->hasRole('admin');
+        return $this->hasRole('admin');
     }
 
     public function canManageUsers(): bool
@@ -109,18 +111,35 @@ class User extends Authenticatable implements FilamentUser
 
     public function syncSystemRole(string $role): void
     {
-        $this->syncRoles([$this->mapDatabaseRoleToSpatieRole($role)]);
+        $mappedRole = $this->mapDatabaseRoleToSpatieRole($role);
+
+        foreach (self::systemSpatieRoles() as $systemRole) {
+            if ($this->hasRole($systemRole) && $systemRole !== $mappedRole) {
+                $this->removeRole($systemRole);
+            }
+        }
+
+        if (! $this->hasRole($mappedRole)) {
+            $this->assignRole($mappedRole);
+        }
     }
 
     public static function mapDatabaseRoleToSpatieRole(string $role): string
     {
         return match ($role) {
             'super_admin' => 'super-admin',
-            'attendance_monitor' => 'manager',
             'admin' => 'admin',
+            'manager', 'attendance_monitor' => 'manager',
             'course_lecturer' => 'course_lecturer',
-            default => $role,
+            'student' => 'student',
+            default => throw new \InvalidArgumentException("Unsupported user role classification [{$role}]."),
         };
+    }
+
+    /** @return array<int, string> */
+    private static function systemSpatieRoles(): array
+    {
+        return ['super-admin', 'admin', 'manager', 'course_lecturer', 'student'];
     }
 
     public function attendances()

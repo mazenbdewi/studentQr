@@ -1,6 +1,8 @@
 <?php
 
 use App\Imports\SubjectStudentsImport;
+use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Department;
 use App\Models\Enrollment;
 use App\Models\Faculty;
@@ -10,11 +12,12 @@ use App\Models\User;
 use Illuminate\Support\Collection;
 
 it('upserts subject enrollments without creating duplicates', function () {
-    [$subject, $student] = createSubjectEnrollmentFixture(createStudent: true);
+    [$subject, $student, $term] = createSubjectEnrollmentFixture(createStudent: true);
 
     Enrollment::query()->create([
         'student_id' => $student->id,
         'subject_id' => $subject->id,
+        'academic_term_id' => $term->id,
         'semester' => 1,
         'year' => 1,
         'status' => Enrollment::STATUS_ENROLLED,
@@ -61,6 +64,11 @@ it('fails the subject student import when the student does not already exist', f
 
 function createSubjectEnrollmentFixture(bool $createStudent): array
 {
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'فصل استيراد الطلاب',
+        'canonical_name' => 'subject-students-'.str()->uuid(),
+    ]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
     $faculty = Faculty::query()->create([
         'name' => 'Faculty',
         'name_en' => 'Faculty',
@@ -77,7 +85,7 @@ function createSubjectEnrollmentFixture(bool $createStudent): array
 
     $lecturer = User::query()->create([
         'name' => 'Lecturer',
-        'email' => 'lecturer@example.com',
+        'login_username' => 'subject_students_lecturer',
         'password' => 'password',
         'role' => 'course_lecturer',
         'type' => 'lecturer',
@@ -112,5 +120,5 @@ function createSubjectEnrollmentFixture(bool $createStudent): array
         ])
         : null;
 
-    return [$subject, $student];
+    return [$subject, $student, $term];
 }

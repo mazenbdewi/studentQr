@@ -18,7 +18,7 @@ beforeEach(function () {
 function createSuperAdminForQrSettings(): User
 {
     $user = User::factory()->create([
-        'email' => 'super@admin.com',
+        'login_username' => 'qr_super_admin',
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',

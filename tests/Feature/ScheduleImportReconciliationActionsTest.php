@@ -13,6 +13,15 @@ use Spatie\Permission\Models\Role;
 
 require_once __DIR__.'/../Support/ScheduleImportReconciliationFixtures.php';
 
+beforeEach(function (): void {
+    Role::findOrCreate('super-admin', 'web');
+    User::created(function (User $user): void {
+        if ($user->role === 'super_admin') {
+            $user->assignRole('super-admin');
+        }
+    });
+});
+
 it('enforces permission and term-safe mapping while appending audit history', function (): void {
     $path = reconciliationWorkbook([]);
 

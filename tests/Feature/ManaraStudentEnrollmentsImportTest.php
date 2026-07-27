@@ -3,9 +3,7 @@
 use App\Filament\Pages\ManaraEnrollmentImport;
 use App\Imports\ManaraStudentEnrollmentsImport;
 use App\Models\AcademicTerm;
-use App\Models\Department;
 use App\Models\Enrollment;
-use App\Models\Faculty;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\SubjectSection;
@@ -33,7 +31,7 @@ it('imports Manara enrollment rows with theoretical and practical sections idemp
     ]);
 
     try {
-        $import = new ManaraStudentEnrollmentsImport();
+        $import = new ManaraStudentEnrollmentsImport;
         Excel::import($import, $path);
 
         expect($import->getSummary())->toMatchArray([
@@ -86,7 +84,7 @@ it('imports Manara enrollment rows with theoretical and practical sections idemp
             ->and($both->academic_term_id)->toBe($academicTerm->id)
             ->and($both->year)->toBe(3);
 
-        Excel::import(new ManaraStudentEnrollmentsImport(), $path);
+        Excel::import(new ManaraStudentEnrollmentsImport, $path);
 
         expect(Student::query()->count())->toBe(3)
             ->and(Subject::query()->count())->toBe(1)
@@ -104,7 +102,7 @@ it('skips Manara rows with no theoretical or practical section', function (): vo
     ]);
 
     try {
-        $import = new ManaraStudentEnrollmentsImport();
+        $import = new ManaraStudentEnrollmentsImport;
         Excel::import($import, $path);
 
         expect($import->getSummary())->toMatchArray([
@@ -130,7 +128,7 @@ it('treats zero sections as empty and imports a practical-only P1 without creati
     ]);
 
     try {
-        $import = new ManaraStudentEnrollmentsImport();
+        $import = new ManaraStudentEnrollmentsImport;
         Excel::import($import, $path);
 
         $enrollment = Enrollment::query()->firstOrFail();
@@ -155,7 +153,7 @@ it('merges separate theoretical and practical rows for the same student subject 
     ]);
 
     try {
-        Excel::import(new ManaraStudentEnrollmentsImport(), $path);
+        Excel::import(new ManaraStudentEnrollmentsImport, $path);
         $enrollment = Enrollment::query()->firstOrFail();
 
         expect(Enrollment::query()->count())->toBe(1)
@@ -173,7 +171,7 @@ it('keeps enrollments and section codes separate across academic terms', functio
     ]);
 
     try {
-        Excel::import(new ManaraStudentEnrollmentsImport(), $path);
+        Excel::import(new ManaraStudentEnrollmentsImport, $path);
 
         expect(AcademicTerm::query()->count())->toBe(2)
             ->and(Enrollment::query()->count())->toBe(2)
@@ -190,7 +188,7 @@ it('blocks the apply importer when the academic term heading is missing', functi
     ], includeAcademicTermHeading: false);
 
     try {
-        expect(fn () => Excel::import(new ManaraStudentEnrollmentsImport(), $path))
+        expect(fn () => Excel::import(new ManaraStudentEnrollmentsImport, $path))
             ->toThrow(RuntimeException::class);
 
         expect(AcademicTerm::query()->count())->toBe(0)
@@ -210,8 +208,8 @@ it('imports another Manara file without deleting previous records', function ():
     ]);
 
     try {
-        Excel::import(new ManaraStudentEnrollmentsImport(), $firstPath);
-        Excel::import(new ManaraStudentEnrollmentsImport(), $secondPath);
+        Excel::import(new ManaraStudentEnrollmentsImport, $firstPath);
+        Excel::import(new ManaraStudentEnrollmentsImport, $secondPath);
 
         expect(Student::query()->where('student_number', '2026005')->exists())->toBeTrue()
             ->and(Student::query()->where('student_number', '2026006')->exists())->toBeTrue()
@@ -231,7 +229,7 @@ it('normalizes decimal and prefixed section codes without numeric storage', func
     ]);
 
     try {
-        Excel::import(new ManaraStudentEnrollmentsImport(), $path);
+        Excel::import(new ManaraStudentEnrollmentsImport, $path);
 
         $subject = Subject::query()->where('code', 'CHEM101')->firstOrFail();
 
@@ -247,7 +245,7 @@ it('normalizes decimal and prefixed section codes without numeric storage', func
 
 it('does not require academic year or semester on the Manara import page', function (): void {
     $user = User::factory()->create([
-        'email' => 'manara-admin@example.com',
+        'login_username' => 'manara_admin',
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',
@@ -270,7 +268,7 @@ it('tracks a valid upload through removal and replacement without invoking impor
         manaraRow('2026999', 'طالب رفع', 'كلية الهندسة', 'هندسة المعلوماتية', 'برمجة', 'UPL101', '01/07/2026', 1, null),
     ]);
     $user = User::factory()->create([
-        'email' => 'manara-upload-admin@example.com',
+        'login_username' => 'manara_upload_admin',
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',
@@ -317,7 +315,7 @@ it('repairs xlsx cells marked numeric while containing section text before impor
         $sanitizedPath = app(XlsxNumericCellSanitizer::class)->sanitizeToTemporaryFile($path);
 
         try {
-            Excel::import(new ManaraStudentEnrollmentsImport(), $sanitizedPath);
+            Excel::import(new ManaraStudentEnrollmentsImport, $sanitizedPath);
         } finally {
             app(XlsxNumericCellSanitizer::class)->deleteTemporaryFile($sanitizedPath);
         }
@@ -332,7 +330,7 @@ it('repairs xlsx cells marked numeric while containing section text before impor
 
 it('downloads Manara import error files through the admin route', function (): void {
     $user = User::factory()->create([
-        'email' => 'manara-errors-admin@example.com',
+        'login_username' => 'manara_errors_admin',
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',
@@ -381,7 +379,7 @@ function manaraWorkbookPath(array $rows, bool $includeAcademicTermHeading = true
         }, $rows);
     }
 
-    $spreadsheet = new Spreadsheet();
+    $spreadsheet = new Spreadsheet;
     $sheet = $spreadsheet->getActiveSheet();
     $sheet->fromArray($headings, null, 'A1');
 
@@ -429,14 +427,14 @@ function manaraRow(
 
 function makeManaraSectionCellsInvalidNumeric(string $path, array $cells): void
 {
-    $zip = new \ZipArchive();
+    $zip = new \ZipArchive;
 
     expect($zip->open($path))->toBeTrue();
 
     $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
     expect($sheetXml)->toBeString();
 
-    $document = new \DOMDocument();
+    $document = new \DOMDocument;
     $document->loadXML($sheetXml);
 
     foreach ($document->getElementsByTagName('c') as $cell) {

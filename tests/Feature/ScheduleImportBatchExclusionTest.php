@@ -26,6 +26,15 @@ use Spatie\Permission\Models\Role;
 
 require_once __DIR__.'/../Support/ScheduleImportReconciliationFixtures.php';
 
+beforeEach(function (): void {
+    Role::findOrCreate('super-admin', 'web');
+    User::created(function (User $user): void {
+        if ($user->role === 'super_admin') {
+            $user->assignRole('super-admin');
+        }
+    });
+});
+
 function batchExclusionFixture(bool $withWarnings = true): array
 {
     $path = reconciliationWorkbook([]);

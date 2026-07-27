@@ -18,11 +18,13 @@ class UserForm
                     ->label(__('user.name'))
                     ->required()
                     ->maxLength(255),
-                TextInput::make('email')
-                    ->label(__('user.email'))
-                    ->email()
+                TextInput::make('login_username')
+                    ->label('اسم المستخدم')
                     ->required()
                     ->unique(ignoreRecord: true)
+                    ->regex('/^[a-z0-9._-]+$/')
+                    ->mutateStateForValidationUsing(fn (?string $state): string => strtolower(trim((string) $state)))
+                    ->dehydrateStateUsing(fn (?string $state): string => strtolower(trim((string) $state)))
                     ->maxLength(255),
 
                 TextInput::make('password')

@@ -5,6 +5,7 @@ namespace App\Imports;
 use App\Models\Enrollment;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Support\AcademicTermContext;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
@@ -12,7 +13,7 @@ use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 
-class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidation, SkipsEmptyRows
+class SubjectStudentsImport implements SkipsEmptyRows, ToCollection, WithHeadingRow, WithValidation
 {
     private int $importedCount = 0;
 
@@ -31,6 +32,11 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
         $subject = Subject::query()
             ->select(['id', 'level'])
             ->findOrFail($this->subjectId);
+        $academicTermId = app(AcademicTermContext::class)->currentId();
+
+        if ($academicTermId === null) {
+            throw new \RuntimeException('لا يوجد فصل دراسي حالي معتمد لاستيراد تسجيلات الطلاب.');
+        }
 
         $normalizedRows = $rows
             ->map(fn (array $row): array => $this->normalizeRow($row))
@@ -51,13 +57,14 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
                 $rowNumber = $index + 2;
 
                 throw new \RuntimeException(
-                    __('student.not_found') . " ({$row['student_number']}) " . __('subjects.not_found_in_row', ['row' => $rowNumber]),
+                    __('student.not_found')." ({$row['student_number']}) ".__('subjects.not_found_in_row', ['row' => $rowNumber]),
                 );
             }
 
             $upsertRows[] = [
                 'student_id' => $student->id,
                 'subject_id' => $subject->id,
+                'academic_term_id' => $academicTermId,
                 'semester' => Subject::normalizeSemester($row['semester'] ?? $this->semester),
                 'year' => $row['year'] ?? $this->year ?? $subject->level,
                 'status' => $row['status'] ?? Enrollment::STATUS_ENROLLED,
@@ -68,7 +75,7 @@ class SubjectStudentsImport implements ToCollection, WithHeadingRow, WithValidat
 
         Enrollment::query()->upsert(
             $upsertRows,
-            ['student_id', 'subject_id'],
+            ['academic_term_id', 'student_id', 'subject_id'],
             ['semester', 'year', 'status', 'updated_at'],
         );
 

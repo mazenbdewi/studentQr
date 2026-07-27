@@ -9,7 +9,6 @@ use App\Services\PinLoginService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-
 class ProfileController extends Controller
 {
     use ManagesOwnAccountSecurity;
@@ -28,12 +27,10 @@ class ProfileController extends Controller
 
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
             'phone' => 'nullable|string|max:20',
         ]);
 
         $user->name = $request->name;
-        $user->email = $request->email;
         $user->phone = $request->phone;
 
         $user->save();

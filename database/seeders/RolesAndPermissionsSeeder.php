@@ -17,7 +17,7 @@ class RolesAndPermissionsSeeder extends Seeder
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        foreach (['super-admin', 'admin', 'manager', 'course_lecturer'] as $role) {
+        foreach (['super-admin', 'admin', 'manager', 'course_lecturer', 'student'] as $role) {
             Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
         }
 
@@ -142,7 +142,7 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::findByName('super-admin', 'web')->givePermissionTo($manualLectureSessionPermissions);
 
         $this->createUser(
-            email: 'super@admin.com',
+            loginUsername: 'admin',
             role: 'super-admin',
             attributes: [
                 'name' => 'Super Admin',
@@ -152,7 +152,7 @@ class RolesAndPermissionsSeeder extends Seeder
         );
 
         $this->createUser(
-            email: 'admin@uni.edu',
+            loginUsername: 'administrator',
             role: 'admin',
             attributes: [
                 'name' => 'Admin',
@@ -162,7 +162,7 @@ class RolesAndPermissionsSeeder extends Seeder
         );
 
         $this->createUser(
-            email: 'ahmed@uni.edu',
+            loginUsername: 'ahmed',
             role: 'course_lecturer',
             attributes: [
                 'name' => 'Dr. Ahmed',
@@ -175,9 +175,9 @@ class RolesAndPermissionsSeeder extends Seeder
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
-    private function createUser(string $email, string $role, array $attributes): void
+    private function createUser(string $loginUsername, string $role, array $attributes): void
     {
-        $user = User::withTrashed()->firstOrNew(['email' => $email]);
+        $user = User::withTrashed()->firstOrNew(['login_username' => $loginUsername]);
         $isNewUser = ! $user->exists;
 
         $user->fill([

@@ -41,7 +41,7 @@ function hallMetadataActor(bool $withWarningPermission = true): User
     }
 
     $actor = User::factory()->create([
-        'email' => 'hall-admin-'.uniqid().'@example.test',
+        'login_username' => 'hall_admin_'.uniqid(),
         'role' => $withWarningPermission ? 'admin' : 'manager',
         'type' => 'admin',
         'status' => 'active',
@@ -63,7 +63,7 @@ function hallFixtureLecturer(string $name = 'مدرس قاعات'): Lecturer
 
     $user = User::factory()->create([
         'name' => $name,
-        'email' => null,
+        'login_username' => 'hall_user_'.str()->lower(str()->random(8)),
         'login_username' => 'lec'.random_int(100000, 999999),
         'role' => 'course_lecturer',
         'type' => 'lecturer',

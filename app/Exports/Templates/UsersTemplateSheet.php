@@ -16,7 +16,7 @@ class UsersTemplateSheet implements FromCollection, ShouldAutoSize, WithHeadings
         return collect([
             [
                 __('user.import_example_name'),
-                'admin@example.com',
+                'admin_example',
                 'ChangeMe123',
                 UserResource::getImportableRoleValues()[0] ?? 'super_admin',
             ],
@@ -27,7 +27,7 @@ class UsersTemplateSheet implements FromCollection, ShouldAutoSize, WithHeadings
     {
         return [
             'name',
-            'email',
+            'login_username',
             'password',
             'role',
         ];

@@ -18,13 +18,13 @@ use Spatie\Permission\Models\Role;
 
 function weeklyScheduleUiAdmin(): User
 {
-    Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+    Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
     $admin = User::factory()->create([
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',
     ]);
-    $admin->assignRole('admin');
+    $admin->assignRole('super-admin');
     Filament::setCurrentPanel(Filament::getPanel('admin'));
 
     return $admin;
