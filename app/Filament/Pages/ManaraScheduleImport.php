@@ -211,7 +211,7 @@ class ManaraScheduleImport extends Page implements HasForms
                     $fileName,
                     (string) $file,
                 );
-                $this->reconciliationUrl = ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid]);
+                $this->reconciliationUrl = ScheduleImportIssues::getUrl(['batch' => $batch->id]);
             }
 
             if ($import->getErrors() !== [] && $batch) {
@@ -369,7 +369,7 @@ class ManaraScheduleImport extends Page implements HasForms
             ? WeeklySchedule::getUrl(['batch' => $batch->uuid])
             : null;
         $this->reconciliationUrl = $this->resultHasPersistedSchedule
-            ? ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid])
+            ? ScheduleImportIssues::getUrl(['batch' => $batch->id])
             : null;
 
         if (filled($batch->error_file_path)) {

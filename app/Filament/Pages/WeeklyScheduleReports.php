@@ -264,8 +264,8 @@ class WeeklyScheduleReports extends Page implements HasTable
         $batch = $this->importBatchId ? ImportBatch::find($this->importBatchId) : null;
 
         return $batch instanceof ImportBatch
-            ? ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid])
-            : ScheduleImportReconciliationIndex::getUrl();
+            ? ScheduleImportIssues::getUrl(['batch' => $batch->id])
+            : null;
     }
 
     public function academicTermOptions(): array

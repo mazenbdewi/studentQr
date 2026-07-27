@@ -158,7 +158,7 @@ return [
     'open_weekly_schedule_reconciliation' => 'مطابقة الجدول الأسبوعي',
     'generate_from_weekly_schedule' => 'توليد الجلسات الجاهزة',
     'generate_from_weekly_schedule_heading' => 'معاينة توليد الجلسات',
-    'generate_from_weekly_schedule_description' => 'عاين الجلسات المؤرخة من خانات الجدول الأسبوعي. سيتم توليد الجلسات الجاهزة فقط مع تقرير منفصل للحالات المستبعدة.',
+    'generate_from_weekly_schedule_description' => 'عاين الجلسات المؤرخة التي سيتم توليدها من خانات الجدول الأسبوعي. سيتم إنشاء الجلسات المستوفية للمتطلبات فقط، مع عرض تقرير واضح للحالات المستبعدة.',
     'generate_from_weekly_schedule_submit' => 'توليد الجلسات الجاهزة',
     'weekly_generation_preview' => 'معاينة توليد الجلسات',
     'weekly_generation_preview_empty' => 'اختر فصلًا دراسيًا لمعاينة توليد المرحلة الثالثة.',
@@ -171,6 +171,29 @@ return [
     'weekly_generation_conflict_detected' => 'تم اكتشاف تعارض جديد أثناء التوليد. لم يتم إنشاء أي جلسات.',
     'weekly_generation_completed_title' => 'تم توليد الجلسات المؤرخة',
     'weekly_generation_completed_body' => 'تم إنشاء :created من أصل :total جلسة متوقعة. تم تخطي :skipped جلسة موجودة أو غير آمنة.',
+    'lecture_generation' => [
+        'preview_title' => 'معاينة توليد الجلسات',
+        'preview_description' => 'عاين الجلسات المؤرخة التي سيتم توليدها من خانات الجدول الأسبوعي. سيتم إنشاء الجلسات المستوفية للمتطلبات فقط، مع عرض تقرير واضح للحالات المستبعدة.',
+        'academic_term' => 'الفصل الدراسي',
+        'summary' => [
+            'source_slots' => 'خانات المصدر', 'expected_sessions' => 'الجلسات المتوقعة', 'to_create' => 'سيتم إنشاؤها', 'already_exists' => 'موجودة مسبقًا', 'not_ready_slots' => 'خانات غير جاهزة للتوليد', 'conflicts' => 'تعارضات',
+        ],
+        'main' => [
+            'title' => 'النتيجة الرئيسية', 'can_create' => 'يمكن إنشاء :count جلسة جديدة.', 'already_exists' => 'يوجد :count جلسة منشأة مسبقًا ولن يتم تكرارها.', 'none_ready' => 'لا توجد جلسات جديدة جاهزة للتوليد حاليًا.', 'resolve_issues' => 'يرجى معالجة المشكلات الموضحة أدناه.', 'no_source_slots' => 'لا توجد خانات في الجدول الأسبوعي يمكن استخدامها لتوليد الجلسات.', 'all_already_exists' => 'جميع الجلسات المتوقعة موجودة مسبقًا، ولا توجد جلسات جديدة لإنشائها.',
+        ],
+        'issues' => [
+            'title' => 'المشكلات التي تحتاج إلى معالجة', 'none' => 'جميع المتطلبات الأساسية مكتملة.', 'counted' => ':count خانة: :reason', 'not_ready_unique' => 'الخانات غير الجاهزة للتوليد: :count', 'missing_lecturer' => ':count خانة لم يُحدد لها مدرّس', 'missing_hall' => ':count خانة لم تُحدد لها قاعة', 'breakdown' => 'بدون مدرّس فقط: :lecturer_only، بدون قاعة فقط: :hall_only، بدون مدرّس وبدون قاعة: :both', 'unique_note' => 'قد تحتوي الخانة الواحدة على أكثر من مشكلة، لذلك لا يمثل مجموع الأسباب عدد الخانات غير الجاهزة للتوليد.', 'manage' => 'معالجة المشكلات (:count)',
+        ],
+        'details' => ['title' => 'عرض تفاصيل التحقق'],
+        'readiness' => [
+            'valid_subject_sections' => 'خانة مرتبطة بمادة وشعبة صحيحتين', 'with_lecturer' => 'خانة مرتبطة بمدرّس', 'without_lecturer' => 'خانة بدون مدرّس', 'with_valid_account_role' => 'خانة مرتبطة بمدرّس لديه حساب ودور صالحان', 'with_hall' => 'خانة مرتبطة بقاعة', 'without_hall' => 'خانة بدون قاعة', 'ready' => 'خانة مستوفية للمتطلبات الأساسية', 'not_ready' => 'خانة غير جاهزة للتوليد',
+        ],
+        'reasons' => [
+            'missing_teaching_dates' => 'لم يتم تحديد تواريخ التدريس', 'invalid_teaching_date_range' => 'نطاق تواريخ التدريس غير صالح', 'missing_completed_enrollment_batch' => 'لا توجد عملية استيراد بيانات مكتملة للفصل الدراسي', 'missing_completed_weekly_schedule_batch' => 'لا توجد عملية استيراد برنامج دوام مكتملة للفصل الدراسي', 'missing_weekly_schedule_slots' => 'لا توجد خانات في البرنامج الأسبوعي',
+            'missing_lecturer_identity' => 'لم يتم تحديد المدرّس', 'missing_active_lecturer_login' => 'لا يوجد حساب دخول نشط للمدرّس', 'missing_course_lecturer_role' => 'حساب المدرّس لا يملك دور مدرّس مقرر', 'missing_hall' => 'لم يتم تحديد القاعة', 'invalid_subject_section' => 'المادة أو الشعبة غير صالحة', 'invalid_weekday' => 'يوم الموعد الأسبوعي غير صالح', 'invalid_time_range' => 'وقت البداية أو النهاية غير صالح',
+            'persisted_session_overlap' => 'يوجد تعارض مع جلسة محفوظة مسبقًا', 'weekly_schedule_overlap' => 'يوجد تعارض في الجدول الأسبوعي', 'scheduling_conflict' => 'يوجد تعارض في الجدولة', 'source_date_already_generated' => 'تم توليد جلسة من هذا الموعد والتاريخ مسبقًا', 'matching_manual_session_exists' => 'توجد جلسة يدوية مطابقة', 'excluded_from_weekly_schedule' => 'الموعد مستبعد من البرنامج الأسبوعي', 'unexpected_item_failure' => 'تعذر إنشاء الجلسة', 'unknown' => 'حالة تحتاج إلى مراجعة',
+        ],
+    ],
     'successful_operations_report' => 'تقرير العمليات الناجحة',
     'error_report' => 'تقرير الأخطاء والحالات المستبعدة',
     'report_reasons' => [

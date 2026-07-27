@@ -13,6 +13,7 @@ use App\Models\SubjectSection;
 use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use App\Services\LectureSessionGenerationService;
+use App\Services\WeeklyScheduleIssueService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -322,6 +323,60 @@ it('generates only ready sessions and reports blocked weekly slots separately', 
         ->and($result['success_report'])->toHaveCount(3)
         ->and(LectureSession::query()->count())->toBe(3)
         ->and(LectureSession::query()->where('subject_section_id', $blockedSection->id)->count())->toBe(0);
+});
+
+it('counts a slot missing both lecturer and hall once while retaining both readiness reasons', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+
+    SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['scheduleBatch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $fixture['section']->id,
+        'lecturer_id' => null,
+        'hall_id' => null,
+        'weekday' => Carbon::TUESDAY,
+        'start_time' => '10:00:00',
+        'end_time' => '11:00:00',
+    ]);
+
+    $preview = app(LectureSessionGenerationService::class)->preview($fixture['term']);
+
+    expect($preview['blocked_unique_count'])->toBe(1)
+        ->and($preview['blocked_slot_count'])->toBe(1)
+        ->and($preview['blocked_readiness_counts'])->toMatchArray([
+            'missing_lecturer_count' => 1,
+            'missing_hall_count' => 1,
+            'missing_lecturer_only' => 0,
+            'missing_hall_only' => 0,
+            'missing_both' => 1,
+        ])
+        ->and($preview['blocked_slots'][0]['reasons'])
+        ->toContain('missing_lecturer_identity', 'missing_hall');
+});
+
+it('uses the generation preview as the single source for weekly schedule issue counts', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $slot = SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['scheduleBatch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $fixture['section']->id,
+        'lecturer_id' => null,
+        'hall_id' => null,
+        'weekday' => Carbon::TUESDAY,
+        'start_time' => '10:00:00',
+        'end_time' => '11:00:00',
+    ]);
+
+    $preview = app(LectureSessionGenerationService::class)->preview($fixture['term']);
+    $issues = app(WeeklyScheduleIssueService::class)->forTerm($fixture['term'], $fixture['scheduleBatch']->id);
+
+    expect($issues['blocked_unique_count'])->toBe($preview['blocked_unique_count'])
+        ->and($issues['reason_counts']['missing_lecturer_identity'])->toBe(1)
+        ->and($issues['reason_counts']['missing_hall'])->toBe(1)
+        ->and($issues['rows'])->toHaveCount(1)
+        ->and($issues['rows'][0]['slot_id'])->toBe($slot->id);
 });
 
 it('exports lecture-session generation success and skipped reports as Arabic RTL xlsx', function (): void {

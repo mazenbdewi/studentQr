@@ -4,7 +4,7 @@ namespace App\Filament\Resources\LectureSessions\Pages;
 
 use App\Filament\Pages\AcademicTermManagement;
 use App\Filament\Pages\LecturerAccountPreparation;
-use App\Filament\Pages\ScheduleImportReconciliationReport;
+use App\Filament\Pages\ScheduleImportIssues;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
 use App\Models\AcademicTerm;
 use App\Models\AppSetting;
@@ -13,6 +13,7 @@ use App\Models\ImportBatch;
 use App\Models\Subject;
 use App\Services\LectureSessionCalendarService;
 use App\Services\LectureSessionGenerationService;
+use App\Services\WeeklyScheduleIssueService;
 use App\Support\AcademicTermContext;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -153,7 +154,7 @@ class ListLectureSessions extends ListRecords
                         ->required(),
 
                     Forms\Components\Placeholder::make('current_academic_term')
-                        ->label(__('lecture-session.academic_term'))
+                        ->label(__('lecture-session.lecture_generation.academic_term'))
                         ->content(function (): string {
                             $term = app(AcademicTermContext::class)->currentOrNull();
 
@@ -164,8 +165,8 @@ class ListLectureSessions extends ListRecords
                         ->badge(),
 
                     Forms\Components\Placeholder::make('weekly_generation_preview')
-                        ->label(__('lecture-session.weekly_generation_preview'))
-                        ->content(fn (Get $get): string => static::weeklyGenerationPreviewText($get))
+                        ->label(__('lecture-session.lecture_generation.preview_title'))
+                        ->content(fn (Get $get): HtmlString => static::weeklyGenerationPreviewHtml($get))
                         ->columnSpanFull(),
 
                     Forms\Components\Placeholder::make('weekly_generation_loading')
@@ -245,9 +246,14 @@ class ListLectureSessions extends ListRecords
                 ->tooltip(fn (): ?string => static::currentAcademicTermIsMissing()
                     ? null
                     : (static::currentWeeklyScheduleBatch() === null ? 'لا توجد عملية استيراد برنامج أسبوعي للفصل الدراسي الحالي.' : null))
-                ->url(fn (): ?string => ($batch = static::currentWeeklyScheduleBatch()) instanceof ImportBatch
-                    ? ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid])
-                    : null),
+                ->url(function (): ?string {
+                    $batch = static::currentWeeklyScheduleBatch();
+                    $term = app(AcademicTermContext::class)->currentOrNull();
+
+                    return $batch instanceof ImportBatch && $term instanceof AcademicTerm
+                        ? ScheduleImportIssues::getUrl(['batch' => $batch->id, 'term' => $term->id])
+                        : null;
+                }),
 
             ActionGroup::make([
                 Action::make('configure_teaching_period')
@@ -822,23 +828,34 @@ class ListLectureSessions extends ListRecords
         return $batches->count() === 1 ? $batches->first() : null;
     }
 
-    protected static function weeklyGenerationPreviewText(Get $get): string
+    protected static function weeklyGenerationPreviewHtml(Get $get): HtmlString
     {
         $termId = $get('academic_term_id');
 
         if (blank($termId)) {
-            return __('lecture-session.weekly_generation_preview_empty');
+            return new HtmlString(view('filament.components.lecture-session-generation-preview', [
+                'preview' => null,
+                'issues' => [],
+            ])->render());
         }
 
         $term = AcademicTerm::query()->find($termId);
 
         if (! $term) {
-            return __('lecture-session.weekly_generation_preview_empty');
+            return new HtmlString(view('filament.components.lecture-session-generation-preview', [
+                'preview' => null,
+                'issues' => [],
+            ])->render());
         }
 
-        return static::weeklyGenerationPreviewTextForResult(
-            app(LectureSessionGenerationService::class)->preview($term),
-        );
+        $issueResult = app(WeeklyScheduleIssueService::class)->result($term);
+        $preview = $issueResult->preview;
+
+        return new HtmlString(view('filament.components.lecture-session-generation-preview', [
+            'preview' => $preview,
+            'issues' => static::weeklyGenerationIssues($preview),
+            'issuesUrl' => static::weeklyScheduleIssuesUrl($term, $issueResult->importBatchId),
+        ])->render());
     }
 
     protected static function weeklyGenerationReadySessionCount(): int
@@ -849,47 +866,43 @@ class ListLectureSessions extends ListRecords
             return 0;
         }
 
-        return (int) app(LectureSessionGenerationService::class)->preview($term)['to_create_count'];
+        return (int) app(WeeklyScheduleIssueService::class)->result($term)->preview['to_create_count'];
     }
 
-    protected static function weeklyGenerationPreviewTextForResult(array $preview): string
+    /** @return array<int, array{code: string, label: string, count: int}> */
+    protected static function weeklyGenerationIssues(array $preview): array
     {
-        $summary = __('lecture-session.weekly_generation_preview_summary', [
-            'source' => $preview['source_slot_count'],
-            'total' => $preview['candidate_session_count'],
-            'create' => $preview['to_create_count'],
-            'existing' => $preview['already_existing_count'] + $preview['manual_existing_count'],
-            'blocked' => $preview['blocked_slot_count'],
-            'conflicts' => $preview['conflict_count'],
-        ]);
-        $structural = $preview['structural_readiness'] ?? [];
-
-        if ($structural !== []) {
-            $summary .= "\n".__('lecture-session.weekly_generation_structural_readiness', [
-                'valid' => $structural['valid_subject_and_section'] ?? 0,
-                'with_lecturer' => $structural['slots_with_lecturer_identity'] ?? 0,
-                'without_lecturer' => $structural['slots_without_lecturer_identity'] ?? 0,
-                'with_login' => $structural['slots_with_valid_linked_lecturer_account_and_role'] ?? 0,
-                'with_halls' => $structural['slots_with_halls'] ?? 0,
-                'without_halls' => $structural['slots_without_halls'] ?? 0,
-                'ready' => $structural['ready_slots'] ?? 0,
-                'blocked' => $structural['blocked_slots'] ?? 0,
-            ]);
-        }
-
-        if ($preview['ready_for_partial_generation'] ?? false) {
-            return $summary."\n".__('lecture-session.weekly_generation_preview_ready');
-        }
-
-        $issues = collect($preview['prerequisite_errors'])
+        $counts = collect($preview['prerequisite_errors'] ?? [])
             ->merge(collect($preview['blocked_slots'])->flatMap(fn (array $slot): array => $slot['reasons'] ?? []))
             ->merge(collect($preview['conflicts'])->pluck('reason')->filter())
-            ->unique()
-            ->values()
-            ->implode(', ');
+            ->reject(fn (string $reason): bool => in_array($reason, ['missing_lecturer_identity', 'missing_hall'], true))
+            ->countBy();
 
-        return $summary."\n".__('lecture-session.weekly_generation_preview_blocked', [
-            'issues' => $issues !== '' ? $issues : __('lecture-session.not_available'),
+        return $counts
+            ->map(fn (int $count, string $reason): array => [
+                'code' => $reason,
+                'label' => static::weeklyGenerationReasonLabel($reason),
+                'count' => $count,
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected static function weeklyGenerationReasonLabel(string $reason): string
+    {
+        $key = 'lecture-session.lecture_generation.reasons.'.$reason;
+        $label = __($key);
+
+        return $label === $key
+            ? __('lecture-session.lecture_generation.reasons.unknown')
+            : $label;
+    }
+
+    protected static function weeklyScheduleIssuesUrl(AcademicTerm $term, ?int $importBatchId): string
+    {
+        return ScheduleImportIssues::getUrl([
+            'term' => $term->id,
+            'batch' => $importBatchId,
         ]);
     }
 }

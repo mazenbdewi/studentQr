@@ -55,6 +55,8 @@ class LectureSessionGenerationService
             'already_existing_count' => 0,
             'manual_existing_count' => 0,
             'blocked_slot_count' => 0,
+            'blocked_unique_count' => 0,
+            'blocked_readiness_counts' => $this->emptyBlockedReadinessCounts(),
             'conflict_count' => 0,
             'ready_for_partial_generation' => false,
             'structural_readiness' => $structuralReadiness,
@@ -66,6 +68,7 @@ class LectureSessionGenerationService
         if ($dateRange['start'] === null || $dateRange['end'] === null) {
             $preview['source_slot_count'] = $structuralReadiness['total_weekly_slots'];
             $preview['blocked_slot_count'] = $structuralReadiness['blocked_slots'];
+            $preview['blocked_unique_count'] = $structuralReadiness['blocked_slots'];
 
             return $preview;
         }
@@ -130,6 +133,8 @@ class LectureSessionGenerationService
         }
 
         $preview['blocked_slot_count'] = count($preview['blocked_slots']);
+        $preview['blocked_unique_count'] = $preview['blocked_slot_count'];
+        $preview['blocked_readiness_counts'] = $this->blockedReadinessCounts($preview['blocked_slots']);
         $preview['ready'] = $prerequisiteErrors === []
             && $preview['blocked_slot_count'] === 0
             && $preview['conflict_count'] === 0;
@@ -925,5 +930,47 @@ class LectureSessionGenerationService
             'occurrence_count' => $occurrenceCount,
             'reasons' => $reasons,
         ];
+    }
+
+    /** @return array{missing_lecturer_count: int, missing_hall_count: int, missing_lecturer_only: int, missing_hall_only: int, missing_both: int} */
+    private function emptyBlockedReadinessCounts(): array
+    {
+        return [
+            'missing_lecturer_count' => 0,
+            'missing_hall_count' => 0,
+            'missing_lecturer_only' => 0,
+            'missing_hall_only' => 0,
+            'missing_both' => 0,
+        ];
+    }
+
+    /** @param array<int, array<string, mixed>> $blockedSlots @return array{missing_lecturer_count: int, missing_hall_count: int, missing_lecturer_only: int, missing_hall_only: int, missing_both: int} */
+    private function blockedReadinessCounts(array $blockedSlots): array
+    {
+        $counts = $this->emptyBlockedReadinessCounts();
+
+        foreach ($blockedSlots as $slot) {
+            $reasons = collect($slot['reasons'] ?? []);
+            $missingLecturer = $reasons->contains('missing_lecturer_identity');
+            $missingHall = $reasons->contains('missing_hall');
+
+            if ($missingLecturer) {
+                $counts['missing_lecturer_count']++;
+            }
+
+            if ($missingHall) {
+                $counts['missing_hall_count']++;
+            }
+
+            if ($missingLecturer && $missingHall) {
+                $counts['missing_both']++;
+            } elseif ($missingLecturer) {
+                $counts['missing_lecturer_only']++;
+            } elseif ($missingHall) {
+                $counts['missing_hall_only']++;
+            }
+        }
+
+        return $counts;
     }
 }

@@ -37,6 +37,45 @@ class BlockedWeeklySlotReconciliationService
 
     public const ACTION_EXCLUDE_FROM_CURRENT_BATCH = 'exclude_from_current_batch';
 
+    /**
+     * Reopens a deliberate, batch-scoped exclusion without deleting the source
+     * slot. The existing import row and its audit history remain intact.
+     */
+    public function reopenBatchScopedExclusion(int $slotId, User $actor): array
+    {
+        Gate::forUser($actor)->authorize(ScheduleImportRowPolicy::EXCLUDE_WEEKLY_SLOT_FROM_CURRENT_BATCH);
+
+        /** @var SubjectSectionScheduleSlot $slot */
+        $slot = $this->slots([$slotId])->firstOrFail();
+        $row = $this->rowForSlot($slot);
+
+        if (! $row->isExcludedFromWeeklySchedule()) {
+            throw new RuntimeException('الخانة ليست مستبعدة حالياً.');
+        }
+
+        return DB::transaction(function () use ($slot, $row, $actor): array {
+            $before = $this->slotState($slot);
+            $row->update([
+                'current_reconciliation_status' => ScheduleImportRow::STATUS_UNRESOLVED,
+                'excluded_from_weekly_schedule_at' => null,
+                'excluded_from_weekly_schedule_by' => null,
+                'exclusion_note' => null,
+                'resolution_updated_by' => $actor->id,
+                'resolution_updated_at' => now(),
+            ]);
+            /** @var ScheduleImportRow $freshRow */
+            $freshRow = $row->fresh();
+            /** @var SubjectSectionScheduleSlot $freshSlot */
+            $freshSlot = $slot->fresh();
+            $this->audit($freshRow, ScheduleImportIssueAction::ACTION_RETRY, $actor, $before, $this->slotState($freshSlot), [
+                'batch_scoped_exclusion_reopened' => true,
+                'slot_id' => $slot->id,
+            ], 'إعادة فتح الخانة المستبعدة.', ScheduleImportIssue::issueTypes());
+
+            return ['slot_id' => $slot->id, 'status' => 'reopened'];
+        });
+    }
+
     public function __construct(
         private readonly BlockedWeeklySlotReportService $reportService,
         private readonly ScheduleImportReconciliationService $reconciliationService,

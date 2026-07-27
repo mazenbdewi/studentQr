@@ -64,11 +64,6 @@ Route::middleware(['auth', 'pin.verified'])
     ->name('admin.blocked-weekly-slots.compatibility-redirect');
 
 Route::middleware(['auth', 'pin.verified'])
-    ->get('/admin/schedule-import-reconciliation/{batch}/export', ScheduleImportReconciliationExportController::class)
-    ->whereUuid('batch')
-    ->name('admin.schedule-import-reconciliation.export');
-
-Route::middleware(['auth', 'pin.verified'])
     ->get('/admin/weekly-schedule-reports/{type}/excel', WeeklyScheduleReportExcelController::class)
     ->where('type', 'comprehensive|by_lecturer|by_hall|by_subject|by_weekday|reconciliation')
     ->name('admin.weekly-schedule-reports.excel');

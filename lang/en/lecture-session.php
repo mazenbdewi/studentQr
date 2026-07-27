@@ -162,6 +162,29 @@ return [
     'weekly_generation_conflict_detected' => 'A new conflict was detected while generating sessions. No sessions were created.',
     'weekly_generation_completed_title' => 'Dated sessions generated',
     'weekly_generation_completed_body' => ':created of :total candidate sessions were created. :skipped existing or unsafe sessions were skipped.',
+    'lecture_generation' => [
+        'preview_title' => 'Session generation preview',
+        'preview_description' => 'Preview the dated sessions that will be generated from weekly schedule slots. Only sessions meeting the requirements will be created, with a clear report for excluded cases.',
+        'academic_term' => 'Academic term',
+        'summary' => [
+            'source_slots' => 'Source slots', 'expected_sessions' => 'Expected sessions', 'to_create' => 'Will be created', 'already_exists' => 'Already exists', 'not_ready_slots' => 'Slots not ready for generation', 'conflicts' => 'Conflicts',
+        ],
+        'main' => [
+            'title' => 'Main result', 'can_create' => ':count new sessions can be created.', 'already_exists' => ':count sessions already exist and will not be duplicated.', 'none_ready' => 'No new sessions are currently ready for generation.', 'resolve_issues' => 'Please resolve the issues shown below.', 'no_source_slots' => 'There are no weekly schedule slots that can be used to generate sessions.', 'all_already_exists' => 'All expected sessions already exist; there are no new sessions to create.',
+        ],
+        'issues' => [
+            'title' => 'Issues requiring attention', 'none' => 'All core requirements are complete.', 'counted' => ':count slot(s): :reason', 'not_ready_unique' => 'Slots not ready for generation: :count', 'missing_lecturer' => ':count slot(s) have no assigned lecturer', 'missing_hall' => ':count slot(s) have no assigned hall', 'breakdown' => 'Lecturer only: :lecturer_only; hall only: :hall_only; both: :both', 'unique_note' => 'One slot can have more than one issue, so the sum of reasons does not represent the number of slots not ready for generation.', 'manage' => 'Resolve issues (:count)',
+        ],
+        'details' => ['title' => 'Show verification details'],
+        'readiness' => [
+            'valid_subject_sections' => 'Slot linked to a valid subject and section', 'with_lecturer' => 'Slot linked to a lecturer', 'without_lecturer' => 'Slot without a lecturer', 'with_valid_account_role' => 'Slot linked to a lecturer with a valid account and role', 'with_hall' => 'Slot linked to a hall', 'without_hall' => 'Slot without a hall', 'ready' => 'Slot meeting core requirements', 'not_ready' => 'Slot not ready for generation',
+        ],
+        'reasons' => [
+            'missing_teaching_dates' => 'Teaching dates have not been set', 'invalid_teaching_date_range' => 'The teaching date range is invalid', 'missing_completed_enrollment_batch' => 'No completed enrollment import exists for the academic term', 'missing_completed_weekly_schedule_batch' => 'No completed weekly schedule import exists for the academic term', 'missing_weekly_schedule_slots' => 'No weekly schedule slots exist',
+            'missing_lecturer_identity' => 'No lecturer has been assigned', 'missing_active_lecturer_login' => 'The lecturer has no active login account', 'missing_course_lecturer_role' => 'The lecturer account is missing the course lecturer role', 'missing_hall' => 'No hall has been assigned', 'invalid_subject_section' => 'The subject or section is invalid', 'invalid_weekday' => 'The weekly slot weekday is invalid', 'invalid_time_range' => 'The start or end time is invalid',
+            'persisted_session_overlap' => 'There is an overlap with an existing session', 'weekly_schedule_overlap' => 'There is an overlap in the weekly schedule', 'scheduling_conflict' => 'There is a scheduling conflict', 'source_date_already_generated' => 'A session has already been generated for this slot and date', 'matching_manual_session_exists' => 'A matching manual session already exists', 'excluded_from_weekly_schedule' => 'The slot is excluded from the weekly schedule', 'unexpected_item_failure' => 'The session could not be created', 'unknown' => 'A case requires review',
+        ],
+    ],
     'successful_operations_report' => 'Successful operations report',
     'error_report' => 'Error and excluded cases report',
     'report_reasons' => [
