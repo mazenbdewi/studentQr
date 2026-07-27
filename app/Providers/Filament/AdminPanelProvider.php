@@ -32,6 +32,7 @@ use App\Http\Middleware\EnsurePinIsVerified;
 use App\Http\Middleware\SetAdminLocale;
 use App\Livewire\Filament\Profile\UpdatePassword;
 use App\Livewire\Filament\Profile\UpdatePinCode;
+use App\Livewire\Filament\Profile\UsernamePersonalInfo;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
@@ -109,6 +110,7 @@ class AdminPanelProvider extends PanelProvider
                 BreezyCore::make()
                     ->myProfile()
                     ->myProfileComponents([
+                        'personal_info' => UsernamePersonalInfo::class,
                         'update_password' => UpdatePassword::class,
                         'update_pin_code' => UpdatePinCode::class,
                     ]),

@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 
@@ -40,6 +41,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Livewire::component('username_personal_info', \App\Livewire\Filament\Profile\UsernamePersonalInfo::class);
+
         $this->configurePolicies();
 
         $this->configureDB();
