@@ -8,6 +8,7 @@ return [
     'email' => 'Email',
     'login_identifier' => 'Username, email, or student number',
     'password' => 'Password',
+    'current_password' => 'Current password',
     'pin_code' => 'PIN code',
     'pin_code_help' => 'If your account has a PIN, enter the 6-digit code. You will be asked to verify it if this is left empty.',
     'pin_required' => 'PIN code is required when extra verification is enabled.',
