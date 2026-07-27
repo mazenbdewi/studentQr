@@ -1,6 +1,8 @@
 <?php
 
 use App\Exports\WeeklyScheduleReportExport;
+use App\Filament\Pages\AcademicTermManagement;
+use App\Filament\Pages\LecturerAccountPreparation;
 use App\Filament\Pages\ManaraEnrollmentImport;
 use App\Filament\Pages\ManaraScheduleImport;
 use App\Filament\Pages\ScheduleImportReconciliationIndex;
@@ -89,11 +91,17 @@ it('organizes all weekly schedule pages in one navigation group without UUID lab
             'تقارير برنامج الدوام الأسبوعي', 'تقرير مراجعة الاستيراد',
         ]);
 
-    expect(ManaraEnrollmentImport::getNavigationGroup())->toBe('الاستيراد')
-        ->and(ManaraScheduleImport::getNavigationGroup())->toBe('الاستيراد')
-        ->and(ManaraEnrollmentImport::getNavigationLabel())->toBe('المرحلة الأولى: استيراد الطلاب والتسجيلات')
+    expect(ManaraEnrollmentImport::getNavigationGroup())->toBe('الإعداد والتهيئة الأولية')
+        ->and(ManaraScheduleImport::getNavigationGroup())->toBe('الإعداد والتهيئة الأولية')
+        ->and(AcademicTermManagement::getNavigationGroup())->toBe('الإعداد والتهيئة الأولية')
+        ->and(LecturerAccountPreparation::getNavigationGroup())->toBe('الإعداد والتهيئة الأولية')
+        ->and(ManaraEnrollmentImport::getNavigationLabel())->toBe('المرحلة الأولى: استيراد البيانات')
         ->and(ManaraScheduleImport::getNavigationLabel())->toBe('المرحلة الثانية: استيراد برنامج الدوام الأسبوعي')
-        ->and(ManaraEnrollmentImport::getNavigationSort())->toBeLessThan(ManaraScheduleImport::getNavigationSort());
+        ->and(AcademicTermManagement::getNavigationSort())->toBe(1)
+        ->and(ManaraEnrollmentImport::getNavigationSort())->toBe(2)
+        ->and(ManaraScheduleImport::getNavigationSort())->toBe(3)
+        ->and(LecturerAccountPreparation::getNavigationSort())->toBe(4)
+        ->and(__('filament-dashboard.navigation.initial_setup', [], 'en'))->toBe('Initial Setup');
 });
 
 it('uses readable light and dark styles for selected weekly schedule report filters', function (): void {

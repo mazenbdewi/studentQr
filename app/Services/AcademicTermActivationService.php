@@ -58,6 +58,37 @@ class AcademicTermActivationService
         return $activated;
     }
 
+    public function deactivate(User $actor): void
+    {
+        Gate::forUser($actor)->authorize('manageAcademicTerms');
+
+        DB::transaction(function () use ($actor): void {
+            $currentId = app(AcademicTermContext::class)->currentId();
+
+            if ($currentId === null) {
+                return;
+            }
+
+            $current = AcademicTerm::query()->lockForUpdate()->find($currentId);
+
+            AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, null);
+
+            AuditLog::query()->create([
+                'user_id' => $actor->id,
+                'category' => 'academic_term',
+                'action' => 'deactivated',
+                'model_type' => AcademicTerm::class,
+                'model_id' => $current?->id,
+                'description' => 'تم إلغاء تحديد الفصل الدراسي الحالي.',
+                'old_values' => ['current_academic_term_id' => $current?->id],
+                'new_values' => ['current_academic_term_id' => null],
+                'severity' => 'warning',
+            ]);
+        });
+
+        $this->clearCaches();
+    }
+
     public function clearCaches(): void
     {
         Cache::forget('academic-term-context');

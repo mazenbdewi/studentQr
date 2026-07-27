@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\LectureSessions\Pages;
 
+use App\Filament\Pages\AcademicTermManagement;
 use App\Filament\Pages\LecturerAccountPreparation;
 use App\Filament\Pages\ScheduleImportReconciliationReport;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
@@ -22,6 +23,7 @@ use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Support\Enums\Alignment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -30,6 +32,66 @@ use Illuminate\Support\HtmlString;
 class ListLectureSessions extends ListRecords
 {
     protected static string $resource = LectureSessionResource::class;
+
+    /** @var list<string> */
+    private const CURRENT_TERM_ACTIONS = [
+        'create',
+        'create_recurring',
+        'generate_from_weekly_schedule',
+        'open_weekly_schedule_reconciliation',
+        'configure_teaching_period',
+        'open_lecturer_account_preparation',
+    ];
+
+    public function mount(): void
+    {
+        parent::mount();
+
+        if (static::currentAcademicTermIsMissing()) {
+            $this->mountAction('missingAcademicTerm');
+        }
+    }
+
+    /**
+     * Reopens the explanatory modal instead of mounting a term-dependent action.
+     *
+     * @param  array<string, mixed>  $arguments
+     * @param  array<string, mixed>  $context
+     */
+    public function mountAction(string $name, array $arguments = [], array $context = []): mixed
+    {
+        if (in_array($name, self::CURRENT_TERM_ACTIONS, true) && static::currentAcademicTermIsMissing()) {
+            return parent::mountAction('missingAcademicTerm');
+        }
+
+        return parent::mountAction($name, $arguments, $context);
+    }
+
+    public function missingAcademicTermAction(): Action
+    {
+        return Action::make('missingAcademicTerm')
+            ->modalHeading('لم يتم تحديد الفصل الدراسي الحالي')
+            ->modalDescription('يجب تحديد الفصل الدراسي الحالي قبل استخدام عمليات الجلسات والمحاضرات.\n\nيرجى الانتقال إلى إدارة الفصل الدراسي الحالي واختيار الفصل المطلوب، ثم العودة لإكمال العملية.')
+            ->modalIcon('heroicon-o-exclamation-triangle')
+            ->modalIconColor('warning')
+            ->modalWidth('lg')
+            ->modalAlignment(Alignment::Center)
+            ->requiresConfirmation()
+            ->closeModalByClickingAway(false)
+            ->closeModalByEscaping(false)
+            ->modalCloseButton(true)
+            ->modalSubmitAction(function (Action $action): Action {
+                return $action
+                    ->label('تحديد الفصل الدراسي الحالي')
+                    ->url(AcademicTermManagement::getUrl());
+            })
+            ->modalCancelActionLabel('إغلاق')
+            ->extraModalWindowAttributes([
+                'dir' => 'rtl',
+                'class' => 'text-right',
+            ])
+            ->action(static function (): void {});
+    }
 
     public function getTabs(): array
     {
@@ -82,7 +144,7 @@ class ListLectureSessions extends ListRecords
                     ]);
                 })
                 ->fillForm(function (): array {
-                    $currentTerm = app(AcademicTermContext::class)->current();
+                    $currentTerm = app(AcademicTermContext::class)->currentOrNull();
 
                     return ['academic_term_id' => $currentTerm?->id];
                 })
@@ -92,7 +154,13 @@ class ListLectureSessions extends ListRecords
 
                     Forms\Components\Placeholder::make('current_academic_term')
                         ->label(__('lecture-session.academic_term'))
-                        ->content(fn (): string => app(AcademicTermContext::class)->requireCurrent()->display_name)
+                        ->content(function (): string {
+                            $term = app(AcademicTermContext::class)->currentOrNull();
+
+                            return $term instanceof AcademicTerm
+                                ? $term->display_name
+                                : static::currentAcademicTermMissingMessage();
+                        })
                         ->badge(),
 
                     Forms\Components\Placeholder::make('weekly_generation_preview')
@@ -108,7 +176,16 @@ class ListLectureSessions extends ListRecords
                         ->columnSpanFull(),
                 ])
                 ->action(function (array $data): void {
-                    $term = app(AcademicTermContext::class)->requireCurrent();
+                    $term = app(AcademicTermContext::class)->currentOrNull();
+
+                    if (! $term instanceof AcademicTerm) {
+                        Notification::make()
+                            ->title(static::currentAcademicTermMissingMessage())
+                            ->warning()
+                            ->send();
+
+                        return;
+                    }
                     $lock = Cache::lock('lecture-session-generation:'.$term->id, 600);
 
                     if (! $lock->get()) {
@@ -164,8 +241,10 @@ class ListLectureSessions extends ListRecords
                 ->icon('heroicon-o-clipboard-document-check')
                 ->color('gray')
                 ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                ->disabled(fn (): bool => static::currentWeeklyScheduleBatch() === null)
-                ->tooltip(fn (): ?string => static::currentWeeklyScheduleBatch() === null ? 'لا توجد عملية استيراد برنامج أسبوعي للفصل الدراسي الحالي.' : null)
+                ->disabled(fn (): bool => ! static::currentAcademicTermIsMissing() && static::currentWeeklyScheduleBatch() === null)
+                ->tooltip(fn (): ?string => static::currentAcademicTermIsMissing()
+                    ? null
+                    : (static::currentWeeklyScheduleBatch() === null ? 'لا توجد عملية استيراد برنامج أسبوعي للفصل الدراسي الحالي.' : null))
                 ->url(fn (): ?string => ($batch = static::currentWeeklyScheduleBatch()) instanceof ImportBatch
                     ? ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid])
                     : null),
@@ -180,7 +259,7 @@ class ListLectureSessions extends ListRecords
                     ->modalDescription(__('lecture-session.configure_teaching_period_description'))
                     ->modalSubmitActionLabel(__('lecture-session.configure_teaching_period_submit'))
                     ->fillForm(function (): array {
-                        $currentTerm = app(AcademicTermContext::class)->current();
+                        $currentTerm = app(AcademicTermContext::class)->currentOrNull();
 
                         return [
                             'teaching_start_date' => $currentTerm?->teaching_start_date?->toDateString(),
@@ -191,9 +270,11 @@ class ListLectureSessions extends ListRecords
                         Forms\Components\Placeholder::make('current_academic_term')
                             ->label(__('lecture-session.academic_term'))
                             ->content(function (): string {
-                                $currentTerm = app(AcademicTermContext::class)->current();
+                                $currentTerm = app(AcademicTermContext::class)->currentOrNull();
 
-                                return $currentTerm ? $currentTerm->display_name : 'لا يوجد فصل دراسي حالي محدد.';
+                                return $currentTerm instanceof AcademicTerm
+                                    ? $currentTerm->display_name
+                                    : static::currentAcademicTermMissingMessage();
                             })
                             ->badge(),
 
@@ -208,12 +289,21 @@ class ListLectureSessions extends ListRecords
                             ->required(),
                     ])
                     ->action(function (array $data): void {
-                        app(AcademicTermContext::class)
-                            ->requireCurrent()
-                            ->update([
-                                'teaching_start_date' => $data['teaching_start_date'],
-                                'teaching_end_date' => $data['teaching_end_date'],
-                            ]);
+                        $term = app(AcademicTermContext::class)->currentOrNull();
+
+                        if (! $term instanceof AcademicTerm) {
+                            Notification::make()
+                                ->title(static::currentAcademicTermMissingMessage())
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        $term->update([
+                            'teaching_start_date' => $data['teaching_start_date'],
+                            'teaching_end_date' => $data['teaching_end_date'],
+                        ]);
 
                         Notification::make()
                             ->title(__('lecture-session.teaching_period_saved_title'))
@@ -226,7 +316,9 @@ class ListLectureSessions extends ListRecords
                     ->icon('heroicon-o-user-group')
                     ->color('gray')
                     ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                    ->url(fn (): string => LecturerAccountPreparation::getUrl()),
+                    ->url(fn (): ?string => static::currentAcademicTermIsMissing()
+                        ? null
+                        : LecturerAccountPreparation::getUrl()),
             ])
                 ->label('الإعدادات')
                 ->icon('heroicon-o-cog-6-tooth')
@@ -702,9 +794,19 @@ class ListLectureSessions extends ListRecords
         return (bool) auth()->user()?->hasAnyRole(['super-admin', 'admin']);
     }
 
+    protected static function currentAcademicTermIsMissing(): bool
+    {
+        return ! app(AcademicTermContext::class)->currentOrNull() instanceof AcademicTerm;
+    }
+
+    protected static function currentAcademicTermMissingMessage(): string
+    {
+        return 'لا يوجد فصل دراسي حالي محدد. يرجى تعيين الفصل الدراسي الحالي من إدارة الفصل الدراسي الحالي.';
+    }
+
     protected static function currentWeeklyScheduleBatch(): ?ImportBatch
     {
-        $term = app(AcademicTermContext::class)->current();
+        $term = app(AcademicTermContext::class)->currentOrNull();
 
         if (! $term instanceof AcademicTerm) {
             return null;
@@ -741,7 +843,7 @@ class ListLectureSessions extends ListRecords
 
     protected static function weeklyGenerationReadySessionCount(): int
     {
-        $term = app(AcademicTermContext::class)->current();
+        $term = app(AcademicTermContext::class)->currentOrNull();
 
         if (! $term instanceof AcademicTerm) {
             return 0;

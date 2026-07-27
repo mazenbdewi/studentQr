@@ -2,9 +2,12 @@
 
 namespace App\Filament\Pages;
 
+use App\Exports\LecturerLoginCredentialsExport;
 use App\Exports\ManaraScheduleImportErrorsExport;
 use App\Imports\WeeklyScheduleImport;
+use App\Models\AcademicTerm;
 use App\Models\ImportBatch;
+use App\Services\LecturerAccountPreparationService;
 use App\Services\ScheduleAcademicTermResolver;
 use App\Services\ScheduleImportReconciliationBuilder;
 use App\Support\XlsxNumericCellSanitizer;
@@ -22,7 +25,9 @@ use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Maatwebsite\Excel\Excel as ExcelWriter;
 use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Throwable;
 
 /** @property-read Schema $form */
@@ -67,6 +72,8 @@ class ManaraScheduleImport extends Page implements HasForms
     public bool $resultHasPersistedSchedule = false;
 
     public bool $uploadReady = false;
+
+    public bool $accountsPrepared = false;
 
     public function mount(): void
     {
@@ -116,7 +123,7 @@ class ManaraScheduleImport extends Page implements HasForms
 
     public static function getNavigationGroup(): ?string
     {
-        return __('filament-dashboard.navigation.imports_exports');
+        return __('filament-dashboard.navigation.initial_setup');
     }
 
     public static function getNavigationLabel(): string
@@ -126,7 +133,7 @@ class ManaraScheduleImport extends Page implements HasForms
 
     public static function getNavigationSort(): ?int
     {
-        return 6;
+        return 3;
     }
 
     public function getTitle(): string
@@ -254,6 +261,71 @@ class ManaraScheduleImport extends Page implements HasForms
         }
     }
 
+    public function canPrepareUserAccounts(): bool
+    {
+        $term = $this->accountPreparationTerm();
+
+        if (! $this->resultHasPersistedSchedule || ! $term instanceof AcademicTerm) {
+            return false;
+        }
+
+        return $this->accountsNeedingPreparation($term) > 0;
+    }
+
+    public function hasNoAccountsNeedingPreparation(): bool
+    {
+        $term = $this->accountPreparationTerm();
+
+        return $this->resultHasPersistedSchedule
+            && $term instanceof AcademicTerm
+            && $this->accountsNeedingPreparation($term) === 0;
+    }
+
+    public function prepareUserAccounts(): ?BinaryFileResponse
+    {
+        $term = $this->accountPreparationTerm();
+
+        if (! $this->resultHasPersistedSchedule || ! $term instanceof AcademicTerm) {
+            Notification::make()->title('أكمل استيراد البرنامج الأسبوعي بنجاح أولًا.')->warning()->send();
+
+            return null;
+        }
+
+        if ($this->accountsNeedingPreparation($term) === 0) {
+            $this->accountsPrepared = true;
+            Notification::make()->title('لا توجد حسابات تحتاج إلى التهيئة.')->success()->send();
+
+            return null;
+        }
+
+        try {
+            $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($term, Filament::auth()->user());
+            $this->accountsPrepared = true;
+
+            Notification::make()
+                ->title('تمت تهيئة حسابات المستخدمين')
+                ->body(__('lecturer-account-preparation.bulk_completed_body', [
+                    'created' => $result['created_account_count'],
+                    'roles' => $result['granted_role_count'],
+                    'blocked' => $result['blocked_count'],
+                ]))
+                ->success()
+                ->send();
+
+            return $result['credential_rows'] === [] ? null : Excel::download(
+                new LecturerLoginCredentialsExport($result['credential_rows']),
+                'lecturer-login-credentials-'.$this->safeFilenameSegment($term->display_name).'-'.now()->format('Ymd-His').'.xlsx',
+                ExcelWriter::XLSX,
+            );
+        } catch (\RuntimeException $exception) {
+            Notification::make()->title($exception->getMessage())->warning()->send();
+        } catch (Throwable) {
+            Notification::make()->title('تعذر إكمال تهيئة الحسابات. بقيت نتيجة الاستيراد محفوظة ويمكن المحاولة مجددًا.')->danger()->send();
+        }
+
+        return null;
+    }
+
     private function resetResults(): void
     {
         $this->summary = null;
@@ -264,6 +336,7 @@ class ManaraScheduleImport extends Page implements HasForms
         $this->resultStatusLabel = null;
         $this->resultBatchUuid = null;
         $this->resultHasPersistedSchedule = false;
+        $this->accountsPrepared = false;
     }
 
     private function setResolvedSourceBatch(ImportBatch $batch, \App\Models\AcademicTerm $academicTerm): void
@@ -379,6 +452,33 @@ class ManaraScheduleImport extends Page implements HasForms
                 false,
             );
         }
+    }
+
+    private function accountPreparationTerm(): ?AcademicTerm
+    {
+        if (! $this->resultBatchUuid) {
+            return null;
+        }
+
+        return ImportBatch::query()
+            ->where('uuid', $this->resultBatchUuid)
+            ->with('academicTerms:id')
+            ->first()?->academicTerms
+            ->first();
+    }
+
+    private function accountsNeedingPreparation(AcademicTerm $term): int
+    {
+        return collect(app(LecturerAccountPreparationService::class)->previewBulkPreparation($term)['rows'])
+            ->whereIn('status', ['needs_create', 'needs_course_lecturer_role', 'needs_login_username'])
+            ->count();
+    }
+
+    private function safeFilenameSegment(string $value): string
+    {
+        $segment = preg_replace('/[^\pL\pN\-]+/u', '-', $value) ?: 'academic-term';
+
+        return trim($segment, '-') ?: 'academic-term';
     }
 
     private function sendBatchResultNotification(ImportBatch $batch): void

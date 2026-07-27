@@ -10,6 +10,14 @@ class AcademicTermContext
 {
     public function current(): ?AcademicTerm
     {
+        return $this->currentOrNull();
+    }
+
+    /**
+     * Resolves the configured term for UI checks without relaxing required-term operations.
+     */
+    public function currentOrNull(): ?AcademicTerm
+    {
         $id = $this->currentId();
 
         return $id === null ? null : AcademicTerm::query()->find($id);
@@ -24,7 +32,7 @@ class AcademicTermContext
 
     public function requireCurrent(): AcademicTerm
     {
-        return $this->current() ?? throw new \RuntimeException('لا يوجد فصل دراسي حالي محدد. يرجى تعيين الفصل الدراسي الحالي من إدارة الفصل الدراسي الحالي.');
+        return $this->currentOrNull() ?? throw new \RuntimeException('لا يوجد فصل دراسي حالي محدد. يرجى تعيين الفصل الدراسي الحالي من إدارة الفصل الدراسي الحالي.');
     }
 
     public function isCurrent(AcademicTerm $term): bool
