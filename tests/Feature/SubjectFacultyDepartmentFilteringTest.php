@@ -21,7 +21,7 @@ beforeEach(function (): void {
 function subjectAdmin(): User
 {
     $user = User::factory()->create([
-        'email' => fake()->unique()->safeEmail(),
+        'login_username' => fake()->unique()->bothify('subject-admin-####??'),
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',
@@ -36,7 +36,7 @@ function subjectAdmin(): User
 function subjectLecturer(): User
 {
     $user = User::factory()->create([
-        'email' => fake()->unique()->safeEmail(),
+        'login_username' => fake()->unique()->bothify('subject-lecturer-####??'),
         'role' => 'course_lecturer',
         'type' => 'lecturer',
         'status' => 'active',

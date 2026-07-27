@@ -11,12 +11,12 @@ use App\Filament\Resources\Halls\Schemas\HallInfolist;
 use App\Filament\Resources\Halls\Tables\HallsTable;
 use App\Models\Hall;
 use BackedEnum;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class HallResource extends Resource
 {
@@ -63,9 +63,8 @@ class HallResource extends Resource
 
     public static function getRecordTitle($record): ?string
     {
-        return __('hall.record_title') . ' #' . $record->id;
+        return __('hall.record_title').' #'.$record->id;
     }
-
 
     public static function form(Schema $schema): Schema
     {
@@ -109,6 +108,10 @@ class HallResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->isSuperAdmin() || auth()->user()?->isAdmin();
+        $user = auth()->user();
+
+        return (bool) ($user?->isSuperAdmin()
+            || $user?->isAdmin()
+            || $user?->can('manage hall metadata'));
     }
 }

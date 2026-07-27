@@ -15,7 +15,7 @@ beforeEach(function (): void {
 
 it('filters students by faculty and department', function (): void {
     $user = User::factory()->create([
-        'email' => 'student-filter-admin@example.com',
+        'login_username' => 'student_filter_admin',
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',

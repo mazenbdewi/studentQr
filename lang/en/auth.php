@@ -1,12 +1,14 @@
 <?php
+
 return [
-    'failed'   => 'These credentials do not match our records.',
+    'failed' => 'These credentials do not match our records.',
     'inactive' => 'Your account is inactive.',
     'unauthorized_role' => 'You do not have the required role.',
     'login_title' => 'Login',
     'email' => 'Email',
-    'login_identifier' => 'Email or student number',
+    'login_identifier' => 'Username, email, or student number',
     'password' => 'Password',
+    'current_password' => 'Current password',
     'pin_code' => 'PIN code',
     'pin_code_help' => 'If your account has a PIN, enter the 6-digit code. You will be asked to verify it if this is left empty.',
     'pin_required' => 'PIN code is required when extra verification is enabled.',
@@ -18,6 +20,12 @@ return [
     'pin_verify_help' => 'Enter your account PIN code to continue to the dashboard.',
     'pin_verify_action' => 'Verify PIN',
     'access_denied_page' => 'You do not have permission to access this page.',
+    'password_change_required' => 'You must change the temporary password before continuing.',
+    'force_password_change_title' => 'Change temporary password',
+    'force_password_change_message' => 'Set a new password before accessing the dashboard, sessions, QR pages, or attendance pages.',
+    'force_password_change_action' => 'Save password and continue',
+    'password_changed_continue' => 'Password changed. You may continue now.',
+    'new_password' => 'New password',
     'remember_me' => 'Remember Me',
     'login' => 'Login',
     'role_optional' => 'Login as (optional)',
@@ -28,40 +36,36 @@ return [
     'manager' => 'Manager',
     'no_account' => 'Don’t have an account?',
     'create_account' => 'Create new account',
-    'student_number'=>'Student Number',
+    'student_number' => 'Student Number',
     'remember' => 'Remember me',
     'register' => 'Register',
     'register_title' => 'Register ',
     'confirm_password' => 'Confirm Password',
     'name' => 'Name',
 
-
     'university_name' => 'Al Manara University',
     'system_name' => 'Student Attendance System',
 
-
     'login_as_optional' => 'Login as (Optional)',
 
+    'faculty' => 'Faculty',
+    'department' => 'Department',
+    'year' => 'Academic Year',
+    'avatar' => 'Student Photo',
 
+    'choose_faculty' => 'Choose Faculty',
+    'choose_department' => 'Choose Department',
 
-    'faculty'=>'Faculty',
-    'department'=>'Department',
-    'year'=>'Academic Year',
-    'avatar'=>'Student Photo',
+    'year1' => 'Year One',
+    'year2' => 'Year Two',
+    'year3' => 'Year Three',
+    'year4' => 'Year Four',
 
-    'choose_faculty'=>'Choose Faculty',
-    'choose_department'=>'Choose Department',
+    'arabic' => 'Arabic',
+    'english' => 'English',
 
-    'year1'=>'Year One',
-    'year2'=>'Year Two',
-    'year3'=>'Year Three',
-    'year4'=>'Year Four',
-
-    'arabic'=>'Arabic',
-    'english'=>'English',
-
-    'invalid_student'=>'Invalid student code',
-    'register_success'=>'Account created successfully',
-    'invalid_activation'=>'Invalid activation code',
-    'already_registered'=>'Already registered account',
+    'invalid_student' => 'Invalid student code',
+    'register_success' => 'Account created successfully',
+    'invalid_activation' => 'Invalid activation code',
+    'already_registered' => 'Already registered account',
 ];

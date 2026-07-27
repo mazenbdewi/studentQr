@@ -13,7 +13,7 @@ return new class extends Migration
 
         DB::statement("
             ALTER TABLE users
-            MODIFY role ENUM('super_admin', 'admin', 'attendance_monitor', 'course_lecturer') NOT NULL
+            MODIFY role ENUM('super_admin', 'admin', 'manager', 'attendance_monitor', 'course_lecturer', 'student') NOT NULL
         ");
     }
 

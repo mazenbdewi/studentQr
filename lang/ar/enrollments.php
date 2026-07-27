@@ -18,6 +18,8 @@ return [
     'theoretical_section' => 'الشعبة النظرية',
     'practical_section' => 'الشعبة العملية',
     'registration_date' => 'تاريخ التسجيل',
+    'academic_term' => 'الفصل الدراسي',
+    'academic_term_unspecified' => 'غير محدد',
     'status' => 'الحالة',
     'enrolled' => 'مسجل',
     'dropped' => 'منسحب',

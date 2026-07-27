@@ -12,7 +12,7 @@
             </h2>
 
             <p class="opacity-90 text-sm mt-1">
-                {{ auth()->user()->email }}
+                اسم المستخدم: {{ auth()->user()->login_username }}
             </p>
         </div>
 
@@ -46,16 +46,6 @@
 
                     <input name="name"
                            value="{{ old('name', auth()->user()->name) }}"
-                           class="w-full border rounded-xl px-4 py-3">
-                </div>
-
-                <div>
-                    <label class="block mb-2">
-                        {{ __('student.email') }}
-                    </label>
-
-                    <input name="email"
-                           value="{{ old('email', auth()->user()->email) }}"
                            class="w-full border rounded-xl px-4 py-3">
                 </div>
 

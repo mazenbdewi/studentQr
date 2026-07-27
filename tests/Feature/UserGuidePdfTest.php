@@ -13,7 +13,7 @@ beforeEach(function (): void {
 function createUserGuideSuperAdmin(): User
 {
     $user = User::factory()->create([
-        'email' => 'guide-super-admin@example.com',
+        'login_username' => 'guide-super-admin',
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',
@@ -28,7 +28,7 @@ function createUserGuideSuperAdmin(): User
 function createUserGuideAdmin(): User
 {
     $user = User::factory()->create([
-        'email' => 'guide-admin@example.com',
+        'login_username' => 'guide-admin',
         'role' => 'admin',
         'type' => 'admin',
         'status' => 'active',

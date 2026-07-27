@@ -45,3 +45,32 @@ function something()
 {
     // ..
 }
+
+function spreadsheetFromXlsxBytes(string $bytes): \PhpOffice\PhpSpreadsheet\Spreadsheet
+{
+    $path = tempnam(sys_get_temp_dir(), 'xlsx-test-');
+    file_put_contents($path, $bytes);
+
+    try {
+        return \PhpOffice\PhpSpreadsheet\IOFactory::load($path);
+    } finally {
+        @unlink($path);
+    }
+}
+
+function spreadsheetCellValues(\PhpOffice\PhpSpreadsheet\Spreadsheet $spreadsheet): array
+{
+    $values = [];
+
+    foreach ($spreadsheet->getWorksheetIterator() as $worksheet) {
+        foreach ($worksheet->toArray() as $row) {
+            foreach ($row as $value) {
+                if ($value !== null && $value !== '') {
+                    $values[] = (string) $value;
+                }
+            }
+        }
+    }
+
+    return $values;
+}

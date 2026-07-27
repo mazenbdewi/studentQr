@@ -6,6 +6,7 @@ namespace App\Models;
 use BezhanSalleh\FilamentShield\Traits\HasPanelShield;
 use Filament\Models\Contracts\FilamentUser;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -14,7 +15,6 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable implements FilamentUser
 {
     use HasFactory;
-
     use HasPanelShield;
     use HasRoles;
     use Notifiable;
@@ -22,8 +22,9 @@ class User extends Authenticatable implements FilamentUser
 
     protected $fillable = [
         'name',
-        'email',
+        'login_username',
         'password',
+        'must_change_password',
         'pin_code',
         'pin_enabled',
         'pin_changed_at',
@@ -49,8 +50,9 @@ class User extends Authenticatable implements FilamentUser
     ];
 
     protected $casts = [
-        'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'must_change_password' => 'boolean',
+        'is_active' => 'boolean',
         'pin_enabled' => 'boolean',
         'pin_changed_at' => 'datetime',
     ];
@@ -62,15 +64,19 @@ class User extends Authenticatable implements FilamentUser
 
     public function isSuperAdmin(): bool
     {
-        return $this->email === 'super@admin.com'
-            || $this->role === 'super_admin'
-            || $this->hasRole(['super-admin', 'super_admin']);
+        return $this->hasRole('super-admin');
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $user): void {
+            $user->login_username = strtolower(trim((string) $user->login_username));
+        });
     }
 
     public function isAdmin(): bool
     {
-        return $this->role === 'admin'
-            || $this->hasRole('admin');
+        return $this->hasRole('admin');
     }
 
     public function canManageUsers(): bool
@@ -105,20 +111,36 @@ class User extends Authenticatable implements FilamentUser
 
     public function syncSystemRole(string $role): void
     {
-        $this->syncRoles([$this->mapDatabaseRoleToSpatieRole($role)]);
+        $mappedRole = $this->mapDatabaseRoleToSpatieRole($role);
+
+        foreach (self::systemSpatieRoles() as $systemRole) {
+            if ($this->hasRole($systemRole) && $systemRole !== $mappedRole) {
+                $this->removeRole($systemRole);
+            }
+        }
+
+        if (! $this->hasRole($mappedRole)) {
+            $this->assignRole($mappedRole);
+        }
     }
 
     public static function mapDatabaseRoleToSpatieRole(string $role): string
     {
         return match ($role) {
             'super_admin' => 'super-admin',
-            'attendance_monitor' => 'manager',
             'admin' => 'admin',
+            'manager', 'attendance_monitor' => 'manager',
             'course_lecturer' => 'course_lecturer',
-            default => $role,
+            'student' => 'student',
+            default => throw new \InvalidArgumentException("Unsupported user role classification [{$role}]."),
         };
     }
 
+    /** @return array<int, string> */
+    private static function systemSpatieRoles(): array
+    {
+        return ['super-admin', 'admin', 'manager', 'course_lecturer', 'student'];
+    }
 
     public function attendances()
     {
@@ -140,10 +162,15 @@ class User extends Authenticatable implements FilamentUser
         return $this->belongsTo(Department::class)->withTrashed();
     }
 
-
     public function lectureSessions()
     {
         return $this->hasMany(LectureSession::class, 'lecturer_id');
+    }
+
+    /** @return HasMany<Lecturer, $this> */
+    public function lecturerIdentities(): HasMany
+    {
+        return $this->hasMany(Lecturer::class, 'user_id');
     }
 
     public function headedDepartment()

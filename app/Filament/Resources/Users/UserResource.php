@@ -10,13 +10,14 @@ use App\Filament\Resources\Users\Tables\UsersTable;
 use App\Models\User;
 use BackedEnum;
 use Filament\Facades\Filament;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
-use Spatie\Permission\Models\Role;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Spatie\Permission\Models\Role;
+
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
@@ -65,7 +66,10 @@ class UserResource extends Resource
         return [
             'super_admin' => __('user.super_admin'),
             'admin' => __('user.admin'),
+            'manager' => 'مدير',
+            'attendance_monitor' => 'مراقب الحضور',
             'course_lecturer' => __('user.course_lecturer'),
+            'student' => 'طالب',
         ];
     }
 
@@ -121,7 +125,7 @@ class UserResource extends Resource
 
     public static function getRecordTitle($record): ?string
     {
-        return $record->name ?? __('user.record_title') . ' #' . $record->id;
+        return $record->name ?? __('user.record_title').' #'.$record->id;
     }
 
     public static function form(Schema $schema): Schema

@@ -2,6 +2,11 @@
 
 return [
 
+    'lecturer_credentials' => [
+        'key' => env('LECTURER_CREDENTIALS_ENCRYPTION_KEY'),
+        'key_version' => env('LECTURER_CREDENTIALS_ENCRYPTION_KEY_VERSION', 'v1'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

@@ -380,19 +380,16 @@
 
                 <div class="form-group">
                     <label for="login" class="label">
-                        {{ __('auth.login_identifier') }}
+                        اسم المستخدم
                     </label>
 
-                    <input id="login" type="text" name="login" value="{{ old('login', old('email')) }}" required autocomplete="username"
-                        class="input {{ $errors->has('login') || $errors->has('email') ? 'is-invalid' : '' }}" placeholder="example@uni.edu">
+                    <input id="login" type="text" name="login" value="{{ old('login') }}" required autocomplete="username"
+                        class="input {{ $errors->has('login') ? 'is-invalid' : '' }}" placeholder="admin">
 
                     @error('login')
                     <div class="field-error">{{ $message }}</div>
                     @enderror
 
-                    @error('email')
-                    <div class="field-error">{{ $message }}</div>
-                    @enderror
                 </div>
 
                 <div class="form-group">

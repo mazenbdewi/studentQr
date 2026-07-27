@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Attendance;
 use App\Models\AttendanceToken;
 use App\Models\Department;
@@ -9,10 +11,19 @@ use App\Models\Hall;
 use App\Models\LectureSession;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Models\SubjectSection;
 use App\Models\User;
 
 function createQrAttendanceScenario(): array
 {
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'فصل حضور QR',
+        'canonical_name' => 'qr-attendance-'.str()->uuid(),
+        'teaching_start_date' => now()->subDay()->toDateString(),
+        'teaching_end_date' => now()->addMonth()->toDateString(),
+    ]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
+
     $faculty = Faculty::create([
         'name' => 'Engineering',
         'name_en' => 'Engineering',
@@ -64,6 +75,14 @@ function createQrAttendanceScenario(): array
         'is_active' => true,
     ]);
 
+    $section = SubjectSection::query()->create([
+        'academic_term_id' => $term->id,
+        'subject_id' => $subject->id,
+        'lecturer_id' => $lecturer->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'T1',
+    ]);
+
     $secondStudent = Student::create([
         'name' => 'Second Student',
         'faculty_id' => $faculty->id,
@@ -79,6 +98,8 @@ function createQrAttendanceScenario(): array
     Enrollment::create([
         'student_id' => $student->id,
         'subject_id' => $subject->id,
+        'academic_term_id' => $term->id,
+        'theoretical_section_id' => $section->id,
         'semester' => 1,
         'year' => 1,
         'status' => 'enrolled',
@@ -87,6 +108,8 @@ function createQrAttendanceScenario(): array
     Enrollment::create([
         'student_id' => $secondStudent->id,
         'subject_id' => $subject->id,
+        'academic_term_id' => $term->id,
+        'theoretical_section_id' => $section->id,
         'semester' => 1,
         'year' => 1,
         'status' => 'enrolled',
@@ -94,6 +117,8 @@ function createQrAttendanceScenario(): array
 
     $session = LectureSession::create([
         'subject_id' => $subject->id,
+        'academic_term_id' => $term->id,
+        'subject_section_id' => $section->id,
         'lecturer_id' => $lecturer->id,
         'hall_id' => $hall->id,
         'session_date' => now()->addDay()->toDateString(),

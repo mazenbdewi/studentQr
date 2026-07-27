@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'personal_information' => 'Personal information',
+    'full_name' => 'Full name',
+    'login_username' => 'Username',
+    'update_information' => 'Update information',
+    'personal_information_updated' => 'Personal information updated successfully.',
     'current_password_incorrect' => 'Current password is incorrect',
     'updated_successfully' => 'Profile updated successfully',
     'change_password' => 'Change Password',

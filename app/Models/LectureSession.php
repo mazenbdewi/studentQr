@@ -3,12 +3,12 @@
 namespace App\Models;
 
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -19,7 +19,11 @@ class LectureSession extends Model
 
     protected $fillable = [
         'subject_id',
+        'academic_term_id',
         'subject_section_id',
+        'subject_section_schedule_slot_id',
+        'lecture_session_generation_run_id',
+        'generated_from_weekly_schedule_at',
         'lecturer_id',
         'hall_id',
         'session_date',
@@ -28,6 +32,7 @@ class LectureSession extends Model
         'status',
         'attendance_mode',
         'qr_refresh_rate',
+        'expected_students',
         'notes',
         'session_otp',
         'qr_expired',
@@ -45,6 +50,7 @@ class LectureSession extends Model
         'qr_expires_at' => 'datetime',
         'actual_start' => 'datetime',
         'actual_end' => 'datetime',
+        'generated_from_weekly_schedule_at' => 'datetime',
         'session_date' => 'date',
         'qr_expired' => 'boolean',
     ];
@@ -64,6 +70,18 @@ class LectureSession extends Model
                 ]);
             }
         });
+    }
+
+    public function scopeForAcademicTerm(Builder $query, int $academicTermId): Builder
+    {
+        return $query->where('academic_term_id', $academicTermId);
+    }
+
+    public function scopeForCurrentAcademicTerm(Builder $query): Builder
+    {
+        $id = app(\App\Support\AcademicTermContext::class)->currentId();
+
+        return $id === null ? $query->whereRaw('1 = 0') : $this->scopeForAcademicTerm($query, $id);
     }
 
     public function canManageQr(?Authenticatable $user): bool
@@ -89,19 +107,7 @@ class LectureSession extends Model
 
     public function scheduledStartAt(): ?Carbon
     {
-        if (! $this->session_date || ! $this->start_time) {
-            return null;
-        }
-
-        $sessionDate = $this->session_date instanceof CarbonInterface
-            ? $this->session_date->copy()
-            : Carbon::parse($this->session_date);
-
-        $startTime = $this->start_time instanceof CarbonInterface
-            ? $this->start_time->format('H:i:s')
-            : (string) $this->start_time;
-
-        return Carbon::parse($sessionDate->toDateString().' '.$startTime);
+        return $this->scheduledAt('start_time');
     }
 
     public function qrAvailableFromAt(): ?Carbon
@@ -126,19 +132,20 @@ class LectureSession extends Model
 
     public function scheduledEndAt(): ?Carbon
     {
-        if (! $this->session_date || ! $this->end_time) {
+        return $this->scheduledAt('end_time');
+    }
+
+    private function scheduledAt(string $timeColumn): ?Carbon
+    {
+        $date = $this->getRawOriginal('session_date');
+        $time = $this->getRawOriginal($timeColumn);
+
+        if (! is_string($date) || ! is_string($time) || $date === '' || $time === '') {
             return null;
         }
 
-        $sessionDate = $this->session_date instanceof CarbonInterface
-            ? $this->session_date->copy()
-            : Carbon::parse($this->session_date);
-
-        $endTime = $this->end_time instanceof CarbonInterface
-            ? $this->end_time->format('H:i:s')
-            : (string) $this->end_time;
-
-        return Carbon::parse($sessionDate->toDateString().' '.$endTime);
+        return Carbon::parse($date, config('app.timezone'))
+            ->setTimeFromTimeString($time);
     }
 
     public function hasReachedScheduledEnd(?CarbonInterface $reference = null): bool
@@ -158,9 +165,7 @@ class LectureSession extends Model
             return false;
         }
 
-        $qrExpiresAt = $this->qr_expires_at instanceof CarbonInterface
-            ? $this->qr_expires_at
-            : Carbon::parse($this->qr_expires_at);
+        $qrExpiresAt = $this->qr_expires_at;
 
         return ($reference ?? now())->greaterThanOrEqualTo($qrExpiresAt);
     }
@@ -223,19 +228,29 @@ class LectureSession extends Model
             ->each(fn (self $session) => $session->syncLifecycleState($reference, refresh: false));
     }
 
-    public function canAccessPanel(\Filament\Panel $panel): bool
-    {
-        return $this->email === 'super@admin.com' || $this->hasRole(['super_admin', 'manager', 'course_lecturer']);
-    }
-
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class)->withTrashed();
     }
 
+    public function academicTerm(): BelongsTo
+    {
+        return $this->belongsTo(AcademicTerm::class);
+    }
+
     public function subjectSection(): BelongsTo
     {
         return $this->belongsTo(SubjectSection::class);
+    }
+
+    public function sourceWeeklyScheduleSlot(): BelongsTo
+    {
+        return $this->belongsTo(SubjectSectionScheduleSlot::class, 'subject_section_schedule_slot_id');
+    }
+
+    public function generationRun(): BelongsTo
+    {
+        return $this->belongsTo(LectureSessionGenerationRun::class, 'lecture_session_generation_run_id');
     }
 
     public function lecturer(): BelongsTo

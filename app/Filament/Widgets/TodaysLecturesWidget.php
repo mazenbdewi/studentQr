@@ -13,7 +13,7 @@ class TodaysLecturesWidget extends Widget
 {
     protected string $view = 'filament.widgets.todays-lectures-widget';
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     protected static ?int $sort = 1;
 
@@ -34,6 +34,7 @@ class TodaysLecturesWidget extends Widget
     {
         $query = LectureSession::query()
             ->with(['hall', 'lecturer', 'subject', 'subjectSection'])
+            ->forCurrentAcademicTerm()
             ->whereDate('session_date', today());
 
         if (! $userId) {
@@ -75,7 +76,7 @@ class TodaysLecturesWidget extends Widget
                 ?? $lecture->subject?->subject_type_label
                 ?? __('subjects.not_available'),
             'hall' => $lecture->hall?->name ?? __('lecture-session.no_hall'),
-            'timeRange' => $this->formatTime($startAt) . ' - ' . $this->formatTime($endAt),
+            'timeRange' => $this->formatTime($startAt).' - '.$this->formatTime($endAt),
             'startsIn' => $this->relativeStartLabel($lecture, $startAt, $endAt),
             'statusLabel' => $this->statusLabel($lecture, $startAt, $endAt),
             'statusTone' => $this->statusTone($lecture, $startAt, $endAt),
@@ -165,7 +166,7 @@ class TodaysLecturesWidget extends Widget
 
     private function sessionDateTime(LectureSession $lecture, string $timeAttribute): Carbon
     {
-        return Carbon::parse($lecture->session_date->toDateString() . ' ' . $lecture->{$timeAttribute});
+        return Carbon::parse($lecture->session_date->toDateString().' '.$lecture->{$timeAttribute});
     }
 
     private function formatTime(Carbon $time): string

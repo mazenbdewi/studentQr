@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -11,6 +13,7 @@ class SubjectSection extends Model
 {
     protected $fillable = [
         'subject_id',
+        'academic_term_id',
         'lecturer_id',
         'section_type',
         'code',
@@ -21,6 +24,7 @@ class SubjectSection extends Model
     ];
 
     protected $casts = [
+        'academic_term_id' => 'integer',
         'capacity' => 'integer',
         'lecturer_id' => 'integer',
         'section_number' => 'integer',
@@ -51,9 +55,42 @@ class SubjectSection extends Model
         return $this->belongsTo(Subject::class);
     }
 
+    public function academicTerm(): BelongsTo
+    {
+        return $this->belongsTo(AcademicTerm::class);
+    }
+
+    public function scopeForAcademicTerm(Builder $query, int $academicTermId): Builder
+    {
+        return $query->where('academic_term_id', $academicTermId);
+    }
+
+    public function scopeForCurrentAcademicTerm(Builder $query): Builder
+    {
+        $id = app(\App\Support\AcademicTermContext::class)->currentId();
+
+        return $id === null ? $query->whereRaw('1 = 0') : $this->scopeForAcademicTerm($query, $id);
+    }
+
     public function lecturer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'lecturer_id')->withTrashed();
+    }
+
+    public function scheduleSlots(): HasMany
+    {
+        return $this->hasMany(SubjectSectionScheduleSlot::class);
+    }
+
+    public function hasAmbiguousImportedLecturers(): bool
+    {
+        return SubjectSectionScheduleSlot::query()
+            ->join('lecturers', 'lecturers.id', '=', 'subject_section_schedule_slots.lecturer_id')
+            ->where('subject_section_schedule_slots.subject_section_id', $this->id)
+            ->where('subject_section_schedule_slots.academic_term_id', $this->academic_term_id)
+            ->whereNotNull('lecturers.user_id')
+            ->distinct('lecturers.user_id')
+            ->count('lecturers.user_id') > 1;
     }
 
     public function getSectionTypeLabelAttribute(): string

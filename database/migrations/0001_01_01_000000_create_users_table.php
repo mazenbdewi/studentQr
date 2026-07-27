@@ -13,8 +13,7 @@ return new class extends Migration {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
+            $table->string('login_username', 64)->unique();
 
             $table->foreignId('faculty_id')
                 ->nullable()
@@ -36,7 +35,8 @@ return new class extends Migration {
             $table->string('student_number')->unique()->nullable();
             $table->string('activation_code', 6)->nullable();
             $table->timestamp('activation_expires')->nullable();
-            $table->enum('role', ['super_admin', 'attendance_monitor', 'course_lecturer']);
+            // Legacy account classification; authorization is synchronized to Spatie roles.
+            $table->enum('role', ['super_admin', 'admin', 'manager', 'attendance_monitor', 'course_lecturer', 'student'])->default('student');
             $table->string('avatar')->nullable();
             // $table->string('lecturer_id')->unique()->nullable();
             $table->enum('title', ['professor', 'associate_professor', 'lecturer', 'teaching_assistant'])->nullable();
@@ -46,12 +46,6 @@ return new class extends Migration {
             $table->string('password');
             $table->rememberToken();
             $table->timestamps();
-        });
-
-        Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
         });
 
         Schema::create('sessions', function (Blueprint $table) {
@@ -70,7 +64,6 @@ return new class extends Migration {
     public function down(): void
     {
         Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
     }
 };

@@ -77,7 +77,7 @@ it('accepts mixed section codes during subjects Excel import', function (): void
     ]);
 
     try {
-        Excel::import(new SubjectsImport(), $path);
+        Excel::import(new SubjectsImport, $path);
     } finally {
         @unlink($path);
     }
@@ -134,7 +134,7 @@ function subjectTypeSectionsWorkbookPath(array $rows): string
         'is_active',
     ];
 
-    $spreadsheet = new Spreadsheet();
+    $spreadsheet = new Spreadsheet;
     $sheet = $spreadsheet->getActiveSheet();
     $sheet->fromArray($headings, null, 'A1');
 
@@ -178,7 +178,7 @@ function subjectTypeSectionsAttendanceFixture(): array
 
     $lecturer = User::query()->create([
         'name' => 'Report Lecturer',
-        'email' => 'report-lecturer@example.com',
+        'login_username' => 'report_lecturer',
         'password' => 'password',
         'role' => 'course_lecturer',
         'type' => 'lecturer',

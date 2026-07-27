@@ -37,7 +37,12 @@ class SubjectsRelationManager extends RelationManager
         return $table
             ->modelLabel(__('enrollments.singular'))
             ->pluralModelLabel(__('enrollments.plural'))
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['subject', 'theoreticalSection', 'practicalSection']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->forCurrentAcademicTerm()->with([
+                'subject',
+                'academicTerm',
+                'theoreticalSection',
+                'practicalSection',
+            ]))
             ->defaultSort('subject_id')
             ->recordTitle(fn (Enrollment $record): string => $record->subject?->name ?? __('subjects.record_title'))
             ->columns([
@@ -68,6 +73,12 @@ class SubjectsRelationManager extends RelationManager
                     ->placeholder(__('subjects.not_available'))
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('academicTerm.display_name')
+                    ->label(__('enrollments.academic_term'))
+                    ->placeholder(__('enrollments.academic_term_unspecified'))
+                    ->badge()
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('year')
                     ->label(__('enrollments.year'))
                     ->sortable(),
@@ -88,6 +99,7 @@ class SubjectsRelationManager extends RelationManager
                 Tables\Filters\SelectFilter::make('status')
                     ->label(__('enrollments.status'))
                     ->options(Enrollment::statusOptions()),
+
             ])
             ->headerActions([
                 CreateAction::make()
@@ -194,6 +206,11 @@ class SubjectsRelationManager extends RelationManager
 
             Forms\Components\DatePicker::make('registration_date')
                 ->label(__('enrollments.registration_date')),
+
+            Forms\Components\Placeholder::make('academic_term_display_name')
+                ->label(__('enrollments.academic_term'))
+                ->content(fn (?Enrollment $record): string => $record?->academicTerm?->display_name
+                    ?? __('enrollments.academic_term_unspecified')),
 
             Forms\Components\TextInput::make('year')
                 ->label(__('enrollments.year'))

@@ -38,7 +38,7 @@ class ListUsers extends ListRecords
                         'users_template.xlsx'
                     );
 
-                    return Excel::download(new UsersTemplateExport(), 'users_template.xlsx');
+                    return Excel::download(new UsersTemplateExport, 'users_template.xlsx');
                 }),
 
             Action::make('import')
@@ -60,7 +60,7 @@ class ListUsers extends ListRecords
                 ->action(function (array $data): void {
                     $startedAt = now();
                     $fileName = basename((string) $data['file']);
-                    $import = new UsersImport();
+                    $import = new UsersImport;
 
                     try {
                         Excel::import($import, $data['file']);
@@ -128,40 +128,40 @@ class ListUsers extends ListRecords
     private function getImportModalContent(): HtmlString
     {
         $roleItems = implode('', array_map(
-            fn (string $role): string => '<li class="text-sm">' . e($role) . '</li>',
+            fn (string $role): string => '<li class="text-sm">'.e($role).'</li>',
             UserResource::getImportRoleDescriptions(),
         ));
 
         $columnItems = implode('', array_map(
-            fn (string $item): string => '<li class="text-sm">' . e($item) . '</li>',
+            fn (string $item): string => '<li class="text-sm">'.e($item).'</li>',
             [
                 __('user.import_name_help'),
-                __('user.import_email_help'),
+                __('user.import_login_username_help'),
                 __('user.import_password_help_text'),
                 __('user.import_role_help_text'),
             ],
         ));
 
         $noteItems = implode('', array_map(
-            fn (string $item): string => '<li class="text-sm">' . e($item) . '</li>',
+            fn (string $item): string => '<li class="text-sm">'.e($item).'</li>',
             [
                 __('user.import_password_hashed_note'),
-                __('user.import_unique_email_note'),
+                __('user.import_unique_login_username_note'),
             ],
         ));
 
         return new HtmlString(
             '<div class="p-4 space-y-4 prose-sm prose max-w-none" dir="rtl">'
-            . '<div><h4 class="mb-2 text-sm font-semibold text-white">' . e(__('import-help.instructions_title')) . '</h4><ul class="ml-6 space-y-2 text-gray-300 list-disc">'
-            . implode('', array_map(
-                fn ($instruction) => '<li class="text-sm">' . e($instruction) . '</li>',
+            .'<div><h4 class="mb-2 text-sm font-semibold text-white">'.e(__('import-help.instructions_title')).'</h4><ul class="ml-6 space-y-2 text-gray-300 list-disc">'
+            .implode('', array_map(
+                fn ($instruction) => '<li class="text-sm">'.e($instruction).'</li>',
                 __('import-help.simple_instructions'),
             ))
-            . '</ul><p class="mt-4 text-xs text-gray-400">' . e(__('import-help.column_order_note')) . '</p></div>'
-            . '<div><h4 class="mb-2 text-sm font-semibold text-white">' . e(__('user.accepted_roles')) . '</h4><ul class="ml-6 space-y-2 text-gray-300 list-disc">' . $roleItems . '</ul></div>'
-            . '<div><h4 class="mb-2 text-sm font-semibold text-white">' . e(__('user.column_guide')) . '</h4><ul class="ml-6 space-y-2 text-gray-300 list-disc">' . $columnItems . '</ul></div>'
-            . '<div><h4 class="mb-2 text-sm font-semibold text-white">' . e(__('user.import_notes')) . '</h4><ul class="ml-6 space-y-2 text-gray-300 list-disc">' . $noteItems . '</ul></div>'
-            . '</div>'
+            .'</ul><p class="mt-4 text-xs text-gray-400">'.e(__('import-help.column_order_note')).'</p></div>'
+            .'<div><h4 class="mb-2 text-sm font-semibold text-white">'.e(__('user.accepted_roles')).'</h4><ul class="ml-6 space-y-2 text-gray-300 list-disc">'.$roleItems.'</ul></div>'
+            .'<div><h4 class="mb-2 text-sm font-semibold text-white">'.e(__('user.column_guide')).'</h4><ul class="ml-6 space-y-2 text-gray-300 list-disc">'.$columnItems.'</ul></div>'
+            .'<div><h4 class="mb-2 text-sm font-semibold text-white">'.e(__('user.import_notes')).'</h4><ul class="ml-6 space-y-2 text-gray-300 list-disc">'.$noteItems.'</ul></div>'
+            .'</div>'
         );
     }
 

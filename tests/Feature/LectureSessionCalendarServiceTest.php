@@ -1,18 +1,31 @@
 <?php
 
+use App\Models\AcademicTerm;
 use App\Models\Hall;
 use App\Models\LectureSession;
 use App\Models\Subject;
+use App\Models\SubjectSection;
 use App\Models\User;
 use App\Services\LectureSessionCalendarService;
+use Spatie\Permission\Models\Role;
 
 function createCalendarServiceSubject(): array
 {
+    Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
+
     $lecturer = User::factory()->create([
         'role' => 'course_lecturer',
         'type' => 'teacher',
         'status' => 'active',
         'is_active' => true,
+    ]);
+    $lecturer->assignRole('course_lecturer');
+
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'Calendar Test Term',
+        'canonical_name' => 'calendar-test-term-'.uniqid(),
+        'teaching_start_date' => '2026-05-01',
+        'teaching_end_date' => '2026-05-31',
     ]);
 
     $subject = Subject::create([
@@ -30,14 +43,23 @@ function createCalendarServiceSubject(): array
         'is_active' => true,
     ]);
 
-    return [$subject, $hall];
+    $section = SubjectSection::query()->create([
+        'academic_term_id' => $term->id,
+        'subject_id' => $subject->id,
+        'lecturer_id' => $lecturer->id,
+        'code' => 'T1',
+    ]);
+
+    return [$term, $subject, $section, $hall];
 }
 
 it('creates lecture sessions for matching weekdays in a selected date range', function (): void {
-    [$subject, $hall] = createCalendarServiceSubject();
+    [$term, $subject, $section, $hall] = createCalendarServiceSubject();
 
     $result = app(LectureSessionCalendarService::class)->createRecurring([
+        'academic_term_id' => $term->id,
         'subject_id' => $subject->id,
+        'subject_section_id' => $section->id,
         'hall_id' => $hall->id,
         'date_from' => '2026-05-04',
         'date_to' => '2026-05-17',
@@ -63,10 +85,12 @@ it('creates lecture sessions for matching weekdays in a selected date range', fu
 });
 
 it('skips already existing recurring lecture sessions', function (): void {
-    [$subject, $hall] = createCalendarServiceSubject();
+    [$term, $subject, $section, $hall] = createCalendarServiceSubject();
 
     $payload = [
+        'academic_term_id' => $term->id,
         'subject_id' => $subject->id,
+        'subject_section_id' => $section->id,
         'hall_id' => $hall->id,
         'date_from' => '2026-05-04',
         'date_to' => '2026-05-17',

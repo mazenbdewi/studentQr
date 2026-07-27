@@ -18,7 +18,7 @@ class UsersImport implements OnEachRow, WithHeadingRow, WithValidation
     public function prepareForValidation($data, $index): array
     {
         $data['name'] = isset($data['name']) ? trim((string) $data['name']) : null;
-        $data['email'] = isset($data['email']) ? strtolower(trim((string) $data['email'])) : null;
+        $data['login_username'] = isset($data['login_username']) ? strtolower(trim((string) $data['login_username'])) : null;
         $data['password'] = isset($data['password']) ? trim((string) $data['password']) : null;
         $data['role'] = isset($data['role']) ? trim((string) $data['role']) : null;
 
@@ -31,7 +31,7 @@ class UsersImport implements OnEachRow, WithHeadingRow, WithValidation
 
         $user = User::create([
             'name' => $data['name'],
-            'email' => $data['email'],
+            'login_username' => $data['login_username'],
             'password' => Hash::make($data['password']),
             'role' => $data['role'],
             'type' => in_array($data['role'], ['super_admin', 'admin'], true) ? 'admin' : 'lecturer',
@@ -47,7 +47,7 @@ class UsersImport implements OnEachRow, WithHeadingRow, WithValidation
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'login_username' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9._-]+$/', 'unique:users,login_username'],
             'password' => ['required', 'string'],
             'role' => ['required', 'string', Rule::in(UserResource::getImportableRoleValues())],
         ];
@@ -58,9 +58,8 @@ class UsersImport implements OnEachRow, WithHeadingRow, WithValidation
         return [
             'name.required' => __('user.import_name_required'),
             'name.max' => __('user.import_name_max'),
-            'email.required' => __('user.import_email_required'),
-            'email.email' => __('user.import_email_invalid'),
-            'email.unique' => __('user.import_email_unique'),
+            'login_username.required' => 'اسم المستخدم مطلوب.',
+            'login_username.unique' => 'اسم المستخدم مستخدم بالفعل.',
             'password.required' => __('user.import_password_required'),
             'role.required' => __('user.import_role_required'),
             'role.in' => __('user.import_role_invalid', [
@@ -73,7 +72,7 @@ class UsersImport implements OnEachRow, WithHeadingRow, WithValidation
     {
         return [
             'name' => __('user.name'),
-            'email' => __('user.email'),
+            'login_username' => 'اسم المستخدم',
             'password' => __('user.password'),
             'role' => __('user.role'),
         ];

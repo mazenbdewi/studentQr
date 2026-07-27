@@ -204,7 +204,7 @@ function createStudentAttendanceFixture(): array
 
     $lecturer = User::query()->create([
         'name' => 'د. أحمد علي',
-        'email' => 'lecturer@example.com',
+        'login_username' => 'attendance_pdf_lecturer',
         'password' => 'password',
         'role' => 'course_lecturer',
         'type' => 'lecturer',

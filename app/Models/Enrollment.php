@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -10,6 +11,7 @@ class Enrollment extends Model
     protected $fillable = [
         'student_id',
         'subject_id',
+        'academic_term_id',
         'theoretical_section_id',
         'practical_section_id',
         'registration_date',
@@ -21,6 +23,7 @@ class Enrollment extends Model
     protected $casts = [
         'student_id' => 'integer',
         'subject_id' => 'integer',
+        'academic_term_id' => 'integer',
         'theoretical_section_id' => 'integer',
         'practical_section_id' => 'integer',
         'registration_date' => 'date',
@@ -55,6 +58,11 @@ class Enrollment extends Model
         return $this->belongsTo(Subject::class)->withTrashed();
     }
 
+    public function academicTerm(): BelongsTo
+    {
+        return $this->belongsTo(AcademicTerm::class);
+    }
+
     public function theoreticalSection(): BelongsTo
     {
         return $this->belongsTo(SubjectSection::class, 'theoretical_section_id');
@@ -63,5 +71,17 @@ class Enrollment extends Model
     public function practicalSection(): BelongsTo
     {
         return $this->belongsTo(SubjectSection::class, 'practical_section_id');
+    }
+
+    public function scopeForAcademicTerm(Builder $query, int $academicTermId): Builder
+    {
+        return $query->where('academic_term_id', $academicTermId);
+    }
+
+    public function scopeForCurrentAcademicTerm(Builder $query): Builder
+    {
+        $id = app(\App\Support\AcademicTermContext::class)->currentId();
+
+        return $id === null ? $query->whereRaw('1 = 0') : $this->scopeForAcademicTerm($query, $id);
     }
 }

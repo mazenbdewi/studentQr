@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
@@ -119,10 +120,29 @@ class PinLoginService
 
     public function findUserForLogin(string $login): ?User
     {
+        $matches = $this->matchingUsersForLogin($login);
+
+        if ($matches->count() !== 1) {
+            return null;
+        }
+
+        return $matches->first();
+    }
+
+    /** @return Collection<int, User> */
+    public function matchingUsersForLogin(string $login): Collection
+    {
+        $login = strtolower(trim($login));
+
+        if ($login === '') {
+            return collect();
+        }
+
         return User::query()
-            ->where('email', $login)
-            ->orWhere('student_number', $login)
-            ->first();
+            ->where('login_username', $login)
+            ->get()
+            ->unique('id')
+            ->values();
     }
 
     public function debugContext(?Request $request = null, ?User $user = null, bool $middlewareExecuted = false): array
@@ -138,7 +158,7 @@ class PinLoginService
             'user_requires_pin_verification' => (bool) ($user && $this->requiresPinVerification($user)),
             'session_pin_verified' => session(self::SESSION_VERIFIED) === true,
             'current_route_name' => $request->route()?->getName(),
-            'current_path' => '/' . ltrim($request->path(), '/'),
+            'current_path' => '/'.ltrim($request->path(), '/'),
             'middleware_executed' => $middlewareExecuted,
         ];
     }

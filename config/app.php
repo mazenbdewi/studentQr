@@ -54,6 +54,12 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'admin_login_username' => env('ADMIN_LOGIN_USERNAME', 'admin'),
+
+    'admin_password' => env('ADMIN_PASSWORD', 'admin'),
+
+    'admin_name' => env('ADMIN_NAME', 'مدير النظام'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

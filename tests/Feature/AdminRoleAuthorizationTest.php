@@ -22,7 +22,7 @@ function adminRoleBackupTestDirectory(): string
 function createRoleSuperAdmin(): User
 {
     $user = User::factory()->create([
-        'email' => 'role-super-admin@example.com',
+        'login_username' => 'role-super-admin',
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',
@@ -37,7 +37,7 @@ function createRoleSuperAdmin(): User
 function createRoleAdmin(): User
 {
     $user = User::factory()->create([
-        'email' => 'role-admin@example.com',
+        'login_username' => 'role-admin',
         'role' => 'admin',
         'type' => 'admin',
         'status' => 'active',
@@ -53,7 +53,7 @@ function createAdminRoleBackupFile(): string
 {
     $fileName = 'database-backup-2026-05-07-18-30.zip';
 
-    File::put(adminRoleBackupTestDirectory() . DIRECTORY_SEPARATOR . $fileName, 'database backup contents');
+    File::put(adminRoleBackupTestDirectory().DIRECTORY_SEPARATOR.$fileName, 'database backup contents');
 
     return $fileName;
 }

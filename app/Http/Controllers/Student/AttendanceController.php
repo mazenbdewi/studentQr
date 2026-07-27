@@ -23,8 +23,11 @@ use Symfony\Component\HttpFoundation\Cookie;
 class AttendanceController extends Controller
 {
     private const VERIFICATION_SESSION_KEY = 'attendance_verification';
+
     private const COMPLETED_ATTENDANCE_SESSION_KEY = 'attendance_completed';
+
     private const COMPLETED_ATTENDANCE_COOKIE_PREFIX = 'attendance_completed_';
+
     private const SUBMISSION_TOKEN_VERSION = 1;
 
     /**
@@ -96,7 +99,7 @@ class AttendanceController extends Controller
 
     private function completedAttendanceCookieName(int $sessionId): string
     {
-        return self::COMPLETED_ATTENDANCE_COOKIE_PREFIX . $sessionId;
+        return self::COMPLETED_ATTENDANCE_COOKIE_PREFIX.$sessionId;
     }
 
     private function makeCompletedAttendanceCookie(
@@ -501,6 +504,7 @@ class AttendanceController extends Controller
         ]);
 
         $session = LectureSession::query()
+            ->forCurrentAcademicTerm()
             ->select([
                 'id',
                 'subject_id',
@@ -518,6 +522,7 @@ class AttendanceController extends Controller
 
         if (! $session) {
             $this->logFailedAttendanceAttempt($request, $sessionId, 'session_not_found');
+
             return $this->buildSubmissionResponse($request, false, __('session.not_found'), 404);
         }
 
@@ -533,6 +538,7 @@ class AttendanceController extends Controller
 
         if (! $verification) {
             $this->logFailedAttendanceAttempt($request, $sessionId, 'verification_expired');
+
             return $this->buildSubmissionResponse($request, false, __('session.token_expired'), 403);
         }
 
@@ -556,6 +562,7 @@ class AttendanceController extends Controller
 
         if ((string) $session->session_otp !== (string) $request->input('otp')) {
             $this->logFailedAttendanceAttempt($request, $sessionId, 'invalid_otp');
+
             return $this->buildSubmissionResponse($request, false, __('student.invalid_otp'), 422);
         }
 
@@ -588,6 +595,7 @@ class AttendanceController extends Controller
             }
 
             $this->logFailedAttendanceAttempt($request, $sessionId, 'student_not_found');
+
             return $this->buildSubmissionResponse($request, false, __('student.not_found'), 422);
         }
 

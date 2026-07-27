@@ -18,6 +18,8 @@ return [
     'theoretical_section' => 'Theoretical Section',
     'practical_section' => 'Practical Section',
     'registration_date' => 'Registration Date',
+    'academic_term' => 'Academic Term',
+    'academic_term_unspecified' => 'Not specified',
     'status' => 'Status',
     'enrolled' => 'Enrolled',
     'dropped' => 'Dropped',

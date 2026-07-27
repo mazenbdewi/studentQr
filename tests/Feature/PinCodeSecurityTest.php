@@ -20,7 +20,7 @@ beforeEach(function (): void {
 function pinSecurityUser(string $role = 'super_admin', ?string $pin = null): User
 {
     $user = User::factory()->create([
-        'email' => fake()->unique()->safeEmail(),
+        'login_username' => strtolower(fake()->unique()->bothify('pin####??')),
         'student_number' => fake()->unique()->numerify('########'),
         'password' => Hash::make('password'),
         'role' => $role,
@@ -39,14 +39,14 @@ function pinSecurityUser(string $role = 'super_admin', ?string $pin = null): Use
 it('serves the real filament admin login page', function (): void {
     $this->get('/admin/login')
         ->assertOk()
-        ->assertSee(__('auth.login_identifier'));
+        ->assertSee('اسم المستخدم');
 });
 
 it('logs in without pin when pin login is disabled', function (): void {
     $user = pinSecurityUser();
 
     $this->post('/login', [
-        'login' => $user->email,
+        'login' => $user->login_username,
         'password' => 'password',
     ])
         ->assertRedirect('/admin');
@@ -59,7 +59,7 @@ it('requires pin when pin login is enabled', function (): void {
     $user = pinSecurityUser(pin: '123456');
 
     $this->post('/login', [
-        'login' => $user->email,
+        'login' => $user->login_username,
         'password' => 'password',
     ])
         ->assertRedirect(route('pin.verify.form'));
@@ -72,7 +72,7 @@ it('requires users without a pin to set one when pin login is enabled', function
     $user = pinSecurityUser();
 
     $this->post('/login', [
-        'login' => $user->email,
+        'login' => $user->login_username,
         'password' => 'password',
     ])
         ->assertRedirect(route('pin.set.form'));
@@ -90,7 +90,7 @@ it('requires pin when a stored pin exists even if the legacy enabled flag is fal
     $user->forceFill(['pin_enabled' => false])->saveQuietly();
 
     $this->post('/login', [
-        'login' => $user->email,
+        'login' => $user->login_username,
         'password' => 'password',
     ])
         ->assertRedirect(route('pin.verify.form'));
@@ -107,7 +107,7 @@ it('redirects from the real filament admin login to pin verification when requir
     Filament::setCurrentPanel(Filament::getPanel('admin'));
 
     Livewire::test(FilamentLogin::class)
-        ->set('data.email', $user->email)
+        ->set('data.login_username', $user->login_username)
         ->set('data.password', 'password')
         ->call('authenticate')
         ->assertRedirect(route('pin.verify.form'));
@@ -123,7 +123,7 @@ it('redirects from the real filament admin login to pin setup when no pin exists
     Filament::setCurrentPanel(Filament::getPanel('admin'));
 
     Livewire::test(FilamentLogin::class)
-        ->set('data.email', $user->email)
+        ->set('data.login_username', $user->login_username)
         ->set('data.password', 'password')
         ->call('authenticate')
         ->assertRedirect(route('pin.set.form'));
@@ -158,7 +158,7 @@ it('fails login with an incorrect pin', function (): void {
     $user = pinSecurityUser(pin: '123456');
 
     $this->post('/login', [
-        'login' => $user->email,
+        'login' => $user->login_username,
         'password' => 'password',
     ])
         ->assertRedirect(route('pin.verify.form'));
@@ -177,7 +177,7 @@ it('logs in with the correct pin when pin login is enabled', function (): void {
     $user = pinSecurityUser(pin: '123456');
 
     $this->post('/login', [
-        'login' => $user->student_number,
+        'login' => $user->login_username,
         'password' => 'password',
     ])
         ->assertRedirect(route('pin.verify.form'));
@@ -219,7 +219,7 @@ it('sets a missing pin and allows dashboard access when global pin login is enab
     $user = pinSecurityUser();
 
     $this->post('/login', [
-        'login' => $user->email,
+        'login' => $user->login_username,
         'password' => 'password',
     ])
         ->assertRedirect(route('pin.set.form'));

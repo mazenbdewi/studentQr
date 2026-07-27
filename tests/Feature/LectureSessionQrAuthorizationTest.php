@@ -215,7 +215,7 @@ it('allows the super admin to open the qr page for any lecture session', functio
         'type' => 'admin',
         'status' => 'active',
         'title' => 'lecturer',
-        'email' => 'root@example.com',
+        'login_username' => 'qr_root',
     ]);
     $superAdmin->assignRole('super-admin');
 

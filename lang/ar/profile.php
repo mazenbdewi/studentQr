@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'personal_information' => 'المعلومات الشخصية',
+    'full_name' => 'الاسم الكامل',
+    'login_username' => 'اسم المستخدم',
+    'update_information' => 'تحديث المعلومات',
+    'personal_information_updated' => 'تم تحديث المعلومات الشخصية بنجاح.',
     'current_password_incorrect' => 'كلمة المرور الحالية غير صحيحة',
     'updated_successfully' => 'تم تحديث الملف الشخصي بنجاح',
     'change_password' => 'تغيير كلمة المرور',

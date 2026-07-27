@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Exports\ManaraEnrollmentImportErrorsExport;
 use App\Imports\ManaraStudentEnrollmentsImport;
+use App\Models\ImportBatch;
 use App\Services\ActivityLogger;
 use App\Support\XlsxNumericCellSanitizer;
 use BackedEnum;
@@ -18,9 +19,11 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Maatwebsite\Excel\Facades\Excel;
 use Throwable;
 
+/** @property-read Schema $form */
 class ManaraEnrollmentImport extends Page implements HasForms
 {
     use InteractsWithForms;
@@ -37,6 +40,10 @@ class ManaraEnrollmentImport extends Page implements HasForms
 
     public ?string $errorsUrl = null;
 
+    public bool $uploadReady = false;
+
+    public ?string $completedBatchUuid = null;
+
     public static function canAccess(): bool
     {
         return (bool) Filament::auth()->user()?->hasAnyRole(['super-admin', 'admin']);
@@ -44,17 +51,17 @@ class ManaraEnrollmentImport extends Page implements HasForms
 
     public static function getNavigationGroup(): ?string
     {
-        return __('filament-dashboard.navigation.imports_exports');
+        return __('filament-dashboard.navigation.initial_setup');
     }
 
     public static function getNavigationLabel(): string
     {
-        return __('manara-import.title');
+        return __('filament-dashboard.navigation.initial_setup_step_one');
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 5;
+        return 10;
     }
 
     public function getTitle(): string
@@ -67,7 +74,6 @@ class ManaraEnrollmentImport extends Page implements HasForms
         return $schema
             ->components([
                 Section::make(__('manara-import.form_section'))
-                    ->description(__('manara-import.form_description'))
                     ->schema([
                         FileUpload::make('file')
                             ->label(__('manara-import.excel_file'))
@@ -76,11 +82,18 @@ class ManaraEnrollmentImport extends Page implements HasForms
                                 'application/vnd.ms-excel',
                             ])
                             ->maxSize(51200)
+                            ->live()
+                            ->afterStateUpdated(fn (mixed $state) => $this->handleUploadedFileStateChanged($state))
                             ->required(),
                     ])
                     ->columns(1),
             ])
             ->statePath('data');
+    }
+
+    public function verifyUploadedFileReady(): void
+    {
+        $this->setUploadReadyState($this->data['file'] ?? null);
     }
 
     public function import(): void
@@ -90,15 +103,44 @@ class ManaraEnrollmentImport extends Page implements HasForms
         $file = $state['file'] ?? null;
         $fileName = basename((string) $file);
         $sanitizedFile = null;
-        $this->summary = null;
-        $this->errorsUrl = null;
+        $batch = null;
+        $this->resetResults();
 
         try {
             $this->prepareLongRunningImport();
 
-            $import = new ManaraStudentEnrollmentsImport();
+            $uploadedFilePath = $this->localPathForUploadedFile((string) $file);
+            $sourceFingerprint = hash_file('sha256', $uploadedFilePath);
+
+            if ($sourceFingerprint === false) {
+                throw new \RuntimeException('تعذر حساب بصمة ملف التسجيل المرفوع.');
+            }
+
+            $batch = ImportBatch::query()->firstOrNew([
+                'deduplication_key' => ImportBatch::deduplicationKey(
+                    ImportBatch::TYPE_ENROLLMENTS,
+                    $sourceFingerprint,
+                ),
+            ]);
+            $batch->fill([
+                'import_type' => ImportBatch::TYPE_ENROLLMENTS,
+                'source_filename' => $fileName,
+                'source_fingerprint' => $sourceFingerprint,
+                'source_import_batch_id' => null,
+                'status' => ImportBatch::STATUS_PROCESSING,
+                'total_rows' => 0,
+                'imported_rows' => 0,
+                'rejected_rows' => 0,
+                'summary' => null,
+                'error_file_path' => null,
+                'started_at' => $startedAt,
+                'completed_at' => null,
+                'created_by' => Filament::auth()->id(),
+            ])->save();
+
+            $import = new ManaraStudentEnrollmentsImport;
             $sanitizer = app(XlsxNumericCellSanitizer::class);
-            $sanitizedFile = $sanitizer->sanitizeToTemporaryFile($this->localPathForUploadedFile((string) $file));
+            $sanitizedFile = $sanitizer->sanitizeToTemporaryFile($uploadedFilePath);
 
             Excel::import($import, $sanitizedFile);
 
@@ -113,6 +155,26 @@ class ManaraEnrollmentImport extends Page implements HasForms
                     false,
                 );
             }
+
+            $termSync = [];
+
+            foreach ($import->getImportedAcademicTermRowCounts() as $academicTermId => $rowCount) {
+                $termSync[$academicTermId] = ['row_count' => $rowCount];
+            }
+
+            $batch->academicTerms()->sync($termSync);
+            $batch->update([
+                'status' => ((int) $this->summary['failed_rows']) > 0
+                    ? ImportBatch::STATUS_COMPLETED_WITH_ERRORS
+                    : ImportBatch::STATUS_COMPLETED,
+                'total_rows' => (int) $this->summary['total_rows'],
+                'imported_rows' => (int) $this->summary['imported_rows'],
+                'rejected_rows' => (int) $this->summary['failed_rows'],
+                'summary' => $this->summary,
+                'error_file_path' => $errorPath ?? null,
+                'completed_at' => now(),
+            ]);
+            $this->completedBatchUuid = $batch->uuid;
 
             app(ActivityLogger::class)->logImportSummary(
                 'students',
@@ -137,6 +199,12 @@ class ManaraEnrollmentImport extends Page implements HasForms
         } catch (Throwable $exception) {
             report($exception);
 
+            $batch?->update([
+                'status' => ImportBatch::STATUS_FAILED,
+                'completed_at' => now(),
+                'summary' => ['error' => $exception->getMessage()],
+            ]);
+
             app(ActivityLogger::class)->logImportSummary(
                 'students',
                 'manara_enrollment_import',
@@ -159,6 +227,46 @@ class ManaraEnrollmentImport extends Page implements HasForms
                 $sanitizer->deleteTemporaryFile($sanitizedFile);
             }
         }
+    }
+
+    private function resetResults(): void
+    {
+        $this->summary = null;
+        $this->errorsUrl = null;
+        $this->completedBatchUuid = null;
+    }
+
+    private function handleUploadedFileStateChanged(mixed $state): void
+    {
+        $this->resetResults();
+        $this->setUploadReadyState($state);
+    }
+
+    private function setUploadReadyState(mixed $state): void
+    {
+        $this->uploadReady = $this->hasValidUploadedFile($state);
+        $this->dispatch('manara-upload-state', ready: $this->uploadReady);
+    }
+
+    private function hasValidUploadedFile(mixed $state): bool
+    {
+        if ($state instanceof TemporaryUploadedFile) {
+            return $state->isValid() && $state->exists();
+        }
+
+        if (is_array($state)) {
+            foreach ($state as $file) {
+                if ($this->hasValidUploadedFile($file)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return is_string($state)
+            && $state !== ''
+            && is_file($this->localPathForUploadedFile($state));
     }
 
     private function localPathForUploadedFile(string $file): string

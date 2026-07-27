@@ -20,6 +20,18 @@ class UserGuidePdfService
 
     public function download(User $user): StreamedResponse
     {
+        $staticGuidePath = base_path('docs/user-guide-ar.pdf');
+
+        if (File::exists($staticGuidePath)) {
+            $this->logDownload($user);
+
+            return response()->streamDownload(
+                fn () => print (File::get($staticGuidePath)),
+                $this->fileName(),
+                ['Content-Type' => 'application/pdf']
+            );
+        }
+
         $tempDir = storage_path('app/mpdf-temp');
         $generatedAt = now();
         $branding = $this->branding();
@@ -60,15 +72,7 @@ class UserGuidePdfService
             'sections' => is_array($sections) ? $sections : [],
         ])->render());
 
-        $this->activityLogger->logExport(
-            'reports',
-            'user_guide_pdf',
-            $this->fileName(),
-            null,
-            [
-                'downloaded_by_user_id' => $user->id,
-            ],
-        );
+        $this->logDownload($user);
 
         return response()->streamDownload(
             fn () => print ($pdf->Output('', Destination::STRING_RETURN)),
@@ -98,6 +102,17 @@ class UserGuidePdfService
     private function fileName(): string
     {
         return 'user-guide-ar.pdf';
+    }
+
+    private function logDownload(User $user): void
+    {
+        $this->activityLogger->logExport(
+            'reports',
+            'user_guide_pdf',
+            $this->fileName(),
+            null,
+            ['downloaded_by_user_id' => $user->id],
+        );
     }
 
     private function firstFilledSetting(array $keys): ?string

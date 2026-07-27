@@ -3,11 +3,18 @@
 namespace App\Providers\Filament;
 
 use Andreia\FilamentNordTheme\FilamentNordThemePlugin;
+use App\Filament\Pages\AcademicTermArchive;
+use App\Filament\Pages\AcademicTermManagement;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\DatabaseBackups;
+use App\Filament\Pages\LecturerAccountPreparation;
 use App\Filament\Pages\ManaraEnrollmentImport;
+use App\Filament\Pages\ManaraScheduleImport;
 use App\Filament\Pages\PortalSettings;
+use App\Filament\Pages\ScheduleImportIssues;
 use App\Filament\Pages\UserGuide;
+use App\Filament\Pages\WeeklySchedule;
+use App\Filament\Pages\WeeklyScheduleReports;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\AuditLogs\AuditLogResource;
 use App\Filament\Resources\Departments\DepartmentResource;
@@ -20,10 +27,12 @@ use App\Filament\Resources\StudentDevices\StudentDeviceResource;
 use App\Filament\Resources\Students\StudentResource;
 use App\Filament\Resources\Subjects\SubjectResource;
 use App\Filament\Resources\Users\UserResource;
+use App\Http\Middleware\EnsurePasswordChangeIsNotRequired;
 use App\Http\Middleware\EnsurePinIsVerified;
 use App\Http\Middleware\SetAdminLocale;
 use App\Livewire\Filament\Profile\UpdatePassword;
 use App\Livewire\Filament\Profile\UpdatePinCode;
+use App\Livewire\Filament\Profile\UsernamePersonalInfo;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
@@ -78,7 +87,14 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->pages([
                 Dashboard::class,
+                AcademicTermManagement::class,
+                AcademicTermArchive::class,
                 ManaraEnrollmentImport::class,
+                ManaraScheduleImport::class,
+                WeeklySchedule::class,
+                WeeklyScheduleReports::class,
+                LecturerAccountPreparation::class,
+                ScheduleImportIssues::class,
                 PortalSettings::class,
                 UserGuide::class,
                 DatabaseBackups::class,
@@ -94,6 +110,7 @@ class AdminPanelProvider extends PanelProvider
                 BreezyCore::make()
                     ->myProfile()
                     ->myProfileComponents([
+                        'personal_info' => UsernamePersonalInfo::class,
                         'update_password' => UpdatePassword::class,
                         'update_pin_code' => UpdatePinCode::class,
                     ]),
@@ -112,6 +129,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                EnsurePasswordChangeIsNotRequired::class,
                 EnsurePinIsVerified::class,
             ])
             ->userMenuItems([

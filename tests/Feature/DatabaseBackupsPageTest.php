@@ -25,7 +25,7 @@ function databaseBackupTestDirectory(): string
 function createDatabaseBackupSuperAdmin(): User
 {
     $user = User::factory()->create([
-        'email' => 'super@admin.com',
+        'login_username' => 'super_admin',
         'role' => 'super_admin',
         'type' => 'admin',
         'status' => 'active',
