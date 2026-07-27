@@ -265,7 +265,7 @@ class LectureSessionResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->poll('5s')
+            ->poll('30m')
             ->columns([
                 Tables\Columns\TextColumn::make('subject.name')
                     ->label(__('lecture-session.subject'))

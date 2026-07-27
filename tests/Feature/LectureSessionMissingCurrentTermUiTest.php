@@ -50,13 +50,11 @@ it('keeps required-term operations strict while rendering lecture-session action
         ->first(fn (mixed $action): bool => $action instanceof Action && $action->getName() === 'generate_from_weekly_schedule');
     $settings = collect($headerActions)
         ->first(fn (mixed $action): bool => $action instanceof ActionGroup && $action->getLabel() === 'الإعدادات');
-    $teachingPeriod = $settings?->getFlatActions()['configure_teaching_period'] ?? null;
     $missingTermAction = $component->instance()->missingAcademicTermAction();
 
     expect($generation)->toBeInstanceOf(Action::class)
         ->and($generation->isDisabled())->toBeFalse()
-        ->and($teachingPeriod)->toBeInstanceOf(Action::class)
-        ->and($teachingPeriod->isDisabled())->toBeFalse()
+        ->and($settings)->toBeNull()
         ->and((string) $missingTermAction->getModalHeading())->toBe('لم يتم تحديد الفصل الدراسي الحالي')
         ->and((string) $missingTermAction->getModalDescription())->toContain('يجب تحديد الفصل الدراسي الحالي قبل استخدام عمليات الجلسات والمحاضرات.')
         ->and((string) $missingTermAction->getModalIcon())->toBe('heroicon-o-exclamation-triangle')

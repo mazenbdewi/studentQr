@@ -265,17 +265,16 @@ it('groups lecture session header actions without writing lecture sessions', fun
     $reconciliationAction = collect($headerActions)
         ->first(fn (mixed $action): bool => $action instanceof Action && $action->getName() === 'open_weekly_schedule_reconciliation');
 
-    expect($headerActions)->toHaveCount(4)
+    expect($headerActions)->toHaveCount(5)
         ->and($generationAction)->toBeInstanceOf(Action::class)
         ->and($reconciliationAction)->toBeInstanceOf(Action::class)
         ->and($groups->map(fn (ActionGroup $group): string => (string) $group->getLabel())->all())
-        ->toBe(['إضافة', 'الإعدادات'])
+        ->toBe(['إضافة'])
         ->and($groups->mapWithKeys(fn (ActionGroup $group): array => [
             (string) $group->getLabel() => array_keys($group->getFlatActions()),
         ])->all())
         ->toBe([
             'إضافة' => ['create', 'create_recurring'],
-            'الإعدادات' => ['configure_teaching_period', 'open_lecturer_account_preparation'],
         ])
         ->and(array_map(
             fn (Action|ActionGroup $action): string => $action instanceof ActionGroup
@@ -287,7 +286,8 @@ it('groups lecture session header actions without writing lecture sessions', fun
             'generate_from_weekly_schedule',
             'إضافة',
             'open_weekly_schedule_reconciliation',
-            'الإعدادات',
+            'refreshLectures',
+            'lastRefreshedAt',
         ])
         ->and(collect($headerActions)->contains(
             fn (Action|ActionGroup $action): bool => $action instanceof Action
@@ -298,7 +298,7 @@ it('groups lecture session header actions without writing lecture sessions', fun
     expect(LectureSession::query()->count())->toBe(0);
 });
 
-it('redirects the legacy blocked weekly slots URL to the current term reconciliation report', function (): void {
+it('redirects the legacy blocked weekly slots URL to the current term issue review', function (): void {
     $admin = lectureSessionSuperAdmin();
     $term = lectureSessionAcademicTerm();
     AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
@@ -323,7 +323,7 @@ it('redirects the legacy blocked weekly slots URL to the current term reconcilia
 
     $this->actingAs($admin)
         ->get('/admin/blocked-weekly-slots')
-        ->assertRedirect('/admin/schedule-import-reconciliation/'.$batch->uuid);
+        ->assertRedirect('/admin/schedule-import-issues?batch='.$batch->id.'&term='.$term->id);
 });
 
 it('shows the manual lecture creation header action to ordinary administrators with the explicit manual permission', function (): void {

@@ -36,7 +36,13 @@ class EditLectureSession extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        return LectureSessionResource::ensureSubjectCanBeUsedByCurrentUser($data);
+        $data = LectureSessionResource::ensureSubjectCanBeUsedByCurrentUser($data);
+
+        // This is an authorization/validation explanation only. It is not a
+        // lecture_sessions attribute and must never be sent to Eloquent.
+        unset($data['teaching_period_override_reason']);
+
+        return $data;
     }
 
     protected function afterSave(): void

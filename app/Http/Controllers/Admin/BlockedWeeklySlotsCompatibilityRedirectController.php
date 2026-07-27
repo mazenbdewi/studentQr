@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Filament\Pages\ScheduleImportReconciliationIndex;
-use App\Filament\Pages\ScheduleImportReconciliationReport;
+use App\Filament\Pages\ScheduleImportIssues;
 use App\Http\Controllers\Controller;
 use App\Models\ImportBatch;
 use App\Support\AcademicTermContext;
@@ -30,7 +29,7 @@ class BlockedWeeklySlotsCompatibilityRedirectController extends Controller
             ->get();
 
         if ($batches->count() === 1) {
-            return redirect()->to(ScheduleImportReconciliationReport::getUrl(['batch' => $batches->first()->uuid]));
+            return redirect()->to(ScheduleImportIssues::getUrl(['batch' => $batches->first()->id, 'term' => $term->id]));
         }
 
         Notification::make()
@@ -38,6 +37,6 @@ class BlockedWeeklySlotsCompatibilityRedirectController extends Controller
             ->warning()
             ->send();
 
-        return redirect()->to(ScheduleImportReconciliationIndex::getUrl());
+        return redirect()->to(ScheduleImportIssues::getUrl(['term' => $term?->id]));
     }
 }

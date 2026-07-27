@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\LectureSessions\Pages;
 
 use App\Filament\Pages\AcademicTermManagement;
-use App\Filament\Pages\LecturerAccountPreparation;
 use App\Filament\Pages\ScheduleImportIssues;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
 use App\Models\AcademicTerm;
@@ -34,23 +33,40 @@ class ListLectureSessions extends ListRecords
 {
     protected static string $resource = LectureSessionResource::class;
 
+    public ?string $lastRefreshedAt = null;
+
     /** @var list<string> */
     private const CURRENT_TERM_ACTIONS = [
-        'create',
-        'create_recurring',
         'generate_from_weekly_schedule',
         'open_weekly_schedule_reconciliation',
-        'configure_teaching_period',
-        'open_lecturer_account_preparation',
     ];
 
     public function mount(): void
     {
         parent::mount();
+        $this->lastRefreshedAt = now()->format('H:i');
 
         if (static::currentAcademicTermIsMissing()) {
             $this->mountAction('missingAcademicTerm');
         }
+    }
+
+    public function hydrate(): void
+    {
+        // Table polling and every explicit Livewire update use the application
+        // timezone and retain all table state held by Livewire.
+        $this->lastRefreshedAt = now()->format('H:i');
+    }
+
+    public function refreshLectures(): void
+    {
+        $this->flushCachedTableRecords();
+        $this->lastRefreshedAt = now()->format('H:i');
+
+        Notification::make()
+            ->title('تم تحديث بيانات المحاضرات.')
+            ->success()
+            ->send();
     }
 
     /**
@@ -255,81 +271,20 @@ class ListLectureSessions extends ListRecords
                         : null;
                 }),
 
-            ActionGroup::make([
-                Action::make('configure_teaching_period')
-                    ->label('ضبط تواريخ التدريس')
-                    ->icon('heroicon-o-calendar')
-                    ->color('gray')
-                    ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                    ->modalHeading(__('lecture-session.configure_teaching_period_heading'))
-                    ->modalDescription(__('lecture-session.configure_teaching_period_description'))
-                    ->modalSubmitActionLabel(__('lecture-session.configure_teaching_period_submit'))
-                    ->fillForm(function (): array {
-                        $currentTerm = app(AcademicTermContext::class)->currentOrNull();
+            Action::make('refreshLectures')
+                ->label(new HtmlString('<span wire:loading.remove wire:target="refreshLectures">تحديث المحاضرات</span><span wire:loading wire:target="refreshLectures">جارٍ التحديث...</span>'))
+                ->icon('heroicon-o-arrow-path')
+                ->color('warning')
+                ->extraAttributes([
+                    'wire:loading.attr' => 'disabled',
+                    'wire:target' => 'refreshLectures',
+                ])
+                ->action(fn () => $this->refreshLectures()),
 
-                        return [
-                            'teaching_start_date' => $currentTerm?->teaching_start_date?->toDateString(),
-                            'teaching_end_date' => $currentTerm?->teaching_end_date?->toDateString(),
-                        ];
-                    })
-                    ->form([
-                        Forms\Components\Placeholder::make('current_academic_term')
-                            ->label(__('lecture-session.academic_term'))
-                            ->content(function (): string {
-                                $currentTerm = app(AcademicTermContext::class)->currentOrNull();
-
-                                return $currentTerm instanceof AcademicTerm
-                                    ? $currentTerm->display_name
-                                    : static::currentAcademicTermMissingMessage();
-                            })
-                            ->badge(),
-
-                        Forms\Components\DatePicker::make('teaching_start_date')
-                            ->label(__('lecture-session.teaching_start_date'))
-                            ->native(false)
-                            ->required(),
-
-                        Forms\Components\DatePicker::make('teaching_end_date')
-                            ->label(__('lecture-session.teaching_end_date'))
-                            ->native(false)
-                            ->required(),
-                    ])
-                    ->action(function (array $data): void {
-                        $term = app(AcademicTermContext::class)->currentOrNull();
-
-                        if (! $term instanceof AcademicTerm) {
-                            Notification::make()
-                                ->title(static::currentAcademicTermMissingMessage())
-                                ->warning()
-                                ->send();
-
-                            return;
-                        }
-
-                        $term->update([
-                            'teaching_start_date' => $data['teaching_start_date'],
-                            'teaching_end_date' => $data['teaching_end_date'],
-                        ]);
-
-                        Notification::make()
-                            ->title(__('lecture-session.teaching_period_saved_title'))
-                            ->success()
-                            ->send();
-                    }),
-
-                Action::make('open_lecturer_account_preparation')
-                    ->label(__('lecture-session.open_lecturer_account_preparation'))
-                    ->icon('heroicon-o-user-group')
-                    ->color('gray')
-                    ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
-                    ->url(fn (): ?string => static::currentAcademicTermIsMissing()
-                        ? null
-                        : LecturerAccountPreparation::getUrl()),
-            ])
-                ->label('الإعدادات')
-                ->icon('heroicon-o-cog-6-tooth')
-                ->button()
-                ->visible(fn (): bool => static::canGenerateFromWeeklySchedule()),
+            Action::make('lastRefreshedAt')
+                ->label(fn (): string => 'آخر تحديث: '.($this->lastRefreshedAt ?? now()->format('H:i')))
+                ->color('gray')
+                ->disabled(),
 
         ];
     }
