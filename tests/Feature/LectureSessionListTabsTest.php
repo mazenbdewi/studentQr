@@ -84,7 +84,7 @@ function lectureSessionTabsRecord(Subject $subject, Hall $hall, array $overrides
     ]);
 }
 
-it('filters lecture sessions by today completed and upcoming tabs', function (): void {
+it('separates current and ended sessions for today without overlap', function (): void {
     $admin = lectureSessionTabsAdmin();
     $lecturer = User::factory()->create([
         'role' => 'course_lecturer',
@@ -123,8 +123,11 @@ it('filters lecture sessions by today completed and upcoming tabs', function ():
     Livewire::actingAs($admin)
         ->test(ListLectureSessions::class)
         ->assertSet('activeTab', 'today')
-        ->assertCanSeeTableRecords([$todayUpcoming, $todayCompleted])
-        ->assertCanNotSeeTableRecords([$yesterdayCompleted, $tomorrowUpcoming])
+        ->assertCanSeeTableRecords([$todayUpcoming])
+        ->assertCanNotSeeTableRecords([$todayCompleted, $yesterdayCompleted, $tomorrowUpcoming])
+        ->set('activeTab', 'today_ended')
+        ->assertCanSeeTableRecords([$todayCompleted])
+        ->assertCanNotSeeTableRecords([$todayUpcoming, $yesterdayCompleted, $tomorrowUpcoming])
         ->set('activeTab', 'completed')
         ->assertCanSeeTableRecords([$todayCompleted, $yesterdayCompleted])
         ->assertCanNotSeeTableRecords([$todayUpcoming, $tomorrowUpcoming])

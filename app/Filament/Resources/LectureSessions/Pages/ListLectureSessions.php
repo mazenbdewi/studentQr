@@ -9,6 +9,7 @@ use App\Models\AcademicTerm;
 use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\ImportBatch;
+use App\Models\LectureSession;
 use App\Models\Subject;
 use App\Services\LectureSessionCalendarService;
 use App\Services\LectureSessionGenerationService;
@@ -117,7 +118,13 @@ class ListLectureSessions extends ListRecords
         return [
             'today' => Tab::make(__('lecture-session.tab_today'))
                 ->icon('heroicon-o-calendar-days')
+                ->badge(fn (): int => static::todayTabCount($now))
                 ->query(fn (Builder $query): Builder => static::applyTodayTabQuery($query, $now)),
+
+            'today_ended' => Tab::make('محاضرات اليوم المنتهية')
+                ->icon('heroicon-o-clock')
+                ->badge(fn (): int => static::todayEndedTabCount($now))
+                ->query(fn (Builder $query): Builder => static::applyTodayEndedTabQuery($query, $now)),
 
             'completed' => Tab::make(__('lecture-session.tab_completed'))
                 ->icon('heroicon-o-check-circle')
@@ -530,7 +537,26 @@ class ListLectureSessions extends ListRecords
     {
         return $query
             ->whereDate('session_date', $reference->toDateString())
+            ->whereTime('end_time', '>', $reference->format('H:i:s'))
             ->orderBy('start_time');
+    }
+
+    protected static function applyTodayEndedTabQuery(Builder $query, Carbon $reference): Builder
+    {
+        return $query
+            ->whereDate('session_date', $reference->toDateString())
+            ->whereTime('end_time', '<=', $reference->format('H:i:s'))
+            ->orderByDesc('end_time');
+    }
+
+    protected static function todayTabCount(Carbon $reference): int
+    {
+        return static::applyTodayTabQuery(LectureSession::query()->forCurrentAcademicTerm(), $reference)->count();
+    }
+
+    protected static function todayEndedTabCount(Carbon $reference): int
+    {
+        return static::applyTodayEndedTabQuery(LectureSession::query()->forCurrentAcademicTerm(), $reference)->count();
     }
 
     protected static function applyCompletedTabQuery(Builder $query, Carbon $reference): Builder
