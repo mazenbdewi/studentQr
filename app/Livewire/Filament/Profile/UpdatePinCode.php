@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Jeffgreco13\FilamentBreezy\Livewire\MyProfileComponent;
 
+/** @property Schema $form */
 class UpdatePinCode extends MyProfileComponent
 {
     protected string $view = 'livewire.filament.profile.update-pin-code';

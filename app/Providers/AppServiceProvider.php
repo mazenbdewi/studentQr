@@ -42,6 +42,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Livewire::component('username_personal_info', \App\Livewire\Filament\Profile\UsernamePersonalInfo::class);
+        Livewire::component('update_password', \App\Livewire\Filament\Profile\UpdatePassword::class);
+        Livewire::component('update_pin_code', \App\Livewire\Filament\Profile\UpdatePinCode::class);
 
         $this->configurePolicies();
 

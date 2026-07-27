@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Filament\Profile\UpdatePassword;
+use App\Livewire\Filament\Profile\UpdatePinCode;
 use App\Livewire\Filament\Profile\UsernamePersonalInfo;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -82,6 +83,14 @@ it('keeps the profile password-change component working without an email field',
         ->assertHasNoFormErrors();
 
     expect(Hash::check('new-secure-password', (string) $user->fresh()->password))->toBeTrue();
+});
+
+it('registers the profile pin component for Livewire updates', function (): void {
+    $user = profileUser('admin', 'profile_pin');
+
+    $component = Livewire::actingAs($user)->test(UpdatePinCode::class);
+
+    expect($component->instance())->toBeInstanceOf(UpdatePinCode::class);
 });
 
 function profileUser(string $role, string $loginUsername, string $password = 'password'): User
