@@ -9,7 +9,6 @@ use App\Models\AcademicTerm;
 use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\ImportBatch;
-use App\Models\LectureSession;
 use App\Models\Subject;
 use App\Services\LectureSessionCalendarService;
 use App\Services\LectureSessionGenerationService;
@@ -128,10 +127,12 @@ class ListLectureSessions extends ListRecords
 
             'completed' => Tab::make(__('lecture-session.tab_completed'))
                 ->icon('heroicon-o-check-circle')
+                ->badge(fn (): int => static::completedTabCount($now))
                 ->query(fn (Builder $query): Builder => static::applyCompletedTabQuery($query, $now)),
 
             'upcoming' => Tab::make(__('lecture-session.tab_upcoming'))
                 ->icon('heroicon-o-clock')
+                ->badge(fn (): int => static::upcomingTabCount($now))
                 ->query(fn (Builder $query): Builder => static::applyUpcomingTabQuery($query, $now)),
         ];
     }
@@ -551,12 +552,22 @@ class ListLectureSessions extends ListRecords
 
     protected static function todayTabCount(Carbon $reference): int
     {
-        return static::applyTodayTabQuery(LectureSession::query()->forCurrentAcademicTerm(), $reference)->count();
+        return static::applyTodayTabQuery(LectureSessionResource::getEloquentQuery(), $reference)->count();
     }
 
     protected static function todayEndedTabCount(Carbon $reference): int
     {
-        return static::applyTodayEndedTabQuery(LectureSession::query()->forCurrentAcademicTerm(), $reference)->count();
+        return static::applyTodayEndedTabQuery(LectureSessionResource::getEloquentQuery(), $reference)->count();
+    }
+
+    protected static function completedTabCount(Carbon $reference): int
+    {
+        return static::applyCompletedTabQuery(LectureSessionResource::getEloquentQuery(), $reference)->count();
+    }
+
+    protected static function upcomingTabCount(Carbon $reference): int
+    {
+        return static::applyUpcomingTabQuery(LectureSessionResource::getEloquentQuery(), $reference)->count();
     }
 
     protected static function applyCompletedTabQuery(Builder $query, Carbon $reference): Builder

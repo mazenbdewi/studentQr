@@ -134,4 +134,11 @@ it('separates current and ended sessions for today without overlap', function ()
         ->set('activeTab', 'upcoming')
         ->assertCanSeeTableRecords([$todayUpcoming, $tomorrowUpcoming])
         ->assertCanNotSeeTableRecords([$todayCompleted, $yesterdayCompleted]);
+
+    $tabs = Livewire::actingAs($admin)->test(ListLectureSessions::class)->instance()->getTabs();
+
+    expect($tabs['today']->getBadge())->toBe(1)
+        ->and($tabs['today_ended']->getBadge())->toBe(1)
+        ->and($tabs['upcoming']->getBadge())->toBe(2)
+        ->and($tabs['completed']->getBadge())->toBe(2);
 });
