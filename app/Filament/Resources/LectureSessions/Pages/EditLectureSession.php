@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\LectureSessions\Pages;
 
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
+use App\Models\LectureSession;
 use App\Services\ActivityLogger;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
@@ -13,14 +14,18 @@ use Filament\Resources\Pages\EditRecord;
 class EditLectureSession extends EditRecord
 {
     protected static string $resource = LectureSessionResource::class;
+
     protected array $originalAuditAttributes = [];
+
+    /** @var array<string, string> */
+    protected array $overrideAuditContext = [];
 
     protected function getHeaderActions(): array
     {
         return [
             ViewAction::make(),
             DeleteAction::make()
-                ->visible(fn (): bool => LectureSessionResource::canCurrentUserDeleteLectureSession($this->getRecord()))
+                ->visible(fn (): bool => $this->getRecord() instanceof LectureSession && LectureSessionResource::canCurrentUserDeleteLectureSession($this->getRecord()))
                 ->after(fn () => app(ActivityLogger::class)->logModelDeleted($this->getRecord(), 'lecture_sessions', 'lecture_session_deleted')),
             RestoreAction::make(),
             ForceDeleteAction::make()
@@ -37,6 +42,7 @@ class EditLectureSession extends EditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $data = LectureSessionResource::ensureSubjectCanBeUsedByCurrentUser($data);
+        $this->overrideAuditContext = LectureSessionResource::teachingPeriodOverrideAuditContext($data);
 
         // This is an authorization/validation explanation only. It is not a
         // lecture_sessions attribute and must never be sent to Eloquent.
@@ -51,7 +57,8 @@ class EditLectureSession extends EditRecord
             $this->getRecord(),
             $this->originalAuditAttributes,
             'lecture_sessions',
-            'lecture_session_updated'
+            'lecture_session_updated',
+            $this->overrideAuditContext,
         );
     }
 }

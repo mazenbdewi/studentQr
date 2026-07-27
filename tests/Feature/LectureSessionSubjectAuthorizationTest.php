@@ -6,6 +6,7 @@ use App\Filament\Resources\LectureSessions\Pages\EditLectureSession;
 use App\Filament\Resources\LectureSessions\Pages\ListLectureSessions;
 use App\Models\AcademicTerm;
 use App\Models\AppSetting;
+use App\Models\AuditLog;
 use App\Models\Hall;
 use App\Models\ImportBatch;
 use App\Models\Lecturer;
@@ -329,6 +330,8 @@ it('redirects the legacy blocked weekly slots URL to the current term issue revi
 it('shows the manual lecture creation header action to ordinary administrators with the explicit manual permission', function (): void {
     $admin = lectureSessionAdmin();
     grantManualLectureSessionCreation($admin);
+    $term = lectureSessionAcademicTerm();
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
 
     $this->actingAs($admin);
 
@@ -353,6 +356,8 @@ it('shows the manual lecture creation header action to ordinary administrators w
 
 it('does not show the manual lecture creation header action to course lecturers without explicit permission', function (): void {
     $lecturer = lectureSessionLecturer('manual-unpermitted-lecturer@example.com');
+    $term = lectureSessionAcademicTerm();
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
 
     $this->actingAs($lecturer);
 
@@ -752,7 +757,12 @@ it('allows teaching-period override only with explicit permission and written re
         ->call('create')
         ->assertHasNoFormErrors();
 
-    expect(LectureSession::query()->count())->toBe(1);
+    $session = LectureSession::query()->sole();
+    $audit = AuditLog::query()->where('model_type', LectureSession::class)->where('model_id', $session->id)->latest('id')->first();
+
+    expect(LectureSession::query()->count())->toBe(1)
+        ->and($audit?->context['teaching_period_override_reason'] ?? null)->toBe('اعتماد إداري لمحاضرة تعويضية.')
+        ->and($session->getAttributes())->not->toHaveKey('teaching_period_override_reason');
 });
 
 it('uses the selected subject section lecturer when creating a lecture session', function (): void {

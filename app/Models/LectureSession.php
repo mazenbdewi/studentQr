@@ -107,19 +107,7 @@ class LectureSession extends Model
 
     public function scheduledStartAt(): ?Carbon
     {
-        if (! $this->session_date || ! $this->start_time) {
-            return null;
-        }
-
-        $sessionDate = $this->session_date instanceof CarbonInterface
-            ? $this->session_date->copy()
-            : Carbon::parse($this->session_date);
-
-        $startTime = $this->start_time instanceof CarbonInterface
-            ? $this->start_time->format('H:i:s')
-            : (string) $this->start_time;
-
-        return Carbon::parse($sessionDate->toDateString().' '.$startTime);
+        return $this->scheduledAt('start_time');
     }
 
     public function qrAvailableFromAt(): ?Carbon
@@ -144,19 +132,19 @@ class LectureSession extends Model
 
     public function scheduledEndAt(): ?Carbon
     {
-        if (! $this->session_date || ! $this->end_time) {
+        return $this->scheduledAt('end_time');
+    }
+
+    private function scheduledAt(string $timeColumn): ?Carbon
+    {
+        $date = $this->getRawOriginal('session_date');
+        $time = $this->getRawOriginal($timeColumn);
+
+        if (! is_string($date) || ! is_string($time) || $date === '' || $time === '') {
             return null;
         }
 
-        $sessionDate = $this->session_date instanceof CarbonInterface
-            ? $this->session_date->copy()
-            : Carbon::parse($this->session_date);
-
-        $endTime = $this->end_time instanceof CarbonInterface
-            ? $this->end_time->format('H:i:s')
-            : (string) $this->end_time;
-
-        return Carbon::parse($sessionDate->toDateString().' '.$endTime);
+        return Carbon::parse($date.' '.$time, config('app.timezone'));
     }
 
     public function hasReachedScheduledEnd(?CarbonInterface $reference = null): bool
@@ -176,9 +164,7 @@ class LectureSession extends Model
             return false;
         }
 
-        $qrExpiresAt = $this->qr_expires_at instanceof CarbonInterface
-            ? $this->qr_expires_at
-            : Carbon::parse($this->qr_expires_at);
+        $qrExpiresAt = $this->qr_expires_at;
 
         return ($reference ?? now())->greaterThanOrEqualTo($qrExpiresAt);
     }
@@ -239,11 +225,6 @@ class LectureSession extends Model
             })
             ->get()
             ->each(fn (self $session) => $session->syncLifecycleState($reference, refresh: false));
-    }
-
-    public function canAccessPanel(\Filament\Panel $panel): bool
-    {
-        return $this->email === 'super@admin.com' || $this->hasRole(['super_admin', 'manager', 'course_lecturer']);
     }
 
     public function subject(): BelongsTo

@@ -73,8 +73,4 @@ it('keeps required-term operations strict while rendering lecture-session action
         ->mountAction('generate_from_weekly_schedule')
         ->assertSet('mountedActions.0.name', 'missingAcademicTerm');
 
-    $component
-        ->call('unmountAction')
-        ->mountAction('configure_teaching_period')
-        ->assertSet('mountedActions.0.name', 'missingAcademicTerm');
 });

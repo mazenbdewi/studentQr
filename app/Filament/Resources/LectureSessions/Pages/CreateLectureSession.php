@@ -10,11 +10,15 @@ class CreateLectureSession extends CreateRecord
 {
     protected static string $resource = LectureSessionResource::class;
 
+    /** @var array<string, string> */
+    protected array $overrideAuditContext = [];
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        return LectureSessionResource::prepareManualSessionData(
-            LectureSessionResource::ensureSubjectCanBeUsedByCurrentUser($data),
-        );
+        $data = LectureSessionResource::ensureSubjectCanBeUsedByCurrentUser($data);
+        $this->overrideAuditContext = LectureSessionResource::teachingPeriodOverrideAuditContext($data);
+
+        return LectureSessionResource::prepareManualSessionData($data);
     }
 
     protected function afterCreate(): void
@@ -22,7 +26,8 @@ class CreateLectureSession extends CreateRecord
         app(ActivityLogger::class)->logModelCreated(
             $this->getRecord(),
             'lecture_sessions',
-            'lecture_session_created'
+            'lecture_session_created',
+            $this->overrideAuditContext,
         );
     }
 }

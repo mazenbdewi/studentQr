@@ -508,7 +508,7 @@ class LectureSessionResource extends Resource
     {
         LectureSession::syncExpiredSessions();
 
-        $query = parent::getEloquentQuery()
+        $query = LectureSession::query()
             ->forCurrentAcademicTerm()
             ->with(['subject', 'subjectSection', 'lecturer', 'hall'])
             ->withCount([
@@ -816,6 +816,14 @@ class LectureSessionResource extends Resource
         unset($data['teaching_period_override_reason']);
 
         return $data;
+    }
+
+    /** @param array<string, mixed> $data @return array<string, string> */
+    public static function teachingPeriodOverrideAuditContext(array $data): array
+    {
+        $reason = trim((string) ($data['teaching_period_override_reason'] ?? ''));
+
+        return $reason === '' ? [] : ['teaching_period_override_reason' => $reason];
     }
 
     /** @param array<string, mixed> $data */
