@@ -56,12 +56,12 @@ class ManaraEnrollmentImport extends Page implements HasForms
 
     public static function getNavigationLabel(): string
     {
-        return __('manara-import.navigation_label');
+        return __('filament-dashboard.navigation.initial_setup_step_one');
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 2;
+        return 10;
     }
 
     public function getTitle(): string

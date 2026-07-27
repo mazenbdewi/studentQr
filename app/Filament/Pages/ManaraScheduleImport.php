@@ -121,12 +121,12 @@ class ManaraScheduleImport extends Page implements HasForms
 
     public static function getNavigationLabel(): string
     {
-        return __('manara-schedule-import.navigation_label');
+        return __('filament-dashboard.navigation.initial_setup_step_two');
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 3;
+        return 20;
     }
 
     public function getTitle(): string

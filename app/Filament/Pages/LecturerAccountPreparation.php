@@ -54,12 +54,12 @@ class LecturerAccountPreparation extends Page implements HasTable
 
     public static function getNavigationLabel(): string
     {
-        return __('filament-dashboard.navigation.account_preparation');
+        return __('filament-dashboard.navigation.initial_setup_step_four');
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 4;
+        return 40;
     }
 
     public function getTitle(): string

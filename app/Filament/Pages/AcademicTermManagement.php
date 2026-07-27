@@ -39,12 +39,12 @@ class AcademicTermManagement extends Page implements HasTable
 
     public static function getNavigationLabel(): string
     {
-        return __('filament-dashboard.navigation.current_academic_term');
+        return __('filament-dashboard.navigation.initial_setup_step_three');
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 1;
+        return 30;
     }
 
     public function getTitle(): string

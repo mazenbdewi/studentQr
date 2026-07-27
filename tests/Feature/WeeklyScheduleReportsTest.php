@@ -96,11 +96,13 @@ it('organizes all weekly schedule pages in one navigation group without UUID lab
         ->and(AcademicTermManagement::getNavigationGroup())->toBe('الإعداد والتهيئة الأولية')
         ->and(LecturerAccountPreparation::getNavigationGroup())->toBe('الإعداد والتهيئة الأولية')
         ->and(ManaraEnrollmentImport::getNavigationLabel())->toBe('المرحلة الأولى: استيراد البيانات')
-        ->and(ManaraScheduleImport::getNavigationLabel())->toBe('المرحلة الثانية: استيراد برنامج الدوام الأسبوعي')
-        ->and(AcademicTermManagement::getNavigationSort())->toBe(1)
-        ->and(ManaraEnrollmentImport::getNavigationSort())->toBe(2)
-        ->and(ManaraScheduleImport::getNavigationSort())->toBe(3)
-        ->and(LecturerAccountPreparation::getNavigationSort())->toBe(4)
+        ->and(ManaraScheduleImport::getNavigationLabel())->toBe('المرحلة الثانية: استيراد برنامج الدوام')
+        ->and(AcademicTermManagement::getNavigationLabel())->toBe('المرحلة الثالثة: تحديد الفصل الدراسي الحالي')
+        ->and(LecturerAccountPreparation::getNavigationLabel())->toBe('المرحلة الرابعة: تهيئة حسابات المستخدمين')
+        ->and(ManaraEnrollmentImport::getNavigationSort())->toBe(10)
+        ->and(ManaraScheduleImport::getNavigationSort())->toBe(20)
+        ->and(AcademicTermManagement::getNavigationSort())->toBe(30)
+        ->and(LecturerAccountPreparation::getNavigationSort())->toBe(40)
         ->and(__('filament-dashboard.navigation.initial_setup', [], 'en'))->toBe('Initial Setup');
 });
 
