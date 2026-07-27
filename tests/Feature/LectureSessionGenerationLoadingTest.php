@@ -136,3 +136,28 @@ it('renders the simplified header without changing generation-run audit records'
     expect(LectureSessionGenerationRun::query()->count())->toBe($before)
         ->and(LectureSessionGenerationRun::query()->find($run->id))->not->toBeNull();
 });
+
+it('uses a thirty-minute polling interval and a state-preserving manual refresh action', function (): void {
+    $admin = lectureSessionGenerationLoadingAdmin();
+    lectureSessionGenerationLoadingTerm();
+    $resource = file_get_contents(app_path('Filament/Resources/LectureSessions/LectureSessionResource.php'));
+
+    $component = Livewire::actingAs($admin)->test(ListLectureSessions::class, [
+        'activeTab' => 'upcoming',
+        'tableSearch' => 'جمال كاسر',
+    ]);
+    $refresh = collect($component->instance()->getCachedHeaderActions())
+        ->first(fn (mixed $action): bool => $action instanceof Action && $action->getName() === 'refreshLectures');
+
+    expect($resource)->toContain("->poll('1800s')")
+        ->not->toContain("->poll('30m')")
+        ->not->toContain("->poll('5s')")
+        ->and($refresh)->toBeInstanceOf(Action::class)
+        ->and($refresh->getColor())->toBe('warning')
+        ->and((string) $refresh->getIcon())->toBe('heroicon-o-arrow-path');
+
+    $component->call('refreshLectures')
+        ->assertNotified('تم تحديث بيانات المحاضرات.')
+        ->assertSet('activeTab', 'upcoming')
+        ->assertSet('tableSearch', 'جمال كاسر');
+});

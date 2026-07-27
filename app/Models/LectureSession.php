@@ -144,7 +144,8 @@ class LectureSession extends Model
             return null;
         }
 
-        return Carbon::parse($date.' '.$time, config('app.timezone'));
+        return Carbon::parse($date, config('app.timezone'))
+            ->setTimeFromTimeString($time);
     }
 
     public function hasReachedScheduledEnd(?CarbonInterface $reference = null): bool
