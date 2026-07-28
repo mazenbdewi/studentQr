@@ -1,7 +1,10 @@
 <?php
 
+use App\Exceptions\ScheduleAssignmentConflictException;
 use App\Exports\BlockedWeeklySlotsExport;
+use App\Filament\Pages\ScheduleImportIssues;
 use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\ImportBatch;
 use App\Models\Lecturer;
@@ -15,7 +18,9 @@ use App\Models\SubjectSection;
 use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use App\Services\BlockedWeeklySlotReconciliationService;
+use Filament\Facades\Filament;
 use Illuminate\Support\Facades\DB;
+use Livewire\Livewire;
 use Maatwebsite\Excel\Excel as ExcelWriter;
 use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -501,4 +506,130 @@ it('keeps generation separate and leaves protected structural counts untouched i
         ->and(LectureSession::query()->count())->toBe($before['sessions'])
         ->and(SubjectSectionScheduleSlot::query()->count())->toBe($before['slots'])
         ->and(DB::table('attendances')->count())->toBe($before['attendances']);
+});
+
+it('rejects a conflicting lecturer assignment with structured details and no write', function (): void {
+    $actor = blockedSlotActor();
+    $catalog = blockedSlotCatalog('assignment-conflict');
+    $target = blockedSlotFixture(['catalog' => $catalog, 'start_time' => '08:30:00', 'end_time' => '10:30:00']);
+    $lecturer = readyLecturer();
+    blockedSlotFixture([
+        'catalog' => $catalog,
+        'row_number' => 1001,
+        'start_time' => '09:00:00',
+        'end_time' => '11:00:00',
+        'lecturer_id' => $lecturer->id,
+        'issues' => [],
+    ]);
+
+    expect(fn () => app(BlockedWeeklySlotReconciliationService::class)->apply(
+        [$target['slot']->id],
+        ['action' => BlockedWeeklySlotReconciliationService::ACTION_ASSIGN_LECTURER, 'lecturer_id' => $lecturer->id],
+        $actor,
+    ))->toThrow(ScheduleAssignmentConflictException::class);
+
+    try {
+        app(BlockedWeeklySlotReconciliationService::class)->apply(
+            [$target['slot']->id],
+            ['action' => BlockedWeeklySlotReconciliationService::ACTION_ASSIGN_LECTURER, 'lecturer_id' => $lecturer->id],
+            $actor,
+        );
+    } catch (ScheduleAssignmentConflictException $exception) {
+        expect($exception->conflictType)->toBe('lecturer')
+            ->and($exception->selectedResourceId)->toBe($lecturer->id)
+            ->and($exception->conflicts[0])->toMatchArray([
+                'conflictType' => 'lecturer', 'selectedResourceId' => $lecturer->id,
+                'weekday' => 6, 'startTime' => '09:00', 'endTime' => '11:00',
+            ]);
+    }
+
+    expect($target['slot']->fresh()->lecturer_id)->toBeNull();
+});
+
+it('keeps the lecturer modal actionable after a conflict and accepts a replacement', function (): void {
+    $actor = blockedSlotActor();
+    $catalog = blockedSlotCatalog('livewire-assignment-conflict');
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $catalog['term']->id);
+    $target = blockedSlotFixture(['catalog' => $catalog, 'start_time' => '08:30:00', 'end_time' => '10:30:00']);
+    $conflictingLecturer = readyLecturer();
+    $availableLecturer = readyLecturer();
+    $conflictingSection = SubjectSection::query()->create([
+        'academic_term_id' => $catalog['term']->id,
+        'subject_id' => $catalog['subject']->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'T2',
+        'raw_section_number' => '2',
+    ]);
+    blockedSlotFixture([
+        'catalog' => [...$catalog, 'section' => $conflictingSection],
+        'row_number' => 1002,
+        'start_time' => '09:00:00',
+        'end_time' => '11:00:00',
+        'lecturer_id' => $conflictingLecturer->id,
+        'issues' => [],
+    ]);
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+    $component = Livewire::actingAs($actor)
+        ->test(ScheduleImportIssues::class)
+        ->call('openResolution', $target['slot']->id, 'lecturer')
+        ->set('selectedLecturerId', $conflictingLecturer->id)
+        ->call('applyResolution')
+        ->assertHasErrors('selectedLecturerId')
+        ->assertSet('selectedSlotId', $target['slot']->id)
+        ->assertSet('resolutionType', 'lecturer')
+        ->assertSee('حفظ وإعادة التحقق')
+        ->set('selectedLecturerId', $availableLecturer->id)
+        ->assertHasNoErrors('selectedLecturerId')
+        ->assertSet('assignmentConflict', null)
+        ->call('applyResolution')
+        ->assertHasNoErrors()
+        ->assertSet('selectedSlotId', null)
+        ->assertSet('resolutionType', null);
+
+    expect($target['slot']->fresh()->lecturer_id)->toBe($availableLecturer->id);
+});
+
+it('keeps the hall modal actionable after a conflict and accepts a replacement', function (): void {
+    $actor = blockedSlotActor();
+    $catalog = blockedSlotCatalog('livewire-hall-conflict');
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $catalog['term']->id);
+    $target = blockedSlotFixture(['catalog' => $catalog, 'start_time' => '08:30:00', 'end_time' => '10:30:00']);
+    $conflictingHall = blockedHall('H-CONFLICT');
+    $availableHall = blockedHall('H-AVAILABLE');
+    $conflictingSection = SubjectSection::query()->create([
+        'academic_term_id' => $catalog['term']->id,
+        'subject_id' => $catalog['subject']->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'T2',
+        'raw_section_number' => '2',
+    ]);
+    blockedSlotFixture([
+        'catalog' => [...$catalog, 'section' => $conflictingSection],
+        'row_number' => 1003,
+        'start_time' => '09:00:00',
+        'end_time' => '11:00:00',
+        'hall_id' => $conflictingHall->id,
+        'issues' => [],
+    ]);
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+    Livewire::actingAs($actor)
+        ->test(ScheduleImportIssues::class)
+        ->call('openResolution', $target['slot']->id, 'hall')
+        ->set('selectedHallId', $conflictingHall->id)
+        ->call('applyResolution')
+        ->assertHasErrors('selectedHallId')
+        ->assertSet('selectedSlotId', $target['slot']->id)
+        ->assertSet('resolutionType', 'hall')
+        ->assertSee('حفظ وإعادة التحقق')
+        ->set('selectedHallId', $availableHall->id)
+        ->assertHasNoErrors('selectedHallId')
+        ->assertSet('assignmentConflict', null)
+        ->call('applyResolution')
+        ->assertHasNoErrors()
+        ->assertSet('selectedSlotId', null)
+        ->assertSet('resolutionType', null);
+
+    expect($target['slot']->fresh()->hall_id)->toBe($availableHall->id);
 });

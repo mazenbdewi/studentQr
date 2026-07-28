@@ -13,6 +13,8 @@ use App\Models\SubjectSection;
 use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class WeeklyScheduleIssueService
 {
@@ -99,7 +101,7 @@ class WeeklyScheduleIssueService
                 'lecturer_id' => $slot->lecturer_id,
                 'lecturer' => $lecturer instanceof Lecturer ? $lecturer->name : '—',
                 'hall_id' => $slot->hall_id,
-                'hall' => $hall instanceof Hall ? $hall->name : '—',
+                'hall' => $hall instanceof Hall ? $hall->displayLabel() : '—',
                 'reasons' => $reasons,
                 'status' => $excluded ? 'excluded' : ($reasons === [] ? 'resolved' : 'needs_attention'),
                 'exclusion_note' => $sourceRow?->exclusion_note,
@@ -133,5 +135,88 @@ class WeeklyScheduleIssueService
     public function forTerm(AcademicTerm $term, ?int $importBatchId = null): array
     {
         return $this->result($term, $importBatchId)->toArray();
+    }
+
+    /**
+     * Keep the expensive consistency calculation on the server, while exposing
+     * only the requested page of simple rows to a Livewire render.
+     *
+     * @param  array<string, string|int|null>  $filters
+     * @return array{summary: array<string, mixed>, rows: array<int, array<string, mixed>>, filters: array<string, array<int|string, mixed>>, pagination: array<string, int>}
+     */
+    public function page(AcademicTerm $term, ?int $importBatchId, array $filters, int $page = 1, int $perPage = 50): array
+    {
+        $startedAt = hrtime(true);
+        $queryLogWasEnabled = app()->hasDebugModeEnabled() && DB::logging();
+        $queryLogStart = $queryLogWasEnabled ? count(DB::getQueryLog()) : 0;
+        if (app()->hasDebugModeEnabled() && ! $queryLogWasEnabled) {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+        }
+
+        $result = $this->result($term, $importBatchId);
+        $allRows = collect($result->issues);
+        $values = fn (string $key): array => $allRows->pluck($key)->filter(fn ($value) => filled($value) && $value !== '—')->unique()->sort()->values()->all();
+        $rows = $allRows
+            ->when(($filters['status'] ?? null) && $filters['status'] !== 'all', fn (Collection $rows) => $rows->where('status', $filters['status']))
+            ->when($filters['reason'] ?? null, fn (Collection $rows) => $rows->filter(fn (array $row): bool => in_array($filters['reason'], $row['reasons'], true)))
+            ->when($filters['faculty'] ?? null, fn (Collection $rows) => $rows->where('faculty', $filters['faculty']))
+            ->when($filters['department'] ?? null, fn (Collection $rows) => $rows->where('department', $filters['department']))
+            ->when($filters['subject'] ?? null, fn (Collection $rows) => $rows->where('subject', $filters['subject']))
+            ->when($filters['section'] ?? null, fn (Collection $rows) => $rows->where('section', $filters['section']))
+            ->when($filters['lecturer'] ?? null, fn (Collection $rows) => $rows->where('lecturer', $filters['lecturer']))
+            ->when($filters['hall'] ?? null, fn (Collection $rows) => $rows->where('hall', $filters['hall']))
+            ->when($filters['weekday'] ?? null, fn (Collection $rows) => $rows->where('weekday_value', (int) $filters['weekday']))
+            ->values();
+
+        $perPage = max(1, min(50, $perPage));
+        $lastPage = max(1, (int) ceil($rows->count() / $perPage));
+        $page = min(max(1, $page), $lastPage);
+        $pageRows = $rows->forPage($page, $perPage)->map(fn (array $row): array => [
+            'slot_id' => $row['slot_id'], 'subject_code' => $row['subject_code'], 'subject' => $row['subject'],
+            'section' => $row['section'], 'weekday' => $row['weekday'], 'time' => $row['time'],
+            'lecturer' => $row['lecturer'], 'hall' => $row['hall'], 'reasons' => $row['reasons'], 'status' => $row['status'],
+        ])->values()->all();
+
+        if (app()->hasDebugModeEnabled()) {
+            $sqlCount = count(DB::getQueryLog()) - $queryLogStart;
+            Log::debug('schedule-import-issues timing', [
+                'stage' => 'weekly_issue_service_finished',
+                'duration_ms' => (int) round((hrtime(true) - $startedAt) / 1_000_000),
+                'slot_count' => $allRows->count(), 'issue_count' => $result->uniqueAffectedSlots,
+                'displayed_rows' => count($pageRows), 'sql_queries' => $sqlCount,
+            ]);
+            if (! $queryLogWasEnabled) {
+                DB::flushQueryLog();
+                DB::disableQueryLog();
+            }
+        }
+
+        $response = [
+            'summary' => [
+                'unique_affected_slots' => $result->uniqueAffectedSlots,
+                'issue_counts_by_key' => $result->issueCountsByKey,
+                'ready_slots' => $result->readySlots,
+                'excluded_slots' => $result->excludedSlots,
+            ],
+            'rows' => $pageRows,
+            'filters' => [
+                'reasons' => collect($result->issueCountsByKey)->keys()->mapWithKeys(fn (string $reason): array => [$reason => __('lecture-session.lecture_generation.reasons.'.$reason)])->all(),
+                'faculties' => $values('faculty'), 'departments' => $values('department'), 'subjects' => $values('subject'),
+                'sections' => $values('section'), 'lecturers' => $values('lecturer'), 'halls' => $values('hall'),
+                'weekdays' => $allRows->pluck('weekday_value')->unique()->sort()->mapWithKeys(fn (int $day): array => [(string) $day => __('weekly-schedule.weekdays')[$day] ?? (string) $day])->all(),
+            ],
+            'pagination' => ['current_page' => $page, 'last_page' => $lastPage, 'total' => $rows->count(), 'per_page' => $perPage],
+        ];
+
+        if (app()->hasDebugModeEnabled()) {
+            Log::debug('schedule-import-issues timing', [
+                'stage' => 'response_page_built',
+                'response_json_bytes' => strlen((string) json_encode($response)),
+                'displayed_rows' => count($pageRows),
+            ]);
+        }
+
+        return $response;
     }
 }

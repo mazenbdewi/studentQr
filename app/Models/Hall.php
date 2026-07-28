@@ -86,6 +86,17 @@ class Hall extends Model
         };
     }
 
+    public function displayLabel(): string
+    {
+        $parts = collect([$this->code, $this->name])
+            ->filter(fn (mixed $value): bool => filled(trim((string) $value)))
+            ->map(fn (mixed $value): string => trim((string) $value))
+            ->unique(fn (string $value): string => mb_strtolower($value))
+            ->values();
+
+        return $parts->isEmpty() ? 'بدون اسم' : $parts->implode(' — ');
+    }
+
     public function getHallTypeLabelAttribute(): string
     {
         return self::hallTypeOptions()[$this->hall_type] ?? 'غير محدد';

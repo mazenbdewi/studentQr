@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Exceptions\ScheduleAssignmentConflictException;
 use App\Exports\WeeklyScheduleIssuesExport;
 use App\Models\AcademicTerm;
 use App\Models\ImportBatch;
@@ -16,6 +17,7 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ScheduleImportIssues extends Page
@@ -59,6 +61,19 @@ class ScheduleImportIssues extends Page
     public ?string $weekdayFilter = null;
 
     public ?string $exclusionReason = null;
+
+    public string $lecturerSearch = '';
+
+    public string $hallSearch = '';
+
+    /** @var array{title: string, message: string, hint: string, conflicts: array<int, array<string, string>>}|null */
+    public ?array $assignmentConflict = null;
+
+    /** The page number is deliberately the only issue-list state sent to Livewire. */
+    public int $page = 1;
+
+    /** Bumps after a write so the next render obtains a fresh server-side page. */
+    public int $issuesVersion = 0;
 
     public ?string $selectedStartTime = null;
 
@@ -126,6 +141,37 @@ class ScheduleImportIssues extends Page
             ->all();
     }
 
+    /**
+     * Builds exactly one server-side result for the current render.  Its rows
+     * are never a public Livewire property, so they cannot inflate a snapshot.
+     *
+     * @return array{summary: array<string, mixed>, rows: array<int, array<string, mixed>>, filters: array<string, array<int|string, mixed>>, pagination: array<string, int>}
+     */
+    public function issuePage(): array
+    {
+        $term = AcademicTerm::query()->findOrFail($this->academicTermId);
+
+        return app(WeeklyScheduleIssueService::class)->page(
+            $term,
+            $this->importBatchId,
+            $this->filters(),
+            $this->page,
+            50,
+        );
+    }
+
+    public function updated(string $property): void
+    {
+        if (in_array($property, ['statusFilter', 'reasonFilter', 'facultyFilter', 'departmentFilter', 'subjectFilter', 'sectionFilter', 'lecturerFilter', 'hallFilter', 'weekdayFilter'], true)) {
+            $this->page = 1;
+        }
+    }
+
+    public function goToPage(int $page): void
+    {
+        $this->page = max(1, $page);
+    }
+
     /** @return array<string, array<int|string, mixed>> */
     public function filterOptions(): array
     {
@@ -158,6 +204,9 @@ class ScheduleImportIssues extends Page
         $this->resolutionType = $type;
         $this->selectedLecturerId = null;
         $this->selectedHallId = null;
+        $this->lecturerSearch = '';
+        $this->hallSearch = '';
+        $this->clearAssignmentConflict();
     }
 
     public function closeResolution(): void
@@ -167,18 +216,63 @@ class ScheduleImportIssues extends Page
         $this->selectedStartTime = null;
         $this->selectedEndTime = null;
         $this->exclusionReason = null;
+        $this->lecturerSearch = '';
+        $this->hallSearch = '';
+        $this->clearAssignmentConflict();
     }
 
     /** @return array<int, array<string, mixed>> */
     public function lecturerOptions(): array
     {
-        return app(BlockedWeeklySlotReconciliationService::class)->lecturerOptions();
+        return app(BlockedWeeklySlotReconciliationService::class)->lecturerOptions($this->lecturerSearch);
     }
 
     /** @return array<int, array<string, mixed>> */
     public function hallOptions(): array
     {
-        return app(BlockedWeeklySlotReconciliationService::class)->hallOptions();
+        return app(BlockedWeeklySlotReconciliationService::class)->hallOptions($this->hallSearch);
+    }
+
+    public function selectResolutionOption(string $type, int $id): void
+    {
+        abort_unless(in_array($type, ['lecturer', 'hall'], true) && $this->resolutionType === $type, 404);
+
+        if ($type === 'lecturer') {
+            $this->selectedLecturerId = $id;
+        } else {
+            $this->selectedHallId = $id;
+        }
+
+        $this->clearAssignmentConflict();
+    }
+
+    public function updatedLecturerSearch(): void
+    {
+        $this->clearAssignmentConflict();
+    }
+
+    public function updatedHallSearch(): void
+    {
+        $this->clearAssignmentConflict();
+    }
+
+    public function updatedSelectedLecturerId(): void
+    {
+        $this->clearAssignmentConflict();
+    }
+
+    public function updatedSelectedHallId(): void
+    {
+        $this->clearAssignmentConflict();
+    }
+
+    public function selectedResolutionOptionLabel(): ?string
+    {
+        $service = app(BlockedWeeklySlotReconciliationService::class);
+
+        return $this->resolutionType === 'lecturer' && $this->selectedLecturerId
+            ? $service->lecturerOptionLabel($this->selectedLecturerId)
+            : ($this->resolutionType === 'hall' && $this->selectedHallId ? $service->hallOptionLabel($this->selectedHallId) : null);
     }
 
     public function applyResolution(): void
@@ -193,7 +287,16 @@ class ScheduleImportIssues extends Page
         $actor = Filament::auth()->user();
         abort_unless($actor instanceof User, 403);
 
-        $result = app(BlockedWeeklySlotReconciliationService::class)->apply([$this->selectedSlotId], $proposal, $actor);
+        $startedAt = hrtime(true);
+        $slotId = $this->selectedSlotId;
+        $this->debugTiming('action_started', ['slot_id' => $slotId, 'action' => $proposal['action']]);
+        try {
+            $result = app(BlockedWeeklySlotReconciliationService::class)->apply([$slotId], $proposal, $actor);
+        } catch (ScheduleAssignmentConflictException $exception) {
+            $this->showAssignmentConflict($exception);
+
+            return;
+        }
         $failed = collect($result['results'])->firstWhere('status', 'failed');
 
         if ($failed) {
@@ -203,6 +306,8 @@ class ScheduleImportIssues extends Page
         }
 
         $this->closeResolution();
+        $this->issuesVersion++;
+        $this->debugTiming('action_finished', ['slot_id' => $slotId, 'duration_ms' => $this->elapsedMilliseconds($startedAt)]);
         Notification::make()->title('تم تحديث الخانة وإعادة التحقق منها.')->success()->send();
     }
 
@@ -245,6 +350,7 @@ class ScheduleImportIssues extends Page
         $actor = Filament::auth()->user();
         abort_unless($actor instanceof User, 403);
         app(BlockedWeeklySlotReconciliationService::class)->reopenBatchScopedExclusion($slotId, $actor);
+        $this->issuesVersion++;
         Notification::make()->title('تمت إعادة فتح الخانة وإعادة تقييمها.')->success()->send();
     }
 
@@ -262,7 +368,10 @@ class ScheduleImportIssues extends Page
         abort_unless($this->selectedSlotId !== null, 404);
         $actor = Filament::auth()->user();
         abort_unless($actor instanceof User, 403);
-        $result = app(BlockedWeeklySlotReconciliationService::class)->apply([$this->selectedSlotId], $proposal, $actor);
+        $startedAt = hrtime(true);
+        $slotId = $this->selectedSlotId;
+        $this->debugTiming('action_started', ['slot_id' => $slotId, 'action' => $proposal['action']]);
+        $result = app(BlockedWeeklySlotReconciliationService::class)->apply([$slotId], $proposal, $actor);
         $failed = collect($result['results'])->firstWhere('status', 'failed');
         if ($failed) {
             Notification::make()->title('تعذر تطبيق المعالجة')->body((string) ($failed['error'] ?? 'تعذر تحديث الخانة.'))->danger()->send();
@@ -270,6 +379,8 @@ class ScheduleImportIssues extends Page
             return;
         }
         $this->closeResolution();
+        $this->issuesVersion++;
+        $this->debugTiming('action_finished', ['slot_id' => $slotId, 'duration_ms' => $this->elapsedMilliseconds($startedAt)]);
         Notification::make()->title('تم تحديث الخانة وإعادة التحقق منها.')->success()->send();
     }
 
@@ -278,5 +389,69 @@ class ScheduleImportIssues extends Page
         $actor = Filament::auth()->user();
         abort_unless($actor instanceof User, 403);
         Gate::forUser($actor)->authorize($ability);
+    }
+
+    /** @return array<string, string|int|null> */
+    private function filters(): array
+    {
+        return [
+            'status' => $this->statusFilter,
+            'reason' => $this->reasonFilter,
+            'faculty' => $this->facultyFilter,
+            'department' => $this->departmentFilter,
+            'subject' => $this->subjectFilter,
+            'section' => $this->sectionFilter,
+            'lecturer' => $this->lecturerFilter,
+            'hall' => $this->hallFilter,
+            'weekday' => $this->weekdayFilter,
+        ];
+    }
+
+    /** @param array<string, mixed> $context */
+    private function debugTiming(string $stage, array $context = []): void
+    {
+        if (! app()->hasDebugModeEnabled()) {
+            return;
+        }
+
+        Log::debug('schedule-import-issues timing', ['stage' => $stage, ...$context]);
+    }
+
+    private function elapsedMilliseconds(int $startedAt): int
+    {
+        return (int) round((hrtime(true) - $startedAt) / 1_000_000);
+    }
+
+    private function clearAssignmentConflict(): void
+    {
+        $this->assignmentConflict = null;
+        $this->resetErrorBag('selectedLecturerId');
+        $this->resetErrorBag('selectedHallId');
+    }
+
+    private function showAssignmentConflict(ScheduleAssignmentConflictException $exception): void
+    {
+        $type = count($exception->conflicts) > 1 ? 'multiple' : $this->resolutionType;
+        $type = in_array($type, ['lecturer', 'hall', 'section', 'multiple'], true) ? $type : 'section';
+        $baseKey = 'schedule-import-issues.conflict.';
+        $field = $this->resolutionType === 'hall' ? 'selectedHallId' : 'selectedLecturerId';
+        $fieldKey = $this->resolutionType === 'hall' ? 'field_hall' : 'field_lecturer';
+
+        $this->assignmentConflict = [
+            'title' => __($baseKey.$type.'_title'),
+            'message' => __($baseKey.$type.'_message'),
+            'hint' => __($baseKey.$type.'_hint'),
+            'conflicts' => collect($exception->conflicts)->take(3)->map(fn (array $conflict): array => [
+                'weekday' => __('weekly-schedule.weekdays')[(int) $conflict['weekday']] ?? (string) $conflict['weekday'],
+                'time' => $conflict['startTime'].' – '.$conflict['endTime'],
+                'subject' => $conflict['subjectName'],
+                'section' => $conflict['sectionCode'],
+                'lecturer' => $conflict['lecturerName'],
+                'hall' => $conflict['hallLabel'],
+            ])->all(),
+            'additional_count' => max(0, count($exception->conflicts) - 3),
+        ];
+        $this->addError($field, __($baseKey.$fieldKey));
+        Notification::make()->danger()->title(__($baseKey.'could_not_save'))->body(__($baseKey.'notification'))->persistent()->send();
     }
 }

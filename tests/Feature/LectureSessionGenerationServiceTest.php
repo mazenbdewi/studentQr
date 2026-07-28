@@ -379,6 +379,39 @@ it('uses the generation preview as the single source for weekly schedule issue c
         ->and($issues['rows'][0]['slot_id'])->toBe($slot->id);
 });
 
+it('returns only the requested issue page while preserving full summary counts', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+
+    foreach (range(1, 55) as $index) {
+        SubjectSectionScheduleSlot::query()->create([
+            'import_batch_id' => $fixture['scheduleBatch']->id,
+            'academic_term_id' => $fixture['term']->id,
+            'subject_id' => $fixture['subject']->id,
+            'subject_section_id' => $fixture['section']->id,
+            'lecturer_id' => null,
+            'hall_id' => null,
+            'weekday' => Carbon::TUESDAY,
+            'start_time' => sprintf('08:%02d:00', $index),
+            'end_time' => sprintf('09:%02d:00', $index),
+        ]);
+    }
+
+    $page = app(WeeklyScheduleIssueService::class)->page(
+        $fixture['term'],
+        $fixture['scheduleBatch']->id,
+        ['status' => 'needs_attention'],
+        page: 1,
+        perPage: 50,
+    );
+
+    expect($page['summary']['unique_affected_slots'])->toBe(55)
+        ->and($page['pagination'])->toMatchArray(['current_page' => 1, 'last_page' => 2, 'total' => 55, 'per_page' => 50])
+        ->and($page['rows'])->toHaveCount(50)
+        ->and(array_keys($page['rows'][0]))->toBe([
+            'slot_id', 'subject_code', 'subject', 'section', 'weekday', 'time', 'lecturer', 'hall', 'reasons', 'status',
+        ]);
+});
+
 it('exports lecture-session generation success and skipped reports as Arabic RTL xlsx', function (): void {
     $fixture = lectureSessionGenerationFixture();
     $blockedSection = SubjectSection::query()->create([

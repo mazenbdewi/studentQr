@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ScheduleAssignmentConflictException;
 use App\Models\Hall;
 use App\Models\Lecturer;
 use App\Models\LectureSession;
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -136,11 +138,25 @@ class BlockedWeeklySlotReconciliationService
     /** @return array<int, array<string, mixed>> */
     public function lecturerOptions(?string $search = null, int $limit = 50): array
     {
+        $search = trim((string) $search);
+        if (mb_strlen($search) < 2) {
+            return [];
+        }
+
         $options = [];
         $lecturers = Lecturer::query()
             ->with('user.roles')
-            ->when(filled($search), fn ($query) => $query->where('name', 'like', '%'.$search.'%'))
-            ->orderBy('name')
+            ->leftJoin('users', function ($join): void {
+                $join->on('users.id', '=', 'lecturers.user_id')->whereNull('users.deleted_at');
+            })
+            ->where('lecturers.is_active', true)
+            ->where(function ($query) use ($search): void {
+                $query->where('lecturers.name', 'like', '%'.$search.'%')
+                    ->orWhere('lecturers.lecturer_id', 'like', '%'.$search.'%')
+                    ->orWhere('users.login_username', 'like', '%'.$search.'%');
+            })
+            ->select('lecturers.*')
+            ->orderBy('lecturers.name')
             ->limit($limit)
             ->get();
 
@@ -164,6 +180,11 @@ class BlockedWeeklySlotReconciliationService
     /** @return array<int, array<string, mixed>> */
     public function hallOptions(?string $search = null, int $limit = 50): array
     {
+        $search = trim((string) $search);
+        if (mb_strlen($search) < 2) {
+            return [];
+        }
+
         $options = [];
         $halls = Hall::query()
             ->withoutTrashed()
@@ -182,7 +203,7 @@ class BlockedWeeklySlotReconciliationService
             $attributes = $hall->getAttributes();
             $options[] = [
                 'id' => $hall->id,
-                'label' => trim(($hall->code ?: 'بدون رمز').' — '.$hall->name),
+                'label' => $hall->displayLabel(),
                 'code' => $hall->code,
                 'name' => $hall->name,
                 'capacity' => $attributes['capacity'] ?? null,
@@ -192,6 +213,16 @@ class BlockedWeeklySlotReconciliationService
         }
 
         return $options;
+    }
+
+    public function lecturerOptionLabel(int $lecturerId): ?string
+    {
+        return Lecturer::query()->where('is_active', true)->find($lecturerId)?->name;
+    }
+
+    public function hallOptionLabel(int $hallId): ?string
+    {
+        return Hall::query()->withoutTrashed()->where('is_active', true)->find($hallId)?->displayLabel();
     }
 
     /**
@@ -299,6 +330,10 @@ class BlockedWeeklySlotReconciliationService
 
         $preview = $this->preview($slotIds, $proposal, $actor);
         if (! $preview['confirm_enabled']) {
+            if ($preview['new_conflicts'] !== [] && in_array($proposal['action'] ?? null, [self::ACTION_ASSIGN_LECTURER, self::ACTION_ASSIGN_HALL], true)) {
+                throw $this->assignmentConflictException($proposal, $preview['new_conflicts']);
+            }
+
             throw new RuntimeException(implode("\n", $preview['blocking_errors']));
         }
 
@@ -312,7 +347,15 @@ class BlockedWeeklySlotReconciliationService
                     throw new RuntimeException('تعذر تحميل الموعد الأسبوعي قبل الحفظ.');
                 }
 
-                $results[] = DB::transaction(fn (): array => $this->applyOne($fresh, $proposal, $actor));
+                $this->debugTiming('transaction_started', ['slot_id' => $fresh->id, 'action' => $proposal['action'] ?? null]);
+                $results[] = DB::transaction(function () use ($fresh, $proposal, $actor): array {
+                    $this->debugTiming('slot_update_started', ['slot_id' => $fresh->id]);
+                    $result = $this->applyOne($fresh, $proposal, $actor);
+                    $this->debugTiming('slot_update_finished', ['slot_id' => $fresh->id]);
+
+                    return $result;
+                });
+                $this->debugTiming('transaction_committed', ['slot_id' => $fresh->id]);
             } catch (Throwable $exception) {
                 $hasFailure = true;
                 $results[] = [
@@ -416,12 +459,12 @@ class BlockedWeeklySlotReconciliationService
         }
 
         if (in_array($action, [self::ACTION_ASSIGN_LECTURER, self::ACTION_ASSIGN_LECTURER_AND_HALL], true)
-            && ! Lecturer::query()->whereKey((int) ($proposal['lecturer_id'] ?? 0))->exists()) {
+            && ! Lecturer::query()->whereKey((int) ($proposal['lecturer_id'] ?? 0))->where('is_active', true)->exists()) {
             $errors[] = 'المدرس المقترح غير صالح.';
         }
 
         if (in_array($action, [self::ACTION_ASSIGN_HALL, self::ACTION_ASSIGN_LECTURER_AND_HALL], true)
-            && ! Hall::query()->withoutTrashed()->whereKey((int) ($proposal['hall_id'] ?? 0))->exists()) {
+            && ! Hall::query()->withoutTrashed()->whereKey((int) ($proposal['hall_id'] ?? 0))->where('is_active', true)->exists()) {
             $errors[] = 'القاعة المقترحة غير صالحة.';
         }
 
@@ -649,6 +692,50 @@ class BlockedWeeklySlotReconciliationService
                 'performed_at' => now(),
             ]);
         }
+    }
+
+    /** @param array<string, mixed> $context */
+    private function debugTiming(string $stage, array $context = []): void
+    {
+        if (app()->hasDebugModeEnabled()) {
+            Log::debug('schedule-import-issues timing', ['stage' => $stage, ...$context]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $proposal
+     * @param  array<int, array<string, mixed>>  $conflicts
+     */
+    private function assignmentConflictException(array $proposal, array $conflicts): ScheduleAssignmentConflictException
+    {
+        $selectedResourceId = match ($proposal['action']) {
+            self::ACTION_ASSIGN_LECTURER => filled($proposal['lecturer_id'] ?? null) ? (int) $proposal['lecturer_id'] : null,
+            self::ACTION_ASSIGN_HALL => filled($proposal['hall_id'] ?? null) ? (int) $proposal['hall_id'] : null,
+            default => null,
+        };
+
+        $preferredType = $proposal['action'] === self::ACTION_ASSIGN_LECTURER ? 'lecturer' : 'hall';
+        $details = collect($conflicts)
+            ->sortByDesc(fn (array $conflict): bool => ($conflict['type'] ?? $conflict['dimension'] ?? null) === $preferredType)
+            ->unique(fn (array $conflict): int => (int) ($conflict['slot_id'] ?? 0))
+            ->map(fn (array $conflict): array => [
+                'conflictType' => (string) ($conflict['type'] ?? $conflict['dimension'] ?? 'section'),
+                'selectedResourceId' => $selectedResourceId,
+                'conflictingSlotId' => (int) ($conflict['slot_id'] ?? 0),
+                'weekday' => $conflict['weekday'] ?? '',
+                'startTime' => substr((string) ($conflict['start_time'] ?? ''), 0, 5),
+                'endTime' => substr((string) ($conflict['end_time'] ?? ''), 0, 5),
+                'subjectName' => (string) ($conflict['subject'] ?? __('weekly-schedule.not_specified')),
+                'sectionCode' => (string) ($conflict['section'] ?? __('weekly-schedule.not_specified')),
+                'lecturerName' => (string) ($conflict['lecturer'] ?? __('weekly-schedule.not_specified')),
+                'hallLabel' => (string) ($conflict['hall'] ?? __('weekly-schedule.not_specified')),
+            ])->values()->all();
+
+        return new ScheduleAssignmentConflictException(
+            conflictType: (string) ($details[0]['conflictType'] ?? 'section'),
+            selectedResourceId: $selectedResourceId,
+            conflicts: $details,
+        );
     }
 
     /** @return array<int, array<string, mixed>> */
