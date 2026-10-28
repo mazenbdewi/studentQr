@@ -6,6 +6,7 @@ use App\Exports\ManaraEnrollmentImportErrorsExport;
 use App\Imports\ManaraStudentEnrollmentsImport;
 use App\Models\ImportBatch;
 use App\Services\ActivityLogger;
+use App\Support\SpreadsheetRowCounter;
 use App\Support\XlsxNumericCellSanitizer;
 use BackedEnum;
 use Filament\Facades\Filament;
@@ -43,6 +44,14 @@ class ManaraEnrollmentImport extends Page implements HasForms
     public bool $uploadReady = false;
 
     public ?string $completedBatchUuid = null;
+
+    public ?string $activeBatchUuid = null;
+
+    public ?string $pendingFilePath = null;
+
+    public ?string $pendingFileName = null;
+
+    public bool $processingImport = false;
 
     public static function canAccess(): bool
     {
@@ -96,19 +105,14 @@ class ManaraEnrollmentImport extends Page implements HasForms
         $this->setUploadReadyState($this->data['file'] ?? null);
     }
 
-    public function import(): void
+    public function startImport(): void
     {
         $state = $this->form->getState();
-        $startedAt = now();
         $file = $state['file'] ?? null;
         $fileName = basename((string) $file);
-        $sanitizedFile = null;
-        $batch = null;
         $this->resetResults();
 
         try {
-            $this->prepareLongRunningImport();
-
             $uploadedFilePath = $this->localPathForUploadedFile((string) $file);
             $sourceFingerprint = hash_file('sha256', $uploadedFilePath);
 
@@ -122,23 +126,104 @@ class ManaraEnrollmentImport extends Page implements HasForms
                     $sourceFingerprint,
                 ),
             ]);
+
+            $samePreparedBatch = $batch->exists
+                && $batch->status === ImportBatch::STATUS_PENDING
+                && $this->activeBatchUuid === $batch->uuid
+                && $this->processingImport;
+            $activeProcessingBatch = $batch->exists
+                && $batch->status === ImportBatch::STATUS_PROCESSING
+                && $batch->updated_at?->isAfter(now()->subHours(2));
+
+            if ($samePreparedBatch || $activeProcessingBatch) {
+                Notification::make()->title(__('manara-import.already_processing'))->warning()->send();
+
+                return;
+            }
+
+            $totalRows = app(SpreadsheetRowCounter::class)->countSourceRows($uploadedFilePath);
             $batch->fill([
                 'import_type' => ImportBatch::TYPE_ENROLLMENTS,
                 'source_filename' => $fileName,
                 'source_fingerprint' => $sourceFingerprint,
                 'source_import_batch_id' => null,
-                'status' => ImportBatch::STATUS_PROCESSING,
-                'total_rows' => 0,
+                'status' => ImportBatch::STATUS_PENDING,
+                'total_rows' => $totalRows,
+                'processed_rows' => 0,
                 'imported_rows' => 0,
                 'rejected_rows' => 0,
                 'summary' => null,
                 'error_file_path' => null,
-                'started_at' => $startedAt,
+                'started_at' => now(),
                 'completed_at' => null,
                 'created_by' => Filament::auth()->id(),
             ])->save();
 
+            $this->activeBatchUuid = $batch->uuid;
+            $this->pendingFilePath = (string) $file;
+            $this->pendingFileName = $fileName;
+            $this->processingImport = true;
+            $this->dispatch('enrollment-import-prepared',
+                progressUrl: route('admin.import-batches.progress', $batch, false),
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->processingImport = false;
+            Notification::make()->title(__('manara-import.failed'))->body($exception->getMessage())->danger()->send();
+        }
+    }
+
+    /** Backward-compatible synchronous entry point used by existing integrations and tests. */
+    public function import(): void
+    {
+        $this->startImport();
+
+        if ($this->processingImport && $this->activeBatchUuid) {
+            $this->processImport();
+        }
+    }
+
+    public function processImport(): void
+    {
+        if (! $this->processingImport || blank($this->activeBatchUuid) || blank($this->pendingFilePath)) {
+            return;
+        }
+
+        $batch = ImportBatch::query()
+            ->where('uuid', $this->activeBatchUuid)
+            ->where('import_type', ImportBatch::TYPE_ENROLLMENTS)
+            ->where('created_by', Filament::auth()->id())
+            ->firstOrFail();
+
+        if ($batch->status !== ImportBatch::STATUS_PENDING) {
+            $this->processingImport = false;
+
+            return;
+        }
+
+        $startedAt = $batch->started_at ?? now();
+        $fileName = $this->pendingFileName ?: basename($this->pendingFilePath);
+        $sanitizedFile = null;
+
+        try {
+            $this->prepareLongRunningImport();
+            $batch->update(['status' => ImportBatch::STATUS_PROCESSING]);
+            $uploadedFilePath = $this->localPathForUploadedFile($this->pendingFilePath);
+
             $import = new ManaraStudentEnrollmentsImport;
+            $lastPersisted = 0;
+            $import->onProgress(function (int $processed, array $summary) use ($batch, &$lastPersisted): void {
+                if ($processed - $lastPersisted < 100 && $processed < (int) $batch->total_rows) {
+                    return;
+                }
+
+                $lastPersisted = $processed;
+                $batch->update([
+                    'processed_rows' => min((int) $batch->total_rows, $processed),
+                    'imported_rows' => (int) ($summary['imported_rows'] ?? 0),
+                    'rejected_rows' => (int) ($summary['failed_rows'] ?? 0),
+                ]);
+            });
             $sanitizer = app(XlsxNumericCellSanitizer::class);
             $sanitizedFile = $sanitizer->sanitizeToTemporaryFile($uploadedFilePath);
 
@@ -168,6 +253,7 @@ class ManaraEnrollmentImport extends Page implements HasForms
                     ? ImportBatch::STATUS_COMPLETED_WITH_ERRORS
                     : ImportBatch::STATUS_COMPLETED,
                 'total_rows' => (int) $this->summary['total_rows'],
+                'processed_rows' => (int) $this->summary['total_rows'],
                 'imported_rows' => (int) $this->summary['imported_rows'],
                 'rejected_rows' => (int) $this->summary['failed_rows'],
                 'summary' => $this->summary,
@@ -226,6 +312,9 @@ class ManaraEnrollmentImport extends Page implements HasForms
             if (isset($sanitizer)) {
                 $sanitizer->deleteTemporaryFile($sanitizedFile);
             }
+
+            $this->processingImport = false;
+            $this->dispatch('enrollment-import-finished');
         }
     }
 
@@ -239,6 +328,10 @@ class ManaraEnrollmentImport extends Page implements HasForms
     private function handleUploadedFileStateChanged(mixed $state): void
     {
         $this->resetResults();
+        $this->activeBatchUuid = null;
+        $this->pendingFilePath = null;
+        $this->pendingFileName = null;
+        $this->processingImport = false;
         $this->setUploadReadyState($state);
     }
 

@@ -32,6 +32,7 @@ it('records and reuses one deduplicated enrollment batch with its imported term'
         $batch = ImportBatch::query()->where('import_type', ImportBatch::TYPE_ENROLLMENTS)->firstOrFail();
 
         expect($batch->status)->toBe(ImportBatch::STATUS_COMPLETED)
+            ->and($batch->processed_rows)->toBe($batch->total_rows)
             ->and($batch->imported_rows)->toBe(1)
             ->and($batch->rejected_rows)->toBe(0)
             ->and($batch->summary['skipped_no_section'])->toBe(1)
@@ -49,6 +50,62 @@ it('records and reuses one deduplicated enrollment batch with its imported term'
             ->call('import');
 
         expect(ImportBatch::query()->where('import_type', ImportBatch::TYPE_ENROLLMENTS)->count())->toBe(1);
+    } finally {
+        @unlink($path);
+    }
+});
+
+it('prepares one lightweight enrollment batch and rejects a duplicate start', function (): void {
+    Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
+    $user = User::factory()->create(['role' => 'super_admin', 'type' => 'admin', 'status' => 'active']);
+    $user->assignRole('super-admin');
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $path = enrollmentBatchWorkbook();
+
+    try {
+        $content = file_get_contents($path);
+        $component = Livewire::actingAs($user)
+            ->test(ManaraEnrollmentImport::class)
+            ->set('data.file', [UploadedFile::fake()->createWithContent('large-enrollments.xlsx', $content)])
+            ->call('startImport')
+            ->assertSet('processingImport', true);
+
+        $batch = ImportBatch::query()->where('import_type', ImportBatch::TYPE_ENROLLMENTS)->sole();
+
+        expect($batch->status)->toBe(ImportBatch::STATUS_PENDING)
+            ->and($batch->total_rows)->toBe(1)
+            ->and($batch->processed_rows)->toBe(0)
+            ->and($component->get('pendingFilePath'))->toBeString()
+            ->and(strlen($component->get('pendingFilePath')))->toBeLessThan(500);
+
+        $component->call('startImport');
+
+        expect(ImportBatch::query()->where('import_type', ImportBatch::TYPE_ENROLLMENTS)->count())->toBe(1);
+    } finally {
+        @unlink($path);
+    }
+});
+
+it('marks a failed enrollment process terminal instead of leaving it processing', function (): void {
+    Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
+    $user = User::factory()->create(['role' => 'super_admin', 'type' => 'admin', 'status' => 'active']);
+    $user->assignRole('super-admin');
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $spreadsheet = new Spreadsheet;
+    $spreadsheet->getActiveSheet()->fromArray([['wrong heading'], ['value']]);
+    $path = tempnam(sys_get_temp_dir(), 'invalid-enrollment-').'.xlsx';
+    (new Xlsx($spreadsheet))->save($path);
+
+    try {
+        Livewire::actingAs($user)
+            ->test(ManaraEnrollmentImport::class)
+            ->set('data.file', [UploadedFile::fake()->createWithContent('invalid.xlsx', file_get_contents($path))])
+            ->call('import')
+            ->assertSet('processingImport', false);
+
+        $batch = ImportBatch::query()->where('import_type', ImportBatch::TYPE_ENROLLMENTS)->sole();
+        expect($batch->status)->toBe(ImportBatch::STATUS_FAILED)
+            ->and($batch->processed_rows)->toBeLessThanOrEqual($batch->total_rows);
     } finally {
         @unlink($path);
     }

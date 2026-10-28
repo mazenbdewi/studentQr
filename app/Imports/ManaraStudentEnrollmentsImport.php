@@ -11,6 +11,7 @@ use App\Models\Subject;
 use App\Models\SubjectSection;
 use App\Support\AcademicTermNormalizer;
 use App\Support\ManaraEnrollmentRowNormalizer;
+use Closure;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -72,6 +73,8 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
 
     private array $errors = [];
 
+    private ?Closure $progressCallback = null;
+
     /** @var array<int, int> */
     private array $importedAcademicTermRowCounts = [];
 
@@ -115,6 +118,7 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
 
         if ($messages !== []) {
             $this->addError($rowNumber, $data, $messages);
+            $this->reportProgress();
 
             return;
         }
@@ -173,6 +177,8 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
                 $exception->getMessage(),
             ]);
         }
+
+        $this->reportProgress();
     }
 
     public function chunkSize(): int
@@ -188,6 +194,13 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
     public function getErrors(): array
     {
         return $this->errors;
+    }
+
+    public function onProgress(Closure $callback): self
+    {
+        $this->progressCallback = $callback;
+
+        return $this;
     }
 
     /** @return array<int, int> */
@@ -570,5 +583,12 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
         }
 
         return (string) $current === (string) $incoming;
+    }
+
+    private function reportProgress(): void
+    {
+        if ($this->progressCallback) {
+            ($this->progressCallback)((int) $this->summary['total_rows'], $this->summary);
+        }
     }
 }

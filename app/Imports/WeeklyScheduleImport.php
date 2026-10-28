@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\ScheduleAcademicTermResolver;
 use App\Services\SubjectSectionLecturerSynchronizationService;
 use App\Support\WeeklyScheduleRowNormalizer;
+use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -48,6 +49,10 @@ class WeeklyScheduleImport
     private array $createdHallIds = [];
 
     private array $reusedHallIds = [];
+
+    private ?Closure $progressCallback = null;
+
+    private int $processedSourceRows = 0;
 
     public function __construct(
         private readonly WeeklyScheduleRowNormalizer $normalizer,
@@ -115,6 +120,7 @@ class WeeklyScheduleImport
             'source_import_batch_id' => $sourceBatch->id,
             'status' => ImportBatch::STATUS_PROCESSING,
             'total_rows' => count($normalizedRows),
+            'processed_rows' => 0,
             'imported_rows' => 0,
             'rejected_rows' => 0,
             'summary' => null,
@@ -229,6 +235,7 @@ class WeeklyScheduleImport
                 ]);
                 $this->batch->update([
                     'status' => $status,
+                    'processed_rows' => $this->summary['total_rows'],
                     'imported_rows' => $this->summary['imported_rows'],
                     'rejected_rows' => $this->summary['rejected_rows'],
                     'summary' => $this->summary,
@@ -268,6 +275,13 @@ class WeeklyScheduleImport
         return $this->batch;
     }
 
+    public function onProgress(Closure $callback): self
+    {
+        $this->progressCallback = $callback;
+
+        return $this;
+    }
+
     private function resetState(): void
     {
         $this->summary = [];
@@ -282,6 +296,7 @@ class WeeklyScheduleImport
         $this->reusedLecturerIds = [];
         $this->createdHallIds = [];
         $this->reusedHallIds = [];
+        $this->processedSourceRows = 0;
     }
 
     /** @return array<int, array> */
@@ -383,74 +398,79 @@ class WeeklyScheduleImport
         $matchedPractical = [];
 
         foreach ($rows as $row) {
-            $coreErrors = $this->normalizer->validateCore($row);
+            try {
+                $coreErrors = $this->normalizer->validateCore($row);
 
-            if ($coreErrors !== []) {
-                $this->addError($row, implode(' | ', $coreErrors));
-
-                continue;
-            }
-
-            $subjects = $this->subjects[$row['subject_code_key']] ?? [];
-
-            if (count($subjects) !== 1) {
-                $this->summary['missing_subjects']++;
-                $this->addError($row, 'المقرر غير موجود أو رمز المقرر غير فريد في النظام.');
-
-                continue;
-            }
-
-            $subject = reset($subjects);
-            $section = $this->sections[$subject->id.'|'.$row['section_code']] ?? null;
-
-            if (! $section) {
-                $this->summary['missing_sections']++;
-                $this->addError($row, 'الشعبة غير موجودة للمقرر ضمن الفصل الدراسي المرتبط.');
-
-                continue;
-            }
-
-            if ($row['section_type'] === 'P') {
-                $matchedPractical[$section->id] = true;
-            } else {
-                $matchedTheory[$section->id] = true;
-            }
-
-            $rowCandidates = 0;
-
-            foreach ($row['weekday_values'] as $weekday => $sourceTime) {
-                if ($this->normalizer->isMissingValue($sourceTime)) {
-                    continue;
-                }
-
-                try {
-                    $time = $this->normalizer->parseTimeRange($sourceTime);
-                } catch (\InvalidArgumentException $exception) {
-                    $this->summary['invalid_weekday_time_cells']++;
-                    $this->addError($row, $exception->getMessage(), null, $weekday, $sourceTime);
+                if ($coreErrors !== []) {
+                    $this->addError($row, implode(' | ', $coreErrors));
 
                     continue;
                 }
 
-                if ($time === null) {
+                $subjects = $this->subjects[$row['subject_code_key']] ?? [];
+
+                if (count($subjects) !== 1) {
+                    $this->summary['missing_subjects']++;
+                    $this->addError($row, 'المقرر غير موجود أو رمز المقرر غير فريد في النظام.');
+
                     continue;
                 }
 
-                $candidates[] = [
-                    ...$row,
-                    ...$time,
-                    'academic_term_id' => $academicTermId,
-                    'subject_id' => $subject->id,
-                    'subject_section_id' => $section->id,
-                    'section' => $section,
-                    'weekday' => $weekday,
-                    'weekday_source_value' => $sourceTime,
-                ];
-                $rowCandidates++;
-            }
+                $subject = reset($subjects);
+                $section = $this->sections[$subject->id.'|'.$row['section_code']] ?? null;
 
-            if ($rowCandidates === 0) {
-                $this->addError($row, 'لا يحتوي السطر على أي نطاق وقت أسبوعي صالح.');
+                if (! $section) {
+                    $this->summary['missing_sections']++;
+                    $this->addError($row, 'الشعبة غير موجودة للمقرر ضمن الفصل الدراسي المرتبط.');
+
+                    continue;
+                }
+
+                if ($row['section_type'] === 'P') {
+                    $matchedPractical[$section->id] = true;
+                } else {
+                    $matchedTheory[$section->id] = true;
+                }
+
+                $rowCandidates = 0;
+
+                foreach ($row['weekday_values'] as $weekday => $sourceTime) {
+                    if ($this->normalizer->isMissingValue($sourceTime)) {
+                        continue;
+                    }
+
+                    try {
+                        $time = $this->normalizer->parseTimeRange($sourceTime);
+                    } catch (\InvalidArgumentException $exception) {
+                        $this->summary['invalid_weekday_time_cells']++;
+                        $this->addError($row, $exception->getMessage(), null, $weekday, $sourceTime);
+
+                        continue;
+                    }
+
+                    if ($time === null) {
+                        continue;
+                    }
+
+                    $candidates[] = [
+                        ...$row,
+                        ...$time,
+                        'academic_term_id' => $academicTermId,
+                        'subject_id' => $subject->id,
+                        'subject_section_id' => $section->id,
+                        'section' => $section,
+                        'weekday' => $weekday,
+                        'weekday_source_value' => $sourceTime,
+                    ];
+                    $rowCandidates++;
+                }
+
+                if ($rowCandidates === 0) {
+                    $this->addError($row, 'لا يحتوي السطر على أي نطاق وقت أسبوعي صالح.');
+                }
+            } finally {
+                $this->processedSourceRows++;
+                $this->reportProgress();
             }
         }
 
@@ -458,6 +478,13 @@ class WeeklyScheduleImport
         $this->summary['matched_practical_sections'] = count($matchedPractical);
 
         return $candidates;
+    }
+
+    private function reportProgress(): void
+    {
+        if ($this->progressCallback) {
+            ($this->progressCallback)($this->processedSourceRows, $this->summary);
+        }
     }
 
     /** @return array<string, array{candidate: array, row_numbers: array<int, int>, conflicting: bool}> */

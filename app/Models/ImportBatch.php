@@ -35,6 +35,7 @@ class ImportBatch extends Model
         'source_import_batch_id',
         'status',
         'total_rows',
+        'processed_rows',
         'imported_rows',
         'rejected_rows',
         'summary',
@@ -49,6 +50,7 @@ class ImportBatch extends Model
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
         'total_rows' => 'integer',
+        'processed_rows' => 'integer',
         'imported_rows' => 'integer',
         'rejected_rows' => 'integer',
     ];
@@ -92,6 +94,24 @@ class ImportBatch extends Model
         return $this->import_type === self::TYPE_ENROLLMENTS
             && $this->status === self::STATUS_COMPLETED
             && $this->imported_rows > 0;
+    }
+
+    /** @return array<string, int|string|null> */
+    public function progressPayload(): array
+    {
+        $total = max(0, (int) $this->total_rows);
+        $processed = min($total, max(0, (int) $this->processed_rows));
+
+        return [
+            'uuid' => $this->uuid,
+            'status' => $this->status,
+            'total_rows' => $total,
+            'processed_rows' => $processed,
+            'successful_rows' => min($processed, max(0, (int) $this->imported_rows)),
+            'failed_rows' => min($processed, max(0, (int) $this->rejected_rows)),
+            'percentage' => $total === 0 ? ($this->completed_at ? 100 : 0) : min(100, (int) floor(($processed / $total) * 100)),
+            'error' => $this->status === self::STATUS_FAILED ? (string) data_get($this->summary, 'error') : null,
+        ];
     }
 
     /** @return BelongsTo<ImportBatch, $this> */

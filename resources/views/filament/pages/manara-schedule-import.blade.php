@@ -1,4 +1,4 @@
-<x-filament-panels::page>
+<x-filament-panels::page :dir="app()->getLocale() === 'ar' ? 'rtl' : 'ltr'">
     <style>[x-cloak] { display: none !important; }</style>
 
     <div
@@ -9,13 +9,37 @@
             verifyingUpload: false,
             uploadFailed: false,
             uploadProgress: 0,
+            processing: @js($processingImport),
+            progressVisible: false,
+            progressUrl: null,
+            progressTimer: null,
+            progress: { status: 'pending', total_rows: 0, processed_rows: 0, successful_rows: 0, failed_rows: 0, percentage: 0, error: null },
+            async pollProgress() {
+                if (! this.progressUrl) return;
+                const response = await fetch(this.progressUrl, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+                if (response.ok) this.progress = await response.json();
+            },
+            async startProcessing(url) {
+                if (this.processing) return;
+                this.processing = true;
+                this.progressVisible = true;
+                this.progressUrl = url;
+                await this.pollProgress();
+                this.progressTimer = setInterval(() => this.pollProgress(), 1000);
+                try { await $wire.processImport(); } finally {
+                    clearInterval(this.progressTimer);
+                    await this.pollProgress();
+                    this.processing = false;
+                }
+            },
         }"
-        x-on:livewire-upload-start.window="uploading = true; uploadReady = false; verifyingUpload = false; uploadFailed = false; uploadProgress = 0"
+        x-on:livewire-upload-start.window="uploading = true; uploadReady = false; verifyingUpload = false; uploadFailed = false; uploadProgress = 0; progressVisible = false"
         x-on:livewire-upload-progress.window="uploadProgress = Math.min(100, Math.max(0, Number($event.detail.progress ?? 0)))"
         x-on:livewire-upload-finish.window="uploading = false; uploadReady = true; verifyingUpload = true; uploadFailed = false; uploadProgress = 100; $wire.verifyUploadedFileReady()"
         x-on:livewire-upload-error.window="uploading = false; uploadReady = false; verifyingUpload = false; uploadFailed = true; uploadProgress = 0"
         x-on:livewire-upload-cancel.window="uploading = false; uploadReady = false; verifyingUpload = false; uploadFailed = false; uploadProgress = 0"
         x-on:schedule-upload-state.window="uploadReady = Boolean($event.detail.ready); verifyingUpload = false; if (! uploadReady) { uploading = false; uploadProgress = 0 }"
+        x-on:schedule-import-prepared.window="startProcessing($event.detail.progressUrl)"
         class="space-y-6"
     >
         <section class="rounded-xl border border-primary-300 bg-primary-50 p-5 text-primary-950 shadow-sm dark:border-primary-700 dark:bg-primary-950 dark:text-primary-100">
@@ -77,7 +101,7 @@
             </div>
         </div>
 
-        <div x-cloak x-show="uploadReady && ! uploading" class="rounded-lg border border-success-200 bg-success-50 p-4 text-sm font-semibold text-success-800">
+        <div x-cloak x-show="uploadReady && ! uploading && ! processing" class="rounded-lg border border-success-200 bg-success-50 p-4 text-sm font-semibold text-success-800">
             {{ __('manara-schedule-import.upload_success') }}
         </div>
 
@@ -85,33 +109,42 @@
             {{ __('manara-schedule-import.upload_failed') }}
         </div>
 
-        <div
-            wire:loading.delay.class.remove="hidden"
-            wire:loading.delay.class="flex"
-            wire:target="import"
-            role="status"
-            aria-live="polite"
-            class="hidden items-start gap-3 rounded-xl border border-primary-200 bg-primary-50 p-4 text-start text-primary-950 shadow-sm dark:border-primary-800 dark:bg-primary-950 dark:text-primary-100"
-        >
-            <x-filament::loading-indicator class="mt-0.5 h-5 w-5 shrink-0 text-primary-600 dark:text-primary-300" />
-            <div class="space-y-1">
-                <div class="text-sm font-semibold">{{ __('manara-schedule-import.import_loading') }}</div>
-                <div class="text-xs text-primary-700 dark:text-primary-300">{{ __('manara-schedule-import.import_loading_wait') }}</div>
+        <div x-cloak x-show="progressVisible" role="status" aria-live="polite" class="rounded-xl border border-primary-200 bg-primary-50 p-4 text-start text-primary-950 shadow-sm dark:border-primary-800 dark:bg-primary-950 dark:text-primary-100">
+            <span class="sr-only">{{ __('manara-schedule-import.import_loading') }}</span>
+            <div class="flex items-start gap-3">
+                <x-filament::loading-indicator x-show="processing" class="mt-0.5 h-5 w-5 shrink-0 text-primary-600 dark:text-primary-300" />
+                <div class="min-w-0 flex-1 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold">
+                        <span x-text="progress.status === 'failed' ? @js(__('manara-schedule-import.processing_failed')) : (processing ? (progress.percentage === 100 ? @js(__('manara-schedule-import.processing_finalizing')) : @js(__('manara-schedule-import.processing_title'))) : @js(__('manara-schedule-import.processing_completed')))"></span>
+                        <span x-text="`${progress.percentage}%`"></span>
+                    </div>
+                    <div class="h-3 overflow-hidden rounded-full bg-primary-100 dark:bg-primary-900" dir="ltr">
+                        <div class="h-full rounded-full bg-primary-600 transition-[width] duration-300 dark:bg-primary-300" :style="`width: ${progress.percentage}%`"></div>
+                    </div>
+                    <p class="text-sm text-primary-800 dark:text-primary-200"><span x-text="Number(progress.processed_rows).toLocaleString()"></span> {{ __('manara-schedule-import.progress_of') }} <span x-text="Number(progress.total_rows).toLocaleString()"></span></p>
+                    <div class="grid grid-cols-2 gap-2 text-xs text-primary-700 sm:grid-cols-4 dark:text-primary-300">
+                        <span>{{ __('manara-schedule-import.progress_total') }}: <b x-text="Number(progress.total_rows).toLocaleString()"></b></span>
+                        <span>{{ __('manara-schedule-import.progress_processed') }}: <b x-text="Number(progress.processed_rows).toLocaleString()"></b></span>
+                        <span>{{ __('manara-schedule-import.progress_successful') }}: <b x-text="Number(progress.successful_rows).toLocaleString()"></b></span>
+                        <span>{{ __('manara-schedule-import.progress_failed') }}: <b x-text="Number(progress.failed_rows).toLocaleString()"></b></span>
+                    </div>
+                    <p x-show="progress.error" class="text-sm text-danger-700 dark:text-danger-300" x-text="progress.error"></p>
+                </div>
             </div>
         </div>
 
-        <form wire:submit="import" class="space-y-4">
-            <fieldset wire:loading.attr="disabled" wire:target="import" @disabled(! $sourceBatchReady)>{{ $this->form }}</fieldset>
+        <form wire:submit="startImport" class="space-y-4">
+            <fieldset wire:loading.attr="disabled" wire:target="startImport" x-bind:disabled="processing" @disabled(! $sourceBatchReady)>{{ $this->form }}</fieldset>
             <div class="flex justify-end">
                 <x-filament::button
                     type="submit"
                     icon="heroicon-o-arrow-up-tray"
-                    wire:target="import"
+                    wire:target="startImport"
                     wire:loading.attr="disabled"
-                    x-bind:disabled="uploading || verifyingUpload || ! uploadReady || ! sourceBatchReady"
+                    x-bind:disabled="uploading || verifyingUpload || processing || ! uploadReady || ! sourceBatchReady"
                 >
-                    <span wire:loading.remove wire:target="import">{{ __('manara-schedule-import.import_button') }}</span>
-                    <span wire:loading wire:target="import">{{ __('manara-schedule-import.import_button_loading') }}</span>
+                    <span wire:loading.remove wire:target="startImport">{{ __('manara-schedule-import.import_button') }}</span>
+                    <span wire:loading wire:target="startImport">{{ __('manara-schedule-import.import_button_loading') }}</span>
                 </x-filament::button>
             </div>
         </form>

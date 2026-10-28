@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ImportBatchProgressController;
 use App\Http\Controllers\Auth\CustomLoginController;
 use App\Http\Controllers\Auth\ForcePasswordChangeController;
 use App\Http\Controllers\Auth\PinVerificationController;
@@ -31,6 +32,9 @@ Route::post('/logout', [CustomLoginController::class, 'logout'])
     ->name('logout');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/admin/import-batches/{batch:uuid}/progress', ImportBatchProgressController::class)
+        ->name('admin.import-batches.progress');
+
     Route::get('/password/force-change', [ForcePasswordChangeController::class, 'show'])
         ->name('password.force-change.form');
 

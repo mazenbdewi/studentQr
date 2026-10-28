@@ -1,6 +1,31 @@
 <?php
 
 return [
+    'statuses' => [
+        'needs_attention' => 'Needs attention',
+        'resolved' => 'Resolved',
+        'excluded' => 'Excluded from generation',
+        'ready' => 'Ready',
+    ],
+    'actions' => [
+        'exclude' => 'Exclude from lecture generation',
+        'reactivate' => 'Reactivate slot',
+    ],
+    'exclusion' => [
+        'title' => 'Exclude from lecture generation',
+        'description' => 'This slot will be excluded from lecture-session generation and will no longer block completion. You can reactivate it later. The original schedule record will not be deleted.',
+        'reason_label' => 'Exclusion reason',
+        'reason_placeholder' => 'Choose a reason',
+        'other_placeholder' => 'Enter the exclusion reason (at least five characters)',
+        'confirm' => 'Confirm exclusion from generation',
+        'reactivated' => 'The slot was reactivated and evaluated again.',
+        'reasons' => [
+            'cancelled' => 'The slot was cancelled',
+            'invalid_data' => 'Incorrect data',
+            'no_actual_lecture' => 'No lecture actually takes place',
+            'other' => 'Another reason',
+        ],
+    ],
     'conflict' => [
         'could_not_save' => 'The change could not be saved because of a conflict',
         'lecturer_title' => 'Lecturer is unavailable at this time',

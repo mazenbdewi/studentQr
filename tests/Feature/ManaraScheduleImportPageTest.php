@@ -35,6 +35,23 @@ it('shows direct upload progress and no academic term selector', function (): vo
         ->assertDontSee('academic_term_id');
 });
 
+it('renders import progress direction for both Arabic and English', function (): void {
+    $user = manaraSchedulePageAdmin();
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+    app()->setLocale('ar');
+    Livewire::actingAs($user)
+        ->test(ManaraScheduleImport::class)
+        ->assertSeeHtml('dir="rtl"')
+        ->assertSee(__('manara-schedule-import.progress_total'));
+
+    app()->setLocale('en');
+    Livewire::actingAs($user)
+        ->test(ManaraScheduleImport::class)
+        ->assertSeeHtml('dir="ltr"')
+        ->assertSee(__('manara-schedule-import.progress_total'));
+});
+
 it('stores the original schedule client filename separately from the retained private path', function (): void {
     $path = reconciliationWorkbook([
         ['SCH101', 'T', 1, null, null, 20, 18, 'مقرر الجدولة', null, null, null, '08:30AM-10:30AM', '-', '-'],
@@ -64,7 +81,9 @@ it('stores the original schedule client filename separately from the retained pr
         $batch = ImportBatch::query()->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)->sole();
         expect($batch->source_filename)->toBe('summer2026_schedule.xlsx')
             ->and($batch->source_file_path)->not->toBeNull()
-            ->and($batch->source_file_path)->not->toBe($batch->source_filename);
+            ->and($batch->source_file_path)->not->toBe($batch->source_filename)
+            ->and($batch->processed_rows)->toBe($batch->total_rows)
+            ->and($batch->progressPayload()['percentage'])->toBe(100);
     } finally {
         @unlink($path);
     }

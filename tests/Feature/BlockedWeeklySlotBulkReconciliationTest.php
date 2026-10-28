@@ -432,6 +432,34 @@ it('batch-scoped exclusion requires a reason, writes audit, and does not delete 
         ->and(ScheduleImportIssueAction::query()->where('action', ScheduleImportIssueAction::ACTION_EXCLUDE_FROM_BATCH_SCHEDULE)->exists())->toBeTrue();
 });
 
+it('shows complete wrapping statuses and supports exclusion reactivation without deleting the slot', function (): void {
+    $actor = blockedSlotActor();
+    $catalog = blockedSlotCatalog('status-ux');
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $catalog['term']->id);
+    $fixture = blockedSlotFixture(['catalog' => $catalog]);
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+    $component = Livewire::withQueryParams(['batch' => $catalog['batch']->id])
+        ->actingAs($actor)
+        ->test(ScheduleImportIssues::class)
+        ->assertSee(__('schedule-import-issues.statuses.needs_attention'))
+        ->assertSeeHtml('min-w-[10rem]')
+        ->assertSeeHtml('!whitespace-normal')
+        ->call('openExclusion', $fixture['slot']->id)
+        ->assertSee(__('schedule-import-issues.exclusion.description'))
+        ->set('exclusionReasonChoice', 'cancelled')
+        ->call('applyExclusion');
+
+    expect($fixture['slot']->fresh())->not->toBeNull()
+        ->and($fixture['row']->fresh()->exclusion_note)->toBe(__('schedule-import-issues.exclusion.reasons.cancelled'));
+
+    $component->call('reopenSlot', $fixture['slot']->id);
+
+    expect($fixture['slot']->fresh())->not->toBeNull()
+        ->and($fixture['row']->fresh()->excluded_from_weekly_schedule_at)->toBeNull()
+        ->and($fixture['row']->fresh()->exclusion_note)->toBeNull();
+});
+
 it('conflict comparison is read-only and does not choose a winner automatically', function (): void {
     $service = app(BlockedWeeklySlotReconciliationService::class);
     $before = SubjectSectionScheduleSlot::query()->count();

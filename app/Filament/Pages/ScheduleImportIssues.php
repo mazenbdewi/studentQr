@@ -62,6 +62,8 @@ class ScheduleImportIssues extends Page
 
     public ?string $exclusionReason = null;
 
+    public ?string $exclusionReasonChoice = null;
+
     public string $lecturerSearch = '';
 
     public string $hallSearch = '';
@@ -216,6 +218,7 @@ class ScheduleImportIssues extends Page
         $this->selectedStartTime = null;
         $this->selectedEndTime = null;
         $this->exclusionReason = null;
+        $this->exclusionReasonChoice = null;
         $this->lecturerSearch = '';
         $this->hallSearch = '';
         $this->clearAssignmentConflict();
@@ -331,6 +334,7 @@ class ScheduleImportIssues extends Page
         $this->selectedSlotId = $slotId;
         $this->resolutionType = 'exclude';
         $this->exclusionReason = null;
+        $this->exclusionReasonChoice = null;
         $this->selectedConflicts = [];
     }
 
@@ -341,7 +345,15 @@ class ScheduleImportIssues extends Page
 
     public function applyExclusion(): void
     {
-        $this->applyProposal(['action' => BlockedWeeklySlotReconciliationService::ACTION_EXCLUDE_FROM_CURRENT_BATCH, 'reason' => $this->exclusionReason]);
+        $reason = match ($this->exclusionReasonChoice) {
+            'cancelled' => __('schedule-import-issues.exclusion.reasons.cancelled'),
+            'invalid_data' => __('schedule-import-issues.exclusion.reasons.invalid_data'),
+            'no_actual_lecture' => __('schedule-import-issues.exclusion.reasons.no_actual_lecture'),
+            'other' => $this->exclusionReason,
+            default => null,
+        };
+
+        $this->applyProposal(['action' => BlockedWeeklySlotReconciliationService::ACTION_EXCLUDE_FROM_CURRENT_BATCH, 'reason' => $reason]);
     }
 
     public function reopenSlot(int $slotId): void
@@ -351,7 +363,7 @@ class ScheduleImportIssues extends Page
         abort_unless($actor instanceof User, 403);
         app(BlockedWeeklySlotReconciliationService::class)->reopenBatchScopedExclusion($slotId, $actor);
         $this->issuesVersion++;
-        Notification::make()->title('تمت إعادة فتح الخانة وإعادة تقييمها.')->success()->send();
+        Notification::make()->title(__('schedule-import-issues.exclusion.reactivated'))->success()->send();
     }
 
     public function exportExcel()

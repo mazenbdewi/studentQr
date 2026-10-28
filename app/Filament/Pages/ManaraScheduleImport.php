@@ -7,6 +7,7 @@ use App\Imports\WeeklyScheduleImport;
 use App\Models\ImportBatch;
 use App\Services\ScheduleAcademicTermResolver;
 use App\Services\ScheduleImportReconciliationBuilder;
+use App\Support\SpreadsheetRowCounter;
 use App\Support\XlsxNumericCellSanitizer;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -67,6 +68,14 @@ class ManaraScheduleImport extends Page implements HasForms
     public bool $resultHasPersistedSchedule = false;
 
     public bool $uploadReady = false;
+
+    public ?string $activeBatchUuid = null;
+
+    public ?string $pendingFilePath = null;
+
+    public ?string $pendingFileName = null;
+
+    public bool $processingImport = false;
 
     public function mount(): void
     {
@@ -161,7 +170,7 @@ class ManaraScheduleImport extends Page implements HasForms
         $this->setUploadReadyState($this->data['file'] ?? null);
     }
 
-    public function import(): void
+    public function startImport(): void
     {
         $uploadedFile = $this->firstUploadedFile($this->data['file'] ?? null);
         $originalFilename = $uploadedFile?->getClientOriginalName();
@@ -175,13 +184,9 @@ class ManaraScheduleImport extends Page implements HasForms
 
         $file = $state['file'] ?? null;
         $fileName = $originalFilename ?: basename((string) $file);
-        $sanitizedFile = null;
-        $import = null;
-        $batch = null;
         $this->resetResults();
 
         try {
-            $this->prepareLongRunningImport();
             $uploadedFilePath = $this->localPathForUploadedFile((string) $file);
             $sourceFingerprint = hash_file('sha256', $uploadedFilePath);
 
@@ -189,27 +194,139 @@ class ManaraScheduleImport extends Page implements HasForms
                 throw new \RuntimeException('تعذر حساب بصمة ملف الجدول المرفوع.');
             }
 
-            $sanitizer = app(XlsxNumericCellSanitizer::class);
-            $sanitizedFile = $sanitizer->sanitizeToTemporaryFile(
-                $uploadedFilePath,
+            $sourceBatch = ImportBatch::query()
+                ->where('uuid', $this->sourceBatchUuid)
+                ->eligibleEnrollmentSource()
+                ->firstOrFail();
+            $deduplicationKey = ImportBatch::deduplicationKey(
+                ImportBatch::TYPE_WEEKLY_SCHEDULE,
+                $sourceFingerprint,
+                $sourceBatch->id,
             );
+            $batch = ImportBatch::query()->firstOrNew(['deduplication_key' => $deduplicationKey]);
+
+            $samePreparedBatch = $batch->exists
+                && $batch->status === ImportBatch::STATUS_PENDING
+                && $this->activeBatchUuid === $batch->uuid
+                && $this->processingImport;
+            $activeProcessingBatch = $batch->exists
+                && $batch->status === ImportBatch::STATUS_PROCESSING
+                && $batch->updated_at?->isAfter(now()->subHours(2));
+
+            if ($samePreparedBatch || $activeProcessingBatch) {
+                Notification::make()->title(__('manara-schedule-import.already_processing'))->warning()->send();
+
+                return;
+            }
+
+            if ($batch->exists && in_array($batch->status, [ImportBatch::STATUS_COMPLETED, ImportBatch::STATUS_COMPLETED_WITH_ERRORS], true)) {
+                $this->loadBatchResult($batch);
+                $this->sendBatchResultNotification($batch);
+
+                return;
+            }
+
+            $batch->fill([
+                'import_type' => ImportBatch::TYPE_WEEKLY_SCHEDULE,
+                'source_filename' => basename($fileName),
+                'source_file_path' => (string) $file,
+                'source_fingerprint' => $sourceFingerprint,
+                'source_import_batch_id' => $sourceBatch->id,
+                'status' => ImportBatch::STATUS_PENDING,
+                'total_rows' => app(SpreadsheetRowCounter::class)->countSourceRows($uploadedFilePath),
+                'processed_rows' => 0,
+                'imported_rows' => 0,
+                'rejected_rows' => 0,
+                'summary' => null,
+                'error_file_path' => null,
+                'started_at' => now(),
+                'completed_at' => null,
+                'created_by' => Filament::auth()->id(),
+            ])->save();
+
+            $this->activeBatchUuid = $batch->uuid;
+            $this->pendingFilePath = (string) $file;
+            $this->pendingFileName = $fileName;
+            $this->processingImport = true;
+            $this->dispatch('schedule-import-prepared',
+                progressUrl: route('admin.import-batches.progress', $batch, false),
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->processingImport = false;
+            $this->sendFailedNotification($exception->getMessage());
+        }
+    }
+
+    /** Backward-compatible synchronous entry point used by existing integrations and tests. */
+    public function import(): void
+    {
+        $this->startImport();
+
+        if ($this->processingImport && $this->activeBatchUuid) {
+            $this->processImport();
+        }
+    }
+
+    public function processImport(): void
+    {
+        if (! $this->processingImport || blank($this->activeBatchUuid) || blank($this->pendingFilePath)) {
+            return;
+        }
+
+        $batch = ImportBatch::query()
+            ->where('uuid', $this->activeBatchUuid)
+            ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
+            ->where('created_by', Filament::auth()->id())
+            ->firstOrFail();
+
+        if ($batch->status !== ImportBatch::STATUS_PENDING) {
+            $this->processingImport = false;
+
+            return;
+        }
+
+        $fileName = $this->pendingFileName ?: basename($this->pendingFilePath);
+        $uploadedFilePath = $this->localPathForUploadedFile($this->pendingFilePath);
+        $sourceFingerprint = (string) $batch->source_fingerprint;
+        $sanitizedFile = null;
+        $import = null;
+
+        try {
+            $this->prepareLongRunningImport();
+            $sanitizer = app(XlsxNumericCellSanitizer::class);
+            $sanitizedFile = $sanitizer->sanitizeToTemporaryFile($uploadedFilePath);
             $import = app(WeeklyScheduleImport::class);
+            $lastPersisted = 0;
+            $import->onProgress(function (int $processed, array $summary) use ($batch, &$lastPersisted, &$import): void {
+                if ($processed - $lastPersisted < 25 && $processed < (int) $batch->total_rows) {
+                    return;
+                }
+
+                $lastPersisted = $processed;
+                $failed = min($processed, count($import?->getErrors() ?? []));
+                $batch->update([
+                    'processed_rows' => min((int) $batch->total_rows, $processed),
+                    'imported_rows' => max(0, min($processed, $processed - $failed)),
+                    'rejected_rows' => $failed,
+                ]);
+            });
             $import->import(
                 $sanitizedFile,
                 $fileName,
                 $this->sourceBatchUuid,
                 Filament::auth()->id(),
                 $sourceFingerprint,
-                (string) $file,
+                $this->pendingFilePath,
             );
-            $batch = $import->getBatch();
+            $batch = $import->getBatch() ?? $batch;
 
             if ($batch) {
                 app(ScheduleImportReconciliationBuilder::class)->build(
                     $batch,
                     $uploadedFilePath,
                     $fileName,
-                    (string) $file,
+                    $this->pendingFilePath,
                 );
                 $this->reconciliationUrl = ScheduleImportIssues::getUrl(['batch' => $batch->id]);
             }
@@ -245,12 +362,20 @@ class ManaraScheduleImport extends Page implements HasForms
                 $this->loadBatchResult($batch);
                 $this->sendBatchResultNotification($batch);
             } else {
+                $batch?->update([
+                    'status' => ImportBatch::STATUS_FAILED,
+                    'summary' => ['error' => $exception->getMessage()],
+                    'completed_at' => now(),
+                ]);
                 $this->sendFailedNotification($exception->getMessage());
             }
         } finally {
             if (isset($sanitizer)) {
                 $sanitizer->deleteTemporaryFile($sanitizedFile);
             }
+
+            $this->processingImport = false;
+            $this->dispatch('schedule-import-finished');
         }
     }
 
@@ -295,6 +420,10 @@ class ManaraScheduleImport extends Page implements HasForms
     private function handleUploadedFileStateChanged(mixed $state): void
     {
         $this->resetResults();
+        $this->activeBatchUuid = null;
+        $this->pendingFilePath = null;
+        $this->pendingFileName = null;
+        $this->processingImport = false;
         $this->setUploadReadyState($state);
     }
 
