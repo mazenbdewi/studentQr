@@ -96,7 +96,7 @@ it('imports Manara enrollment rows with theoretical and practical sections idemp
     }
 });
 
-it('skips Manara rows with no theoretical or practical section', function (): void {
+it('accepts a new null section row without creating an enrollment or an error', function (): void {
     $path = manaraWorkbookPath([
         manaraRow('2026004', 'طالب بلا شعبة', 'كلية الهندسة', 'هندسة العمارة', 'إنشاءات', 'ARC202', '01/04/2026', null, null),
     ]);
@@ -107,24 +107,26 @@ it('skips Manara rows with no theoretical or practical section', function (): vo
 
         expect($import->getSummary())->toMatchArray([
             'total_rows' => 1,
-            'imported_rows' => 0,
-            'skipped_rows' => 1,
-            'failed_rows' => 1,
+            'imported_rows' => 1,
+            'skipped_rows' => 0,
+            'skipped_no_section' => 1,
+            'removed_enrollments' => 0,
+            'failed_rows' => 0,
         ])
-            ->and($import->getErrors()[0]['error_message'])->toContain('يجب إدخال رمز الفئة النظرية أو رمز الفئة العملية على الأقل')
-            ->and($import->getErrors()[0]['error_message'])->toContain('At least one theoretical or practical section code is required')
-            ->and(Student::query()->count())->toBe(0)
-            ->and(Subject::query()->count())->toBe(0)
+            ->and($import->getErrors())->toBeEmpty()
+            ->and(Student::query()->count())->toBe(1)
+            ->and(Subject::query()->count())->toBe(1)
             ->and(Enrollment::query()->count())->toBe(0);
     } finally {
         @unlink($path);
     }
 });
 
-it('treats zero sections as empty and imports a practical-only P1 without creating T0 or P0', function (): void {
+it('treats zero and whitespace sections as empty without creating T0 or P0', function (): void {
     $path = manaraWorkbookPath([
         manaraRow('2026010', 'طالب عملي', 'كلية الهندسة', 'هندسة المعلوماتية', 'مخبر', 'LAB101', '01/04/2026', 0, 1),
         manaraRow('2026011', 'طالب بلا شعبة', 'كلية الهندسة', 'هندسة المعلوماتية', 'مخبر', 'LAB101', '01/04/2026', '0.0', '0'),
+        manaraRow('2026012', 'طالب فراغ', 'كلية الهندسة', 'هندسة المعلوماتية', 'مخبر', 'LAB101', '01/04/2026', '   ', ''),
     ]);
 
     try {
@@ -134,15 +136,71 @@ it('treats zero sections as empty and imports a practical-only P1 without creati
         $enrollment = Enrollment::query()->firstOrFail();
 
         expect($import->getSummary())->toMatchArray([
-            'total_rows' => 2,
-            'imported_rows' => 1,
-            'failed_rows' => 1,
+            'total_rows' => 3,
+            'imported_rows' => 3,
+            'skipped_no_section' => 2,
+            'failed_rows' => 0,
         ])
+            ->and($import->getErrors())->toBeEmpty()
             ->and($enrollment->theoretical_section_id)->toBeNull()
             ->and($enrollment->practicalSection?->code)->toBe('P1')
             ->and(SubjectSection::query()->whereIn('code', ['T0', 'P0'])->exists())->toBeFalse();
     } finally {
         @unlink($path);
+    }
+});
+
+it('removes only the exact term student subject enrollment and can recreate it later', function (): void {
+    $initialPath = manaraWorkbookPath([
+        manaraRow('2026100', 'الطالب أ', 'كلية الهندسة', 'هندسة المعلوماتية', 'برمجة', 'PRG301', '01/04/2026', 1, 1, academicTerm: 'الفصل الأول 2026/2027'),
+        manaraRow('2026100', 'الطالب أ', 'كلية الهندسة', 'هندسة المعلوماتية', 'قواعد بيانات', 'DB301', '01/04/2026', 1, 0, academicTerm: 'الفصل الأول 2026/2027'),
+        manaraRow('2026100', 'الطالب أ', 'كلية الهندسة', 'هندسة المعلوماتية', 'برمجة', 'PRG301', '01/07/2026', 2, 0, academicTerm: 'الفصل الصيفي 2026/2027'),
+        manaraRow('2026200', 'الطالب ب', 'كلية الهندسة', 'هندسة المعلوماتية', 'برمجة', 'PRG301', '01/04/2026', 1, 0, academicTerm: 'الفصل الأول 2026/2027'),
+    ]);
+    $removePath = manaraWorkbookPath([
+        manaraRow('2026100', 'الطالب أ', 'كلية الهندسة', 'هندسة المعلوماتية', 'برمجة', 'PRG301', '02/04/2026', 0, 0, academicTerm: 'الفصل الأول 2026/2027'),
+    ]);
+    $recreatePath = manaraWorkbookPath([
+        manaraRow('2026100', 'الطالب أ', 'كلية الهندسة', 'هندسة المعلوماتية', 'برمجة', 'PRG301', '03/04/2026', 2, 0, academicTerm: 'الفصل الأول 2026/2027'),
+    ]);
+    $user = User::factory()->create(['login_username' => '2026100']);
+
+    try {
+        Excel::import(new ManaraStudentEnrollmentsImport, $initialPath);
+        $student = Student::query()->where('student_number', '2026100')->firstOrFail();
+        $subject = Subject::query()->where('code', 'PRG301')->firstOrFail();
+        $term = AcademicTerm::query()->where('canonical_name', 'الفصل الأول 2026/2027')->firstOrFail();
+
+        $import = new ManaraStudentEnrollmentsImport;
+        Excel::import($import, $removePath);
+
+        expect($import->getSummary())->toMatchArray([
+            'imported_rows' => 1,
+            'removed_enrollments' => 1,
+            'skipped_no_section' => 0,
+            'failed_rows' => 0,
+        ])->and($import->getErrors())->toBeEmpty()
+            ->and(Enrollment::query()->whereBelongsTo($student)->whereBelongsTo($subject)->where('academic_term_id', $term->id)->exists())->toBeFalse()
+            ->and(Enrollment::query()->whereBelongsTo($student)->count())->toBe(2)
+            ->and(Enrollment::query()->where('student_id', '!=', $student->id)->count())->toBe(1)
+            ->and(Student::query()->whereKey($student->id)->exists())->toBeTrue()
+            ->and(User::query()->whereKey($user->id)->exists())->toBeTrue()
+            ->and(Subject::query()->whereKey($subject->id)->exists())->toBeTrue();
+
+        Excel::import(new ManaraStudentEnrollmentsImport, $recreatePath);
+
+        $recreated = Enrollment::query()
+            ->whereBelongsTo($student)
+            ->whereBelongsTo($subject)
+            ->where('academic_term_id', $term->id)
+            ->firstOrFail();
+
+        expect($recreated->theoreticalSection?->code)->toBe('T2')
+            ->and($recreated->practical_section_id)->toBeNull();
+    } finally {
+        @unlink($initialPath);
+        @unlink($removePath);
+        @unlink($recreatePath);
     }
 });
 

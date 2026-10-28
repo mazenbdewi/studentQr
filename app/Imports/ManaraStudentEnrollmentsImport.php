@@ -63,6 +63,8 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
         'created_practical_sections' => 0,
         'created_enrollments' => 0,
         'updated_enrollments' => 0,
+        'removed_enrollments' => 0,
+        'skipped_no_section' => 0,
         'failed_rows' => 0,
         'zero_section_values' => 0,
         'zero_sections_created' => 0,
@@ -124,6 +126,12 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
                 $department = $this->resolveDepartment($faculty, $data['department_name']);
                 $student = $this->resolveStudent($data, $faculty, $department);
                 $subject = $this->resolveSubject($data, $department);
+
+                if ($data['theoretical_section_number'] === null && $data['practical_section_number'] === null) {
+                    $this->removeEnrollment($academicTerm, $student, $subject);
+
+                    return $academicTerm;
+                }
 
                 $theoreticalSection = $data['theoretical_section_number'] !== null
                     ? $this->resolveSection(
@@ -453,6 +461,35 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
         }
 
         return $enrollment;
+    }
+
+    private function removeEnrollment(
+        AcademicTerm $academicTerm,
+        Student $student,
+        Subject $subject,
+    ): void {
+        $key = $this->enrollmentKey($academicTerm->id, $student->id, $subject->id);
+        $enrollment = $this->enrollments[$key] ?? null;
+
+        if (! $enrollment) {
+            $this->summary['skipped_no_section']++;
+
+            return;
+        }
+
+        $deleted = Enrollment::query()
+            ->whereKey($enrollment->id)
+            ->where('academic_term_id', $academicTerm->id)
+            ->where('student_id', $student->id)
+            ->where('subject_id', $subject->id)
+            ->delete();
+
+        if ($deleted !== 1) {
+            throw new RuntimeException('تعذر حذف التسجيل المطابق للفصل والطالب والمادة فقط. / The exact term, student, and subject enrollment could not be removed.');
+        }
+
+        unset($this->enrollments[$key]);
+        $this->summary['removed_enrollments']++;
     }
 
     private function addError(int $rowNumber, array $data, array $messages): void

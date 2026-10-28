@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Pages\ManaraEnrollmentImport;
+use App\Filament\Pages\ManaraScheduleImport;
 use App\Models\ImportBatch;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -32,8 +33,15 @@ it('records and reuses one deduplicated enrollment batch with its imported term'
 
         expect($batch->status)->toBe(ImportBatch::STATUS_COMPLETED)
             ->and($batch->imported_rows)->toBe(1)
+            ->and($batch->rejected_rows)->toBe(0)
+            ->and($batch->summary['skipped_no_section'])->toBe(1)
             ->and($batch->academicTerms()->count())->toBe(1)
             ->and($component->get('completedBatchUuid'))->toBe($batch->uuid);
+
+        Livewire::withQueryParams(['source_batch' => $batch->uuid])
+            ->actingAs($user)
+            ->test(ManaraScheduleImport::class)
+            ->assertSet('sourceBatchReady', true);
 
         Livewire::actingAs($user)
             ->test(ManaraEnrollmentImport::class)
@@ -52,7 +60,7 @@ function enrollmentBatchWorkbook(): string
     $spreadsheet = new Spreadsheet;
     $spreadsheet->getActiveSheet()->fromArray([
         ['الرقم الجامعي', 'اسم الطالب', 'الكلية', 'الاختصاص', 'اسم المقرر', 'رمز المقرر', 'تاريخ التسجيل', 'الفصل الدراسي', 'رمز الفئة النظرية', 'رمز الفئة العملية'],
-        ['2026001', 'طالب دفعة', 'كلية الهندسة', 'هندسة المعلوماتية', 'برمجة', 'BAT101', '01/07/2026', 'الفصل الصيفي 2025/2026', 1, 0],
+        ['2026001', 'طالب دفعة', 'كلية الهندسة', 'هندسة المعلوماتية', 'برمجة', 'BAT101', '01/07/2026', 'الفصل الصيفي 2025/2026', 0, 0],
     ]);
     (new Xlsx($spreadsheet))->save($path);
     $spreadsheet->disconnectWorksheets();

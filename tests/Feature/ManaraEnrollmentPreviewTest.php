@@ -19,21 +19,23 @@ it('previews practical-only zero rows without modifying the database or proposin
 
     try {
         $before = previewDatabaseCounts();
-        $import = new ManaraStudentEnrollmentsPreviewImport();
+        $import = new ManaraStudentEnrollmentsPreviewImport;
         Excel::import($import, $path);
         $preview = $import->getPreview();
 
         expect(previewDatabaseCounts())->toBe($before)
             ->and($preview['total_rows'])->toBe(2)
-            ->and($preview['valid_rows'])->toBe(1)
-            ->and($preview['invalid_rows'])->toBe(1)
+            ->and($preview['valid_rows'])->toBe(2)
+            ->and($preview['invalid_rows'])->toBe(0)
             ->and($preview['new_terms'])->toBe(1)
             ->and($preview['new_sections'])->toBe(1)
             ->and($preview['new_enrollments'])->toBe(1)
+            ->and($preview['skipped_no_section'])->toBe(1)
+            ->and($preview['removed_enrollments'])->toBe(0)
             ->and($preview['zero_section_values'])->toBe(3)
             ->and($preview['zero_sections_to_create'])->toBe(0)
             ->and($preview['terms'][0]['canonical_name'])->toBe('الفصل الصيفي 2025/2026')
-            ->and($import->getErrors()[0]['error_message'])->toContain('At least one theoretical or practical section code is required');
+            ->and($import->getErrors())->toBeEmpty();
     } finally {
         @unlink($path);
     }
@@ -46,7 +48,7 @@ it('blocks a preview when the academic term heading is missing', function (): vo
 
     try {
         $before = previewDatabaseCounts();
-        $import = new ManaraStudentEnrollmentsPreviewImport();
+        $import = new ManaraStudentEnrollmentsPreviewImport;
         Excel::import($import, $path);
         $preview = $import->getPreview();
 
@@ -65,7 +67,7 @@ it('merges duplicate theoretical and practical rows into one proposed term enrol
     ]);
 
     try {
-        $import = new ManaraStudentEnrollmentsPreviewImport();
+        $import = new ManaraStudentEnrollmentsPreviewImport;
         Excel::import($import, $path);
         $preview = $import->getPreview();
 
@@ -100,7 +102,7 @@ function previewWorkbookPath(array $rows, bool $includeAcademicTermHeading = tru
         }, $rows);
     }
 
-    $spreadsheet = new Spreadsheet();
+    $spreadsheet = new Spreadsheet;
     $sheet = $spreadsheet->getActiveSheet();
     $sheet->fromArray($headings, null, 'A1');
 

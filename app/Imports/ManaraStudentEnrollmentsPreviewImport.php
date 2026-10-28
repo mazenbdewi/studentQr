@@ -17,7 +17,7 @@ use Maatwebsite\Excel\Concerns\WithCustomValueBinder;
 use Maatwebsite\Excel\Row;
 use PhpOffice\PhpSpreadsheet\Cell\StringValueBinder;
 
-class ManaraStudentEnrollmentsPreviewImport extends StringValueBinder implements OnEachRow, WithChunkReading, SkipsEmptyRows, WithCustomValueBinder
+class ManaraStudentEnrollmentsPreviewImport extends StringValueBinder implements OnEachRow, SkipsEmptyRows, WithChunkReading, WithCustomValueBinder
 {
     private ManaraEnrollmentRowNormalizer $rowNormalizer;
 
@@ -62,6 +62,8 @@ class ManaraStudentEnrollmentsPreviewImport extends StringValueBinder implements
         'updated_sections' => 0,
         'new_enrollments' => 0,
         'updated_enrollments' => 0,
+        'removed_enrollments' => 0,
+        'skipped_no_section' => 0,
         'zero_section_values' => 0,
         'zero_sections_to_create' => 0,
     ];
@@ -72,7 +74,7 @@ class ManaraStudentEnrollmentsPreviewImport extends StringValueBinder implements
 
     public function __construct()
     {
-        $academicTermNormalizer = new AcademicTermNormalizer();
+        $academicTermNormalizer = new AcademicTermNormalizer;
         $this->rowNormalizer = new ManaraEnrollmentRowNormalizer($academicTermNormalizer);
         $this->warmSnapshots();
     }
@@ -291,6 +293,19 @@ class ManaraStudentEnrollmentsPreviewImport extends StringValueBinder implements
             $this->updatedSubjects,
         );
 
+        $enrollmentKey = $this->enrollmentKey($termKey, $studentKey, $subjectKey);
+
+        if ($data['theoretical_section_number'] === null && $data['practical_section_number'] === null) {
+            if (isset($this->enrollments[$enrollmentKey])) {
+                unset($this->enrollments[$enrollmentKey]);
+                $this->summary['removed_enrollments']++;
+            } else {
+                $this->summary['skipped_no_section']++;
+            }
+
+            return;
+        }
+
         $theoreticalCode = $this->analyzeSection(
             $termKey,
             $subjectKey,
@@ -304,7 +319,6 @@ class ManaraStudentEnrollmentsPreviewImport extends StringValueBinder implements
             $data['practical_section_number'],
         );
 
-        $enrollmentKey = $this->enrollmentKey($termKey, $studentKey, $subjectKey);
         $currentEnrollment = $this->enrollments[$enrollmentKey] ?? null;
         $incomingEnrollment = [
             'theoretical_section_code' => $theoreticalCode ?? ($currentEnrollment['theoretical_section_code'] ?? null),

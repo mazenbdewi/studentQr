@@ -144,10 +144,6 @@ class ManaraEnrollmentRowNormalizer
             $messages[] = 'مستوى المقرر غير صالح / Course level is invalid.';
         }
 
-        if (($row['theoretical_section_number'] ?? null) === null && ($row['practical_section_number'] ?? null) === null) {
-            $messages[] = 'يجب إدخال رمز الفئة النظرية أو رمز الفئة العملية على الأقل / At least one theoretical or practical section code is required.';
-        }
-
         return $messages;
     }
 
