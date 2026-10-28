@@ -4,7 +4,7 @@ return [
     'statuses' => [
         'needs_attention' => 'تحتاج معالجة',
         'resolved' => 'تم حلها',
-        'excluded' => 'مستبعدة من التوليد',
+        'excluded' => 'مستبعدة من توليد المحاضرات',
         'ready' => 'جاهزة',
     ],
     'actions' => [

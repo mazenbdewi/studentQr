@@ -4,7 +4,7 @@ return [
     'statuses' => [
         'needs_attention' => 'Needs attention',
         'resolved' => 'Resolved',
-        'excluded' => 'Excluded from generation',
+        'excluded' => 'Excluded from lecture generation',
         'ready' => 'Ready',
     ],
     'actions' => [

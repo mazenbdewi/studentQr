@@ -35,9 +35,56 @@
         </x-filament::section>
 
         <x-filament::section heading="الخانات" icon="heroicon-o-exclamation-triangle">
-            <div class="overflow-x-auto"><table class="w-full min-w-[1320px] text-right text-sm"><thead class="border-b text-gray-600 dark:text-gray-300"><tr><th class="p-3">المادة</th><th class="p-3">الشعبة</th><th class="p-3">اليوم والوقت</th><th class="p-3">المدرّس</th><th class="p-3">القاعة</th><th class="min-w-[16rem] p-3">المشكلات</th><th class="min-w-[10rem] p-3">الحالة</th><th class="p-3">الإجراءات</th></tr></thead><tbody class="divide-y dark:divide-white/10">
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[1480px] table-auto text-right text-sm">
+                    <thead class="border-b text-gray-600 dark:text-gray-300">
+                        <tr>
+                            <th class="min-w-[11rem] p-3">المادة</th>
+                            <th class="w-24 min-w-[6rem] p-3">الشعبة</th>
+                            <th class="min-w-[11rem] p-3">اليوم والوقت</th>
+                            <th class="min-w-[11rem] p-3">المدرّس</th>
+                            <th class="min-w-[8rem] p-3">القاعة</th>
+                            <th class="w-[24rem] min-w-[20rem] p-3">المشكلات</th>
+                            <th class="w-[11rem] min-w-[10rem] p-3">الحالة</th>
+                            <th class="min-w-[16rem] p-3">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y dark:divide-white/10">
                 @forelse ($rows as $row)
-                    <tr wire:key="schedule-issue-slot-{{ $row['slot_id'] }}"><td class="p-3">{{ $row['subject'] }}<div class="text-xs text-gray-500">{{ $row['subject_code'] }}</div></td><td class="p-3">{{ $row['section'] }}</td><td class="p-3">{{ $row['weekday'] }} — {{ $row['time'] }}</td><td class="p-3">{{ $row['lecturer'] }}</td><td class="p-3">{{ $row['hall'] }}</td><td class="min-w-[16rem] p-3 align-top"><div class="flex max-w-[28rem] flex-wrap items-start gap-1.5">@forelse ($row['reasons'] as $reason)<x-filament::badge color="danger" class="!whitespace-normal !break-words leading-5">{{ $this->reasonLabel($reason) }}</x-filament::badge>@empty <span class="text-success-700">لا توجد مشكلات</span>@endforelse</div></td><td class="min-w-[10rem] p-3 align-top"><x-filament::badge :color="$row['status'] === 'excluded' ? 'warning' : ($row['status'] === 'resolved' ? 'success' : 'danger')" class="inline-flex max-w-[12rem] !whitespace-normal !break-words text-center leading-5">{{ __('schedule-import-issues.statuses.'.$row['status']) }}</x-filament::badge></td><td class="p-3 align-top"><div class="flex flex-wrap gap-2">
+                    <tr wire:key="schedule-issue-slot-{{ $row['slot_id'] }}">
+                        <td class="min-w-[11rem] p-3 align-top">{{ $row['subject'] }}<div class="text-xs text-gray-500">{{ $row['subject_code'] }}</div></td>
+                        <td class="w-24 min-w-[6rem] p-3 align-top">{{ $row['section'] }}</td>
+                        <td class="min-w-[11rem] p-3 align-top">{{ $row['weekday'] }} — {{ $row['time'] }}</td>
+                        <td class="min-w-[11rem] p-3 align-top">{{ $row['lecturer'] }}</td>
+                        <td class="min-w-[8rem] p-3 align-top">{{ $row['hall'] }}</td>
+                        <td class="w-[24rem] min-w-[20rem] p-3 align-top">
+                            <div class="w-full min-w-0 space-y-2" data-testid="schedule-issue-problems">
+                                @forelse ($row['reasons'] as $reason)
+                                    <div
+                                        class="block h-auto w-full whitespace-normal break-words rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-start text-sm leading-6 text-danger-800 dark:border-danger-800 dark:bg-danger-950/40 dark:text-danger-200"
+                                        data-testid="schedule-issue-problem"
+                                    >
+                                        {{ $this->reasonLabel($reason) }}
+                                    </div>
+                                @empty
+                                    <span class="whitespace-normal break-words text-success-700">لا توجد مشكلات</span>
+                                @endforelse
+                            </div>
+                        </td>
+                        <td class="w-[11rem] min-w-[10rem] p-3 align-top">
+                            <div
+                                @class([
+                                    'inline-flex h-auto max-w-full whitespace-normal break-words rounded-lg border px-3 py-2 text-center text-sm font-semibold leading-6',
+                                    'border-warning-200 bg-warning-50 text-warning-800 dark:border-warning-800 dark:bg-warning-950/40 dark:text-warning-200' => $row['status'] === 'excluded',
+                                    'border-success-200 bg-success-50 text-success-800 dark:border-success-800 dark:bg-success-950/40 dark:text-success-200' => $row['status'] === 'resolved',
+                                    'border-danger-200 bg-danger-50 text-danger-800 dark:border-danger-800 dark:bg-danger-950/40 dark:text-danger-200' => ! in_array($row['status'], ['excluded', 'resolved'], true),
+                                ])
+                                data-testid="schedule-issue-status"
+                            >
+                                {{ __('schedule-import-issues.statuses.'.$row['status']) }}
+                            </div>
+                        </td>
+                        <td class="min-w-[16rem] p-3 align-top"><div class="flex flex-wrap gap-2">
                         @if ($row['status'] === 'excluded')<x-filament::button size="sm" color="gray" wire:click="reopenSlot({{ $row['slot_id'] }})">{{ __('schedule-import-issues.actions.reactivate') }}</x-filament::button>@else
                             @if(in_array('missing_lecturer_identity', $row['reasons'], true))<x-filament::button size="sm" wire:click="openResolution({{ $row['slot_id'] }}, 'lecturer')">تحديد المدرّس</x-filament::button>@endif
                             @if(in_array('missing_hall', $row['reasons'], true))<x-filament::button size="sm" color="gray" wire:click="openResolution({{ $row['slot_id'] }}, 'hall')">تحديد القاعة</x-filament::button>@endif
@@ -46,7 +93,9 @@
                         @endif
                     </div></td></tr>
                 @empty <tr><td colspan="8" class="p-8 text-center text-gray-500">لا توجد خانات مطابقة للفلاتر الحالية.</td></tr>@endforelse
-            </tbody></table></div>
+                    </tbody>
+                </table>
+            </div>
             @if($pagination['last_page'] > 1)
                 <div class="mt-4 flex items-center justify-between gap-3" wire:key="schedule-issues-pagination-{{ $pagination['current_page'] }}">
                     <p class="text-sm text-gray-500">عرض {{ count($rows) }} من {{ $pagination['total'] }} خانة</p>

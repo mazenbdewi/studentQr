@@ -443,12 +443,33 @@ it('shows complete wrapping statuses and supports exclusion reactivation without
         ->actingAs($actor)
         ->test(ScheduleImportIssues::class)
         ->assertSee(__('schedule-import-issues.statuses.needs_attention'))
-        ->assertSeeHtml('min-w-[10rem]')
-        ->assertSeeHtml('!whitespace-normal')
+        ->assertSee(__('lecture-session.lecture_generation.reasons.missing_lecturer_identity'))
+        ->assertSee(__('lecture-session.lecture_generation.reasons.missing_hall'))
+        ->assertSeeHtml('data-testid="schedule-issue-problems"')
+        ->assertSeeHtml('data-testid="schedule-issue-problem"')
+        ->assertSeeHtml('data-testid="schedule-issue-status"')
+        ->assertSeeHtml('min-w-[20rem]')
+        ->assertSeeHtml('whitespace-normal')
+        ->assertSeeHtml('break-words');
+
+    expect(substr_count($component->html(), 'data-testid="schedule-issue-problem"'))->toBe(2);
+
+    $component
         ->call('openExclusion', $fixture['slot']->id)
         ->assertSee(__('schedule-import-issues.exclusion.description'))
         ->set('exclusionReasonChoice', 'cancelled')
-        ->call('applyExclusion');
+        ->call('applyExclusion')
+        ->set('statusFilter', 'all')
+        ->assertSee(__('schedule-import-issues.statuses.excluded'));
+
+    $template = file_get_contents(resource_path('views/filament/pages/schedule-import-issues.blade.php'));
+
+    expect($template)
+        ->not->toContain('truncate')
+        ->not->toContain('text-overflow')
+        ->not->toContain('ellipsis')
+        ->not->toContain('overflow-hidden')
+        ->not->toContain('line-clamp');
 
     expect($fixture['slot']->fresh())->not->toBeNull()
         ->and($fixture['row']->fresh()->exclusion_note)->toBe(__('schedule-import-issues.exclusion.reasons.cancelled'));
