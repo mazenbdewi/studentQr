@@ -48,7 +48,8 @@ it('activates a term without changing historical academic data or users', functi
     app(AcademicTermActivationService::class)->activate($new, $actor);
 
     expect(app(AcademicTermContext::class)->currentId())->toBe($new->id)
-        ->and($old->fresh()->is_archived)->toBeTrue()
+        ->and($old->fresh()->is_archived)->toBeFalse()
+        ->and($new->fresh()->is_archived)->toBeFalse()
         ->and(Enrollment::query()->find($enrollment->id)?->academic_term_id)->toBe($old->id)
         ->and(SubjectSection::query()->find($section->id)?->academic_term_id)->toBe($old->id)
         ->and(SubjectSectionScheduleSlot::query()->find($slot->id)?->academic_term_id)->toBe($old->id)

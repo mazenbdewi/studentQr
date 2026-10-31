@@ -33,6 +33,7 @@ use App\Http\Middleware\SetAdminLocale;
 use App\Livewire\Filament\Profile\UpdatePassword;
 use App\Livewire\Filament\Profile\UpdatePinCode;
 use App\Livewire\Filament\Profile\UsernamePersonalInfo;
+use App\Support\AcademicTermContext;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
@@ -43,6 +44,7 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -68,6 +70,13 @@ class AdminPanelProvider extends PanelProvider
             ->brandLogoHeight('3rem')
             ->favicon(asset('images/favicon.ico'))
             ->viteTheme('resources/css/filament/admin/theme.css')
+            ->renderHook(
+                PanelsRenderHook::TOPBAR_END,
+                fn () => view('filament.components.current-academic-term-indicator', [
+                    'academicTerm' => app(AcademicTermContext::class)->currentOrNull(),
+                    'url' => AcademicTermManagement::getUrl(),
+                ]),
+            )
             // Only show specific resources - hide: Attendances, FailedAttempts, StudentDevices
             ->resources([
                 LectureSessionResource::class,

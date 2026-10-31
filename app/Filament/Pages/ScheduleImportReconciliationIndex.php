@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\ImportBatch;
 use App\Models\ScheduleImportRow;
+use App\Support\AcademicTermContext;
 use BackedEnum;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
@@ -20,11 +21,13 @@ class ScheduleImportReconciliationIndex extends Page
 
     public ?string $batchId = null;
 
+    public ?int $academicTermId = null;
+
     public function mount(): void
     {
         abort_unless(static::canAccess(), 403);
-        $batches = $this->batchQuery()->get();
-        $this->batchId = $batches->count() === 1 ? (string) $batches->first()->id : null;
+        $this->academicTermId = app(AcademicTermContext::class)->currentId();
+        $this->batchId = $this->batchQuery()->value('id');
     }
 
     public static function canAccess(): bool
@@ -78,6 +81,11 @@ class ScheduleImportReconciliationIndex extends Page
         return ImportBatch::query()
             ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
             ->whereIn('status', [ImportBatch::STATUS_COMPLETED, ImportBatch::STATUS_COMPLETED_WITH_ERRORS])
+            ->when(
+                $this->academicTermId,
+                fn ($query, int $termId) => $query->whereHas('academicTerms', fn ($terms) => $terms->whereKey($termId)),
+                fn ($query) => $query->whereRaw('1 = 0'),
+            )
             ->with('academicTerms')
             ->orderByDesc('completed_at');
     }

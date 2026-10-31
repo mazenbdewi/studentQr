@@ -5,12 +5,13 @@ namespace App\Filament\Resources\Students\Pages;
 use App\Filament\Resources\Students\RelationManagers\SubjectsRelationManager;
 use App\Filament\Resources\Students\StudentResource;
 use App\Models\Attendance;
+use App\Models\Student;
 use Filament\Actions\EditAction;
 use Filament\Actions\ExportBulkAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -39,17 +40,19 @@ class ViewStudent extends ViewRecord implements HasForms, HasTable
     {
         parent::mount($record);
 
+        $student = $this->student();
+
         $this->form->fill([
-            'student_number' => $this->record->student_number,
-            'department_name' => $this->record->department?->name,
-            'faculty_name' => $this->record->faculty?->name,
-            'phone' => $this->record->phone,
+            'student_number' => $student->student_number,
+            'department_name' => $student->department()->value('name'),
+            'faculty_name' => $student->faculty()->value('name'),
+            'phone' => $student->phone,
         ]);
     }
 
     public function getTitle(): string
     {
-        return $this->record->name;
+        return $this->student()->name;
     }
 
     public function form(Schema $schema): Schema
@@ -140,10 +143,10 @@ class ViewStudent extends ViewRecord implements HasForms, HasTable
                 Tables\Filters\Filter::make('date_range')
                     ->label(__('attendance.date_range'))
                     ->form([
-                       DatePicker::make('date_from')
-                           ->label(__('attendance.date_from')),
-                       DatePicker::make('date_to')
-                           ->label(__('attendance.date_to')),
+                        DatePicker::make('date_from')
+                            ->label(__('attendance.date_from')),
+                        DatePicker::make('date_to')
+                            ->label(__('attendance.date_to')),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
@@ -182,8 +185,10 @@ class ViewStudent extends ViewRecord implements HasForms, HasTable
         return Attendance::query()
             ->select('attendances.*')
             ->with(['lectureSession' => fn (Relation $query) => $query->with(['subject', 'subjectSection', 'lecturer', 'hall'])])
-            ->where('attendances.student_id', $this->record->id)
-            ->leftJoin('lecture_sessions', 'attendances.lecture_session_id', '=', 'lecture_sessions.id');
+            ->where('attendances.student_id', $this->student()->id)
+            ->leftJoin('lecture_sessions', 'attendances.lecture_session_id', '=', 'lecture_sessions.id')
+            ->whereHas('lectureSession', fn (Builder $query): Builder => $query
+                ->where('academic_term_id', app(\App\Support\AcademicTermContext::class)->currentId() ?? 0));
     }
 
     public function getRelations(): array
@@ -191,5 +196,13 @@ class ViewStudent extends ViewRecord implements HasForms, HasTable
         return [
             SubjectsRelationManager::class,
         ];
+    }
+
+    private function student(): Student
+    {
+        $record = $this->record;
+        assert($record instanceof Student);
+
+        return $record;
     }
 }

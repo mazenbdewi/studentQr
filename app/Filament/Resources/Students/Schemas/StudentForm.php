@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Students\Schemas;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\Subject;
+use App\Support\AcademicTermContext;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -54,22 +55,33 @@ class StudentForm
                 Select::make('subject_ids')
                     ->label(__('student.enrolled_subjects'))
                     ->multiple()
-                    ->options(fn (Get $get): array => Subject::query()
-                        ->withoutTrashed()
-                        ->where('is_active', true)
-                        ->when(
-                            $get('department_id'),
-                            fn ($query, $departmentId) => $query->where('department_id', $departmentId),
-                            fn ($query) => $query->whereRaw('1 = 0'),
-                        )
-                        ->orderBy('code')
-                        ->get(['id', 'code', 'name'])
-                        ->mapWithKeys(fn (Subject $subject): array => [
-                            $subject->id => filled($subject->code)
-                                ? "{$subject->code} - {$subject->name}"
-                                : $subject->name,
-                        ])
-                        ->all())
+                    ->options(function (Get $get): array {
+                        $termId = app(AcademicTermContext::class)->currentId();
+
+                        return Subject::query()
+                            ->withoutTrashed()
+                            ->where('is_active', true)
+                            ->when(
+                                $get('department_id'),
+                                fn ($query, $departmentId) => $query->where('department_id', $departmentId),
+                                fn ($query) => $query->whereRaw('1 = 0'),
+                            )
+                            ->when(
+                                $termId,
+                                fn ($query, $termId) => $query->where(fn ($termQuery) => $termQuery
+                                    ->whereHas('sections', fn ($sections) => $sections->where('academic_term_id', $termId))
+                                    ->orWhereHas('enrollments', fn ($enrollments) => $enrollments->where('academic_term_id', $termId))),
+                                fn ($query) => $query->whereRaw('1 = 0'),
+                            )
+                            ->orderBy('code')
+                            ->get(['id', 'code', 'name'])
+                            ->mapWithKeys(fn (Subject $subject): array => [
+                                $subject->id => filled($subject->code)
+                                    ? "{$subject->code} - {$subject->name}"
+                                    : $subject->name,
+                            ])
+                            ->all();
+                    })
                     ->afterStateHydrated(function (Select $component): void {
                         /** @var \App\Models\Student|null $record */
                         $record = $component->getRecord();
@@ -78,7 +90,13 @@ class StudentForm
                             return;
                         }
 
-                        $component->state($record->subjects()->pluck('subjects.id')->all());
+                        $termId = app(AcademicTermContext::class)->currentId();
+                        $component->state($termId === null
+                            ? []
+                            : $record->subjects()
+                                ->wherePivot('academic_term_id', $termId)
+                                ->pluck('subjects.id')
+                                ->all());
                     })
                     ->searchable()
                     ->preload()

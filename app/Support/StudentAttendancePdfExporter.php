@@ -18,12 +18,12 @@ class StudentAttendancePdfExporter
         private readonly StudentAttendanceReport $report,
     ) {}
 
-    public function download(Student $student, ?int $subjectId = null): StreamedResponse
+    public function download(Student $student, ?int $subjectId = null, ?int $academicTermId = null): StreamedResponse
     {
         $student->loadMissing(['department', 'faculty']);
 
-        $selectedSubject = $this->report->resolveSubject($student, $subjectId);
-        $rows = $this->report->rows($student, $selectedSubject?->id);
+        $selectedSubject = $this->report->resolveSubject($student, $subjectId, $academicTermId);
+        $rows = $this->report->rows($student, $selectedSubject?->id, $academicTermId);
         $summary = $this->report->summaryFromRows($rows);
         $isRtl = app()->getLocale() === 'ar';
         $tempDir = storage_path('app/mpdf-temp');
@@ -65,7 +65,7 @@ class StudentAttendancePdfExporter
             'summary' => $summary,
             'subjectLabels' => $selectedSubject
                 ? [$selectedSubject->name]
-                : array_values($this->report->subjectOptions($student)),
+                : array_values($this->report->subjectOptions($student, $academicTermId)),
             'generatedAt' => $generatedAt,
             'isRtl' => $isRtl,
             'logoDataUri' => $this->logoDataUri(),
@@ -78,6 +78,7 @@ class StudentAttendancePdfExporter
             $student,
             [
                 'subject_id' => $selectedSubject?->id,
+                'academic_term_id' => $academicTermId,
             ],
         );
 

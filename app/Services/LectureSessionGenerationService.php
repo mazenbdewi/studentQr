@@ -33,6 +33,12 @@ class LectureSessionGenerationService
     public function preview(AcademicTerm $term): array
     {
         $this->ensureCurrentTerm($term);
+
+        return $this->previewForTerm($term);
+    }
+
+    public function previewForTerm(AcademicTerm $term): array
+    {
         $term->refresh();
 
         $dateRange = $this->dateRange($term);

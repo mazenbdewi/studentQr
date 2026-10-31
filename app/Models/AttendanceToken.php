@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttendanceToken extends Model
 {
@@ -26,7 +27,8 @@ class AttendanceToken extends Model
         'used_at' => 'datetime',
     ];
 
-    public function lectureSession()
+    /** @return BelongsTo<LectureSession, $this> */
+    public function lectureSession(): BelongsTo
     {
         return $this->belongsTo(LectureSession::class, 'lecture_session_id')->withTrashed();
     }

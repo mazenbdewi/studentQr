@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\Hall;
@@ -111,6 +113,7 @@ it('counts only lecture sessions for the sections assigned to the student enroll
     $lecturerId = $subject->lecturer_id;
 
     $assignedSession = LectureSession::query()->create([
+        'academic_term_id' => AppSetting::currentAcademicTermId(),
         'subject_id' => $subject->id,
         'subject_section_id' => $theorySection->id,
         'lecturer_id' => $lecturerId,
@@ -123,6 +126,7 @@ it('counts only lecture sessions for the sections assigned to the student enroll
     ]);
 
     $otherSectionSession = LectureSession::query()->create([
+        'academic_term_id' => AppSetting::currentAcademicTermId(),
         'subject_id' => $subject->id,
         'subject_section_id' => $otherTheorySection->id,
         'lecturer_id' => $lecturerId,
@@ -188,6 +192,12 @@ it('streams a subject-specific student attendance report as a pdf download', fun
 
 function createStudentAttendanceFixture(): array
 {
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'الفصل الحالي لتقرير الحضور',
+        'canonical_name' => 'student-attendance-current-'.str()->uuid(),
+    ]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
+
     $faculty = Faculty::query()->create([
         'name' => 'كلية الهندسة',
         'name_en' => 'Faculty of Engineering',
@@ -256,6 +266,7 @@ function createStudentAttendanceFixture(): array
     ]);
 
     DB::table('enrollments')->insert([
+        'academic_term_id' => $term->id,
         'student_id' => $student->id,
         'subject_id' => $primarySubject->id,
         'semester' => 2,
@@ -266,6 +277,7 @@ function createStudentAttendanceFixture(): array
     ]);
 
     DB::table('enrollments')->insert([
+        'academic_term_id' => $term->id,
         'student_id' => $student->id,
         'subject_id' => $secondarySubject->id,
         'semester' => 2,
@@ -277,6 +289,7 @@ function createStudentAttendanceFixture(): array
 
     $sessions = [
         'missing' => LectureSession::query()->create([
+            'academic_term_id' => $term->id,
             'subject_id' => $primarySubject->id,
             'lecturer_id' => $lecturer->id,
             'hall_id' => $hall->id,
@@ -287,6 +300,7 @@ function createStudentAttendanceFixture(): array
             'attendance_mode' => 'qr_otp',
         ]),
         'present' => LectureSession::query()->create([
+            'academic_term_id' => $term->id,
             'subject_id' => $primarySubject->id,
             'lecturer_id' => $lecturer->id,
             'hall_id' => $hall->id,
@@ -297,6 +311,7 @@ function createStudentAttendanceFixture(): array
             'attendance_mode' => 'qr_otp',
         ]),
         'late' => LectureSession::query()->create([
+            'academic_term_id' => $term->id,
             'subject_id' => $primarySubject->id,
             'lecturer_id' => $lecturer->id,
             'hall_id' => $hall->id,
@@ -307,6 +322,7 @@ function createStudentAttendanceFixture(): array
             'attendance_mode' => 'qr_otp',
         ]),
         'secondary_present' => LectureSession::query()->create([
+            'academic_term_id' => $term->id,
             'subject_id' => $secondarySubject->id,
             'lecturer_id' => $lecturer->id,
             'hall_id' => $hall->id,
@@ -367,5 +383,6 @@ function createStudentAttendanceFixture(): array
             'secondary' => $secondarySubject,
         ],
         'sessions' => $sessions,
+        'term' => $term,
     ];
 }

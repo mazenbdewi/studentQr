@@ -9,6 +9,7 @@ use App\Filament\Pages\ScheduleImportReconciliationIndex;
 use App\Filament\Pages\WeeklySchedule;
 use App\Filament\Pages\WeeklyScheduleReports;
 use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\ImportBatch;
@@ -40,6 +41,7 @@ function weeklyReportsFixture(string $code = 'RPT101'): array
         ['canonical_name' => 'الفصل الصيفي 2025/2026'],
         ['display_name' => 'الفصل الصيفي 2025/2026'],
     );
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
     $batch = ImportBatch::create([
         'deduplication_key' => hash('sha256', "reports-{$code}"),
         'import_type' => ImportBatch::TYPE_WEEKLY_SCHEDULE,
@@ -65,9 +67,10 @@ function weeklyReportsFixture(string $code = 'RPT101'): array
 it('renders the import processing panel only for the import target with readable light and dark styles', function (): void {
     $view = file_get_contents(resource_path('views/filament/pages/manara-schedule-import.blade.php'));
 
-    expect($view)->toContain('wire:target="import"')
-        ->toContain('wire:loading.delay.class.remove="hidden"')
-        ->toContain('class="hidden items-start gap-3')
+    expect($view)->toContain('wire:target="startImport"')
+        ->toContain('x-on:schedule-import-prepared.window')
+        ->toContain('x-show="progressVisible"')
+        ->toContain('class="flex items-start gap-3')
         ->toContain('bg-primary-50')
         ->toContain('text-primary-950')
         ->toContain('dark:bg-primary-950')
@@ -137,7 +140,7 @@ it('scopes report previews and counts using schedule slot filters without touchi
         ->assertCountTableRecords(1);
 });
 
-it('defaults a single schedule batch but never guesses the newest when several batches exist', function (): void {
+it('defaults to the latest schedule batch within the current academic term', function (): void {
     [, $firstBatch] = weeklyReportsFixture();
     $admin = weeklyReportsAdmin();
 
@@ -145,16 +148,15 @@ it('defaults a single schedule batch but never guesses the newest when several b
         ->test(WeeklyScheduleReports::class)
         ->assertSet('importBatchId', (string) $firstBatch->id);
 
-    weeklyReportsFixture('RPT404');
+    [, $latestBatch] = weeklyReportsFixture('RPT404');
 
     Livewire::actingAs($admin)
         ->test(WeeklyScheduleReports::class)
-        ->assertSet('importBatchId', null);
+        ->assertSet('academicTermId', (string) $latestBatch->academicTerms()->value('academic_terms.id'));
 
     Livewire::actingAs($admin)
         ->test(ScheduleImportReconciliationIndex::class)
-        ->assertSet('batchId', null)
-        ->assertSee(__('weekly-schedule-reports.select_batch'));
+        ->assertSet('batchId', (string) $latestBatch->id);
 });
 
 it('exports only filtered slots with Arabic weekday labels and no database IDs', function (): void {

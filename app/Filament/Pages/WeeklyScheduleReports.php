@@ -12,6 +12,7 @@ use App\Models\Subject;
 use App\Models\SubjectSection;
 use App\Models\SubjectSectionScheduleSlot;
 use App\Services\WeeklyScheduleReportService;
+use App\Support\AcademicTermContext;
 use BackedEnum;
 use Filament\Facades\Filament;
 use Filament\Pages\Page;
@@ -57,6 +58,8 @@ class WeeklyScheduleReports extends Page implements HasTable
     public function mount(): void
     {
         abort_unless(static::canAccess(), 403);
+        $currentTermId = app(AcademicTermContext::class)->currentId();
+        $this->academicTermId = $currentTermId ? (string) $currentTermId : null;
 
         $requestedFilters = app(WeeklyScheduleReportService::class)->normalizeFilters(request()->only([
             'academic_term_id', 'import_batch_id', 'faculty_id', 'department_id', 'subject_id',
@@ -86,7 +89,13 @@ class WeeklyScheduleReports extends Page implements HasTable
             ? (clone $batchQuery)->find($this->importBatchId)
             : (is_string($requestedUuid) && $requestedUuid !== ''
                 ? (clone $batchQuery)->where('uuid', $requestedUuid)->first()
-                : ((clone $batchQuery)->count() === 1 ? $batchQuery->first() : null));
+                : (filled($this->academicTermId) && (clone $batchQuery)
+                    ->whereHas('academicTerms', fn ($query) => $query->whereKey($this->academicTermId))
+                    ->count() === 1
+                    ? $batchQuery
+                        ->whereHas('academicTerms', fn ($query) => $query->whereKey($this->academicTermId))
+                        ->first()
+                    : null));
 
         if ($batch instanceof ImportBatch) {
             $this->importBatchId = (string) $batch->id;

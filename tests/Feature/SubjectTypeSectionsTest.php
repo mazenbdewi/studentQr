@@ -12,6 +12,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\SubjectSection;
 use App\Models\User;
+use App\Support\AcademicTermContext;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
@@ -174,6 +175,7 @@ function subjectTypeSectionsDepartmentFixture(): void
 
 function subjectTypeSectionsAttendanceFixture(): array
 {
+    $academicTermId = app(AcademicTermContext::class)->requireCurrent()->id;
     $faculty = Faculty::query()->create([
         'name' => 'Report Faculty',
         'name_en' => 'Report Faculty',
@@ -232,6 +234,7 @@ function subjectTypeSectionsAttendanceFixture(): array
     Enrollment::query()->create([
         'student_id' => $student->id,
         'subject_id' => $subject->id,
+        'academic_term_id' => $academicTermId,
         'semester' => Subject::SEMESTER_FIRST,
         'year' => 1,
         'status' => Enrollment::STATUS_ENROLLED,
@@ -240,6 +243,7 @@ function subjectTypeSectionsAttendanceFixture(): array
     $session = LectureSession::query()->create([
         'subject_id' => $subject->id,
         'subject_section_id' => $section->id,
+        'academic_term_id' => $academicTermId,
         'lecturer_id' => $lecturer->id,
         'hall_id' => $hall->id,
         'session_date' => '2026-05-16',

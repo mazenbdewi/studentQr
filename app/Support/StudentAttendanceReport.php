@@ -10,8 +10,10 @@ use Illuminate\Support\Collection;
 
 class StudentAttendanceReport
 {
-    public function query(Student $student, ?int $subjectId = null): Builder
+    public function query(Student $student, ?int $subjectId = null, ?int $academicTermId = null): Builder
     {
+        $academicTermId ??= app(AcademicTermContext::class)->currentId();
+
         return LectureSession::query()
             ->withTrashed()
             ->with(['subject', 'subjectSection', 'lecturer', 'hall'])
@@ -30,8 +32,14 @@ class StudentAttendanceReport
             )
             ->join('enrollments', function ($join) use ($student): void {
                 $join->on('enrollments.subject_id', '=', 'lecture_sessions.subject_id')
+                    ->on('enrollments.academic_term_id', '=', 'lecture_sessions.academic_term_id')
                     ->where('enrollments.student_id', '=', $student->id);
             })
+            ->when(
+                $academicTermId,
+                fn (Builder $query, int $termId): Builder => $query->where('lecture_sessions.academic_term_id', $termId),
+                fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+            )
             ->where(function (Builder $query): void {
                 $query
                     ->whereNull('enrollments.registration_date')
@@ -60,35 +68,52 @@ class StudentAttendanceReport
             ->orderByDesc('lecture_sessions.start_time');
     }
 
-    public function rows(Student $student, ?int $subjectId = null): Collection
+    public function rows(Student $student, ?int $subjectId = null, ?int $academicTermId = null): Collection
     {
-        return $this->query($student, $subjectId)->get();
+        return $this->query($student, $subjectId, $academicTermId)->get();
     }
 
-    public function summary(Student $student, ?int $subjectId = null): array
+    public function summary(Student $student, ?int $subjectId = null, ?int $academicTermId = null): array
     {
-        return $this->summaryFromRows($this->rows($student, $subjectId));
+        return $this->summaryFromRows($this->rows($student, $subjectId, $academicTermId));
     }
 
-    public function subjectOptions(Student $student): array
+    public function subjectOptions(Student $student, ?int $academicTermId = null): array
     {
+        $academicTermId ??= app(AcademicTermContext::class)->currentId();
+
+        if ($academicTermId === null) {
+            return [];
+        }
+
         return $student->subjects()
+            ->wherePivot('academic_term_id', $academicTermId)
             ->select('subjects.id', 'subjects.name')
             ->orderBy('subjects.name')
             ->pluck('subjects.name', 'subjects.id')
             ->all();
     }
 
-    public function resolveSubject(Student $student, ?int $subjectId): ?Subject
+    public function resolveSubject(Student $student, ?int $subjectId, ?int $academicTermId = null): ?Subject
     {
         if (! $subjectId) {
             return null;
         }
 
-        return $student->subjects()
+        $academicTermId ??= app(AcademicTermContext::class)->currentId();
+
+        if ($academicTermId === null) {
+            return null;
+        }
+
+        /** @var Subject|null $subject */
+        $subject = $student->subjects()
+            ->wherePivot('academic_term_id', $academicTermId)
             ->select('subjects.*')
             ->whereKey($subjectId)
             ->first();
+
+        return $subject;
     }
 
     public function summaryFromRows(Collection $rows): array

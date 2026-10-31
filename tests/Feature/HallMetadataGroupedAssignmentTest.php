@@ -3,6 +3,7 @@
 use App\Exports\HallMetadataReportExport;
 use App\Exports\HallMetadataTemplateExport;
 use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Faculty;
 use App\Models\Hall;
 use App\Models\ImportBatch;
@@ -89,6 +90,7 @@ function hallFixtureBase(): array
         'teaching_start_date' => '2026-07-04',
         'teaching_end_date' => '2026-08-15',
     ]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
     $batch = ImportBatch::query()->create([
         'deduplication_key' => hash('sha256', 'hall-batch-'.uniqid('', true)),
         'import_type' => ImportBatch::TYPE_WEEKLY_SCHEDULE,

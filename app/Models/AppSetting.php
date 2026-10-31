@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\AcademicTermContext;
 use Illuminate\Database\Eloquent\Model;
 
 class AppSetting extends Model
@@ -32,10 +33,16 @@ class AppSetting extends Model
 
     public static function put(string $key, ?string $value): self
     {
-        return static::query()->updateOrCreate(
+        $setting = static::query()->updateOrCreate(
             ['key' => $key],
             ['value' => $value],
         );
+
+        if ($key === self::CURRENT_ACADEMIC_TERM_ID_KEY && app()->bound(AcademicTermContext::class)) {
+            app(AcademicTermContext::class)->forget();
+        }
+
+        return $setting;
     }
 
     public static function boolean(string $key, bool $default = false): bool

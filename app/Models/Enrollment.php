@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Validation\ValidationException;
 
 class Enrollment extends Model
 {
@@ -38,6 +39,17 @@ class Enrollment extends Model
 
     public const STATUS_FAILED = 'failed';
 
+    protected static function booted(): void
+    {
+        static::saving(function (self $enrollment): void {
+            if ($enrollment->getAttribute('academic_term_id') === null) {
+                throw ValidationException::withMessages([
+                    'academic_term_id' => __('academic-term.no_current'),
+                ]);
+            }
+        });
+    }
+
     public static function statusOptions(): array
     {
         return [
@@ -48,26 +60,31 @@ class Enrollment extends Model
         ];
     }
 
+    /** @return BelongsTo<Student, $this> */
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class)->withTrashed();
     }
 
+    /** @return BelongsTo<Subject, $this> */
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class)->withTrashed();
     }
 
+    /** @return BelongsTo<AcademicTerm, $this> */
     public function academicTerm(): BelongsTo
     {
         return $this->belongsTo(AcademicTerm::class);
     }
 
+    /** @return BelongsTo<SubjectSection, $this> */
     public function theoreticalSection(): BelongsTo
     {
         return $this->belongsTo(SubjectSection::class, 'theoretical_section_id');
     }
 
+    /** @return BelongsTo<SubjectSection, $this> */
     public function practicalSection(): BelongsTo
     {
         return $this->belongsTo(SubjectSection::class, 'practical_section_id');

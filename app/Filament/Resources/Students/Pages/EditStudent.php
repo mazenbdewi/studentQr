@@ -5,18 +5,21 @@ namespace App\Filament\Resources\Students\Pages;
 use App\Filament\Resources\Students\RelationManagers\SubjectsRelationManager;
 use App\Filament\Resources\Students\StudentResource;
 use App\Models\Enrollment;
+use App\Models\Student;
 use App\Models\Subject;
 use App\Services\ActivityLogger;
+use App\Support\AcademicTermContext;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
-use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditStudent extends EditRecord
 {
     protected static string $resource = StudentResource::class;
+
     protected array $originalAuditAttributes = [];
+
     protected array $selectedSubjectIds = [];
 
     protected function getHeaderActions(): array
@@ -60,14 +63,22 @@ class EditStudent extends EditRecord
     protected function syncSubjects(): void
     {
         $student = $this->getRecord();
+        assert($student instanceof Student);
+        $academicTermId = app(AcademicTermContext::class)->currentId();
+
+        if ($academicTermId === null) {
+            return;
+        }
 
         $student->enrollments()
+            ->where('academic_term_id', $academicTermId)
             ->whereNotIn('subject_id', $this->selectedSubjectIds ?: [0])
             ->delete();
 
         foreach (Subject::query()->whereKey($this->selectedSubjectIds)->get(['id', 'level']) as $subject) {
             Enrollment::query()->updateOrCreate(
                 [
+                    'academic_term_id' => $academicTermId,
                     'student_id' => $student->id,
                     'subject_id' => $subject->id,
                 ],

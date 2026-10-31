@@ -246,14 +246,6 @@ class AttendanceController extends Controller
         return Carbon::parse($attendanceTime)->toIso8601String();
     }
 
-    private function findExistingAttendance(int $sessionId, int $studentId): ?Attendance
-    {
-        return Attendance::with('student')
-            ->where('lecture_session_id', $sessionId)
-            ->where('student_id', $studentId)
-            ->first();
-    }
-
     private function renderCompletedAttendanceView(
         Request $request,
         LectureSession $session,
@@ -504,7 +496,6 @@ class AttendanceController extends Controller
         ]);
 
         $session = LectureSession::query()
-            ->forCurrentAcademicTerm()
             ->select([
                 'id',
                 'subject_id',
@@ -1017,7 +1008,7 @@ class AttendanceController extends Controller
                     'success' => true,
                     'status' => 'recorded',
                     'message' => __('student.attendance_recorded'),
-                    'attendance_time' => $attendance->attendance_time->toIso8601String(),
+                    'attendance_time' => Carbon::parse($attendance->attendance_time)->toIso8601String(),
                     'remaining_seconds' => $remainingSeconds,
                 ]);
             }

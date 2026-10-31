@@ -34,11 +34,15 @@ class WeeklySchedule extends Page implements HasTable
 
     protected string $view = 'filament.pages.weekly-schedule';
 
+    public ?int $resolvedAcademicTermId = null;
+
     public function mount(): void
     {
         $batchUuid = request()->query('batch');
 
         if (! is_string($batchUuid) || $batchUuid === '') {
+            $this->resolvedAcademicTermId = app(AcademicTermContext::class)->currentId();
+
             return;
         }
 
@@ -47,9 +51,10 @@ class WeeklySchedule extends Page implements HasTable
             ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
             ->with('academicTerms:id')
             ->firstOrFail();
+        $term = $batch->academicTerms->sole();
+        $this->resolvedAcademicTermId = (int) $term->id;
 
         $this->tableFilters = [
-            'academic_term_id' => ['value' => (string) $batch->academicTerms->sole()->id],
             'import_batch_id' => ['value' => (string) $batch->id],
         ];
     }
@@ -81,20 +86,33 @@ class WeeklySchedule extends Page implements HasTable
 
     public function currentTermWarning(): ?string
     {
-        return app(AcademicTermContext::class)->current() ? null : 'لا يوجد فصل دراسي حالي محدد. يرجى تعيين الفصل الدراسي الحالي.';
+        return $this->resolvedAcademicTermId ? null : __('academic-term.no_current');
+    }
+
+    public function resolvedAcademicTerm(): ?\App\Models\AcademicTerm
+    {
+        return $this->resolvedAcademicTermId
+            ? \App\Models\AcademicTerm::query()->find($this->resolvedAcademicTermId)
+            : null;
     }
 
     public function table(Table $table): Table
     {
         return $table
-            ->query(SubjectSectionScheduleSlot::query()->forCurrentAcademicTerm()->with([
-                'academicTerm',
-                'subject.department.faculty',
-                'subjectSection',
-                'lecturer',
-                'hall',
-                'importBatch',
-            ]))
+            ->query(SubjectSectionScheduleSlot::query()
+                ->when(
+                    $this->resolvedAcademicTermId,
+                    fn (Builder $query, int $termId): Builder => $query->forAcademicTerm($termId),
+                    fn (Builder $query): Builder => $query->whereRaw('1 = 0'),
+                )
+                ->with([
+                    'academicTerm',
+                    'subject.department.faculty',
+                    'subjectSection',
+                    'lecturer',
+                    'hall',
+                    'importBatch',
+                ]))
             ->columns([
                 TextColumn::make('academicTerm.display_name')
                     ->label(__('weekly-schedule.columns.academic_term'))
@@ -271,11 +289,10 @@ class WeeklySchedule extends Page implements HasTable
                 ScheduleImportIssue::STATUS_RETRY_FAILED,
             ]));
 
-        $academicTermId = data_get($this->getTableFilterState('academic_term_id'), 'value');
         $importBatchId = data_get($this->getTableFilterState('import_batch_id'), 'value');
 
         return $query
-            ->when(filled($academicTermId), fn (Builder $query): Builder => $query->where('academic_term_id', $academicTermId))
+            ->when($this->resolvedAcademicTermId, fn (Builder $query): Builder => $query->where('academic_term_id', $this->resolvedAcademicTermId))
             ->when(filled($importBatchId), fn (Builder $query): Builder => $query->where('import_batch_id', $importBatchId))
             ->count();
     }
@@ -284,7 +301,7 @@ class WeeklySchedule extends Page implements HasTable
     public function currentReportFilters(): array
     {
         return app(\App\Services\WeeklyScheduleReportService::class)->normalizeFilters([
-            'academic_term_id' => data_get($this->getTableFilterState('academic_term_id'), 'value'),
+            'academic_term_id' => $this->resolvedAcademicTermId,
             'import_batch_id' => data_get($this->getTableFilterState('import_batch_id'), 'value'),
             'faculty_id' => data_get($this->getTableFilterState('faculty_id'), 'value'),
             'department_id' => data_get($this->getTableFilterState('department_id'), 'value'),

@@ -3,7 +3,10 @@
 namespace App\Filament\Resources\Students\Pages;
 
 use App\Filament\Resources\Students\StudentResource;
+use App\Models\AcademicTerm;
+use App\Models\Student;
 use App\Models\Subject;
+use App\Support\AcademicTermContext;
 use App\Support\StudentAttendancePdfExporter;
 use App\Support\StudentAttendanceReport;
 use Filament\Forms\Components\DatePicker;
@@ -26,11 +29,16 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
 
     protected string $view = 'students.pages.attendance-report';
 
+    public ?string $academicTermId = null;
+
     public function mount($record): void
     {
         parent::mount($record);
 
-        $this->record->loadMissing(['department', 'faculty']);
+        $this->student()->loadMissing(['department', 'faculty']);
+        $this->academicTermId = app(AcademicTermContext::class)->currentId()
+            ? (string) app(AcademicTermContext::class)->currentId()
+            : null;
     }
 
     public function getTitle(): string
@@ -46,7 +54,7 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query($this->getAttendanceReport()->query($this->record))
+            ->query($this->getAttendanceReport()->query($this->student(), academicTermId: $this->selectedAcademicTermId()))
             ->columns([
                 Tables\Columns\TextColumn::make('subject.name')
                     ->label(__('student.lecture'))
@@ -58,7 +66,15 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('subject.subject_type')
                     ->label(__('subjects.subject_type'))
-                    ->formatStateUsing(fn ($record): string => $record->subjectSection?->section_type_label ?? $record->subject?->subject_type_label ?? __('subjects.not_available'))
+                    ->formatStateUsing(function ($record): string {
+                        if ($record->subjectSection) {
+                            return $record->subjectSection->section_type_label;
+                        }
+
+                        return $record->subject
+                            ? $record->subject->subject_type_label
+                            : __('subjects.not_available');
+                    })
                     ->badge()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('subjectSection.code')
@@ -91,7 +107,10 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
             ->filters([
                 SelectFilter::make('subject_id')
                     ->label(__('lecture-session.subject'))
-                    ->options(fn (): array => $this->getAttendanceReport()->subjectOptions($this->record))
+                    ->options(fn (): array => $this->getAttendanceReport()->subjectOptions(
+                        $this->student(),
+                        $this->selectedAcademicTermId(),
+                    ))
                     ->searchable()
                     ->query(function (Builder $query, array $data): Builder {
                         $rawSubjectId = $data['value'] ?? null;
@@ -156,8 +175,9 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
     public function exportPdf(): StreamedResponse
     {
         return app(StudentAttendancePdfExporter::class)->download(
-            $this->record,
+            $this->student(),
             $this->getSelectedSubject()?->id,
+            $this->selectedAcademicTermId(),
         );
     }
 
@@ -169,14 +189,17 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
     public function getSelectedSubject(): ?Subject
     {
         return $this->getAttendanceReport()->resolveSubject(
-            $this->record,
+            $this->student(),
             $this->normalizeSelectedSubjectId($this->getTableFilterState('subject_id')['value'] ?? null),
+            $this->selectedAcademicTermId(),
         );
     }
 
     public function getSelectedSubjectLabel(): string
     {
-        return $this->getSelectedSubject()?->name ?? __('enrollments.enrolled_subjects');
+        $subject = $this->getSelectedSubject();
+
+        return $subject ? $subject->name : __('enrollments.enrolled_subjects');
     }
 
     public function getReportSubjectLabels(): array
@@ -185,21 +208,22 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
             return [$selectedSubject->name];
         }
 
-        return array_values($this->getAttendanceReport()->subjectOptions($this->record));
+        return array_values($this->getAttendanceReport()->subjectOptions($this->student(), $this->selectedAcademicTermId()));
     }
 
     public function getRegistrationDateEntries(): array
     {
         $selectedSubject = $this->getSelectedSubject();
 
-        return $this->record
+        return $this->student()
             ->enrollments()
+            ->where('academic_term_id', $this->selectedAcademicTermId() ?? 0)
             ->with(['subject:id,name'])
             ->when($selectedSubject, fn (Builder $query): Builder => $query->where('subject_id', $selectedSubject->id))
             ->get()
-            ->sortBy(fn ($enrollment): string => $enrollment->subject?->name ?? '')
+            ->sortBy(fn ($enrollment): string => $enrollment->subject ? $enrollment->subject->name : '')
             ->map(fn ($enrollment): array => [
-                'subject' => $enrollment->subject?->name ?? __('lecture-session.not_available'),
+                'subject' => $enrollment->subject ? $enrollment->subject->name : __('lecture-session.not_available'),
                 'date' => $enrollment->registration_date?->translatedFormat('Y-m-d') ?? __('lecture-session.not_available'),
             ])
             ->values()
@@ -234,10 +258,35 @@ class ViewAttendanceReport extends ViewRecord implements HasTable
         }
 
         $subjectId = (int) $subjectId;
-        $validSubjectIds = collect($this->getAttendanceReport()->subjectOptions($this->record))
+        $validSubjectIds = collect($this->getAttendanceReport()->subjectOptions($this->student(), $this->selectedAcademicTermId()))
             ->keys()
             ->map(fn (mixed $id): int => (int) $id);
 
         return $validSubjectIds->contains($subjectId) ? $subjectId : null;
+    }
+
+    public function academicTermOptions(): array
+    {
+        return AcademicTerm::query()->orderByDesc('id')->pluck('display_name', 'id')->all();
+    }
+
+    public function updatedAcademicTermId(): void
+    {
+        $this->resetTable();
+    }
+
+    private function selectedAcademicTermId(): ?int
+    {
+        return filled($this->academicTermId) && is_numeric($this->academicTermId)
+            ? (int) $this->academicTermId
+            : null;
+    }
+
+    private function student(): Student
+    {
+        $record = $this->record;
+        assert($record instanceof Student);
+
+        return $record;
     }
 }

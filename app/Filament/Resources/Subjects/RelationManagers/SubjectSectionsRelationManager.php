@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Subjects\RelationManagers;
 
-use App\Models\AcademicTerm;
 use App\Models\Subject;
 use App\Models\SubjectSection;
 use App\Models\User;
@@ -18,6 +17,7 @@ use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Tables;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rule;
 
@@ -36,7 +36,9 @@ class SubjectSectionsRelationManager extends RelationManager
             return null;
         }
 
-        return (string) $ownerRecord->sections()->count();
+        return (string) $ownerRecord->sections()
+            ->where('academic_term_id', app(AcademicTermContext::class)->currentId() ?? 0)
+            ->count();
     }
 
     public function table(Tables\Table $table): Tables\Table
@@ -46,6 +48,8 @@ class SubjectSectionsRelationManager extends RelationManager
             ->pluralModelLabel(__('subjects.sections'))
             ->defaultSort('code')
             ->recordTitle(fn (SubjectSection $record): string => $record->code)
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                ->where('academic_term_id', app(AcademicTermContext::class)->currentId() ?? 0))
             ->columns([
                 Tables\Columns\TextColumn::make('code')
                     ->label(__('subjects.section_code'))
@@ -95,7 +99,14 @@ class SubjectSectionsRelationManager extends RelationManager
                     ->label(__('subjects.add_section'))
                     ->icon('heroicon-o-plus')
                     ->schema($this->getSectionFormSchema())
-                    ->mutateDataUsing(fn (array $data): array => $this->normalizeSectionData($data)),
+                    ->disabled(fn (): bool => ! app(AcademicTermContext::class)->hasCurrent())
+                    ->tooltip(fn (): ?string => app(AcademicTermContext::class)->hasCurrent()
+                        ? null
+                        : __('academic-term.no_current'))
+                    ->mutateDataUsing(fn (array $data): array => $this->normalizeSectionData([
+                        ...$data,
+                        'academic_term_id' => app(AcademicTermContext::class)->requireCurrent()->id,
+                    ])),
             ])
             ->actions([
                 EditAction::make()
@@ -122,26 +133,19 @@ class SubjectSectionsRelationManager extends RelationManager
         $subject = $this->ownerRecord;
 
         return [
-            Forms\Components\Select::make('academic_term_id')
-                ->label(__('lecture-session.academic_term'))
-                ->options(fn (): array => AcademicTerm::query()->orderByDesc('id')->pluck('display_name', 'id')->all())
-                ->default(fn (): ?int => app(AcademicTermContext::class)->currentId())
-                ->required()
-                ->native(false),
-
             Forms\Components\TextInput::make('code')
                 ->label(__('subjects.section_code'))
                 ->default(fn (Get $get): string => SubjectSection::nextCodeForSubject(
                     $subject,
                     SubjectSection::normalizeSectionType($get('section_type')) ?? $subject->subject_type,
-                    $get('academic_term_id'),
+                    app(AcademicTermContext::class)->currentId(),
                 ))
                 ->required()
                 ->live(onBlur: true)
                 ->maxLength(20)
                 ->dehydrateStateUsing(fn (mixed $state, Get $get): string => SubjectSection::normalizeCodeForType($state, $get('section_type')))
                 ->rule(fn (?SubjectSection $record, Get $get) => Rule::unique('subject_sections', 'code')
-                    ->where('academic_term_id', $get('academic_term_id'))
+                    ->where('academic_term_id', app(AcademicTermContext::class)->currentId())
                     ->where('subject_id', $subject->id)
                     ->where('section_type', SubjectSection::normalizeSectionType($get('section_type')))
                     ->ignore($record)),

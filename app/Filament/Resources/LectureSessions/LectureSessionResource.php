@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Policies\ScheduleImportRowPolicy;
 use App\Services\ActivityLogger;
 use App\Services\LectureSessionLecturerResolver;
+use App\Support\AcademicTermContext;
 use BackedEnum;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action as ActionsAction;
@@ -90,20 +91,16 @@ class LectureSessionResource extends Resource
         return $schema
             ->columns(2)
             ->schema([
-                Forms\Components\Select::make('academic_term_id')
+                Forms\Components\Hidden::make('academic_term_id')
+                    ->default(fn (): ?int => app(AcademicTermContext::class)->currentId())
+                    ->required(),
+
+                Forms\Components\Placeholder::make('academic_term_display_name')
                     ->label(__('lecture-session.academic_term'))
-                    ->options(fn (): array => AcademicTerm::query()
-                        ->orderByDesc('id')
-                        ->pluck('display_name', 'id')
-                        ->all())
-                    ->searchable()
-                    ->preload()
-                    ->native(false)
-                    ->required()
-                    ->live()
-                    ->afterStateUpdated(function (callable $set): void {
-                        $set('subject_section_id', null);
-                        $set('lecturer_id', null);
+                    ->content(function (): string {
+                        $term = app(AcademicTermContext::class)->currentOrNull();
+
+                        return $term ? $term->display_name : __('academic-term.no_current');
                     }),
 
                 Forms\Components\Select::make('subject_id')

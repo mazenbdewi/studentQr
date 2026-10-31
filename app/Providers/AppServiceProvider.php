@@ -10,6 +10,7 @@ use App\Policies\ActivityPolicy;
 use App\Policies\ScheduleImportIssuePolicy;
 use App\Policies\ScheduleImportRowPolicy;
 use App\Policies\SubjectSectionScheduleSlotPolicy;
+use App\Support\AcademicTermContext;
 use BezhanSalleh\FilamentShield\Facades\FilamentShield;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
 use Filament\Tables\Columns\Column;
@@ -37,6 +38,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(LoginResponseContract::class, LoginResponse::class);
+        $this->app->scoped(AcademicTermContext::class, fn (): AcademicTermContext => new AcademicTermContext);
     }
 
     public function boot(): void

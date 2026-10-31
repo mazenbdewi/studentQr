@@ -2,7 +2,7 @@
     @if ($warning = $this->currentTermWarning())
         <div class="rounded-lg border border-warning-300 bg-warning-50 p-4 text-warning-900 dark:bg-warning-950 dark:text-warning-100">{{ $warning }}</div>
     @else
-        <div class="rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900 dark:bg-primary-950 dark:text-primary-100">الفصل الدراسي الحالي: {{ app(\App\Support\AcademicTermContext::class)->current()?->display_name }}</div>
+        <div class="rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900 dark:bg-primary-950 dark:text-primary-100">{{ __('academic-term.current_label') }}: {{ $this->resolvedAcademicTerm()?->display_name }}</div>
     @endif
     @php($counts = $this->summaryCounts())
 

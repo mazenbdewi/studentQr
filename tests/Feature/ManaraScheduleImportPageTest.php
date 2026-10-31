@@ -2,6 +2,7 @@
 
 use App\Filament\Pages\ManaraScheduleImport;
 use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\ImportBatch;
 use App\Models\Subject;
 use App\Models\SubjectSection;
@@ -102,6 +103,7 @@ it('automatically resolves the only eligible enrollment batch on direct access',
         'imported_rows' => 10,
     ]);
     $source->academicTerms()->attach($term->id, ['row_count' => 10]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
 
     Livewire::actingAs(manaraSchedulePageAdmin())
         ->test(ManaraScheduleImport::class)
@@ -118,11 +120,14 @@ it('automatically resolves the only eligible enrollment batch on direct access',
         ->assertDontSee('لا توجد دفعة تسجيل مكتملة ومتوافقة مع جميع مقررات وشعب ملف الجدول');
 });
 
-it('blocks direct access safely when multiple eligible enrollment batches exist', function (): void {
+it('uses the latest eligible enrollment batch for the current term on direct access', function (): void {
     $term = AcademicTerm::query()->create([
         'display_name' => 'الفصل الصيفي 2025/2026',
         'canonical_name' => 'الفصل الصيفي 2025/2026',
     ]);
+
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
+    $latest = null;
 
     foreach (['first', 'second'] as $identity) {
         $source = ImportBatch::query()->create([
@@ -133,19 +138,22 @@ it('blocks direct access safely when multiple eligible enrollment batches exist'
             'imported_rows' => 10,
         ]);
         $source->academicTerms()->attach($term->id, ['row_count' => 10]);
+        $latest = $source;
     }
 
     Livewire::actingAs(manaraSchedulePageAdmin())
         ->test(ManaraScheduleImport::class)
-        ->assertSet('sourceBatchReady', false)
-        ->assertSet('sourceBatchUuid', null)
-        ->assertSee('توجد أكثر من دفعة تسجيل طلاب مؤهلة')
-        ->assertSee(__('manara-schedule-import.source_batch_unavailable'))
-        ->assertSee(__('manara-schedule-import.prerequisite_unavailable'))
-        ->assertSee(__('manara-schedule-import.go_to_stage_one'));
+        ->assertSet('sourceBatchReady', true)
+        ->assertSet('sourceBatchUuid', $latest->uuid);
 });
 
 it('blocks direct access clearly when no eligible enrollment batch exists', function (): void {
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'فصل بلا دفعة',
+        'canonical_name' => 'term-without-batch',
+    ]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
+
     Livewire::actingAs(manaraSchedulePageAdmin())
         ->test(ManaraScheduleImport::class)
         ->assertSet('sourceBatchReady', false)

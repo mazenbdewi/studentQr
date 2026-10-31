@@ -95,17 +95,40 @@ class ScheduleImportIssues extends Page
     {
         abort_unless(static::canAccess(), 403);
 
-        $term = app(AcademicTermContext::class)->currentOrNull();
-        abort_unless($term instanceof AcademicTerm, 404);
-
-        $requestedTerm = request()->integer('term');
-        abort_unless($requestedTerm === 0 || $requestedTerm === $term->id, 404);
-        $this->academicTermId = $term->id;
         $requestedBatch = request()->integer('batch');
-        $this->importBatchId = $requestedBatch > 0 && ImportBatch::query()
-            ->whereKey($requestedBatch)
+
+        if ($requestedBatch > 0) {
+            $batch = ImportBatch::query()
+                ->whereKey($requestedBatch)
+                ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
+                ->with('academicTerms:id')
+                ->firstOrFail();
+            $term = $batch->academicTerms->sole();
+            $this->academicTermId = (int) $term->id;
+            $this->importBatchId = (int) $batch->id;
+
+            return;
+        }
+
+        $term = app(AcademicTermContext::class)->currentOrNull();
+
+        if (! $term instanceof AcademicTerm) {
+            \Filament\Notifications\Notification::make()
+                ->title(__('academic-term.no_current'))
+                ->warning()
+                ->send();
+            $this->redirect(AcademicTermManagement::getUrl());
+
+            return;
+        }
+
+        $this->academicTermId = (int) $term->id;
+        $this->importBatchId = ImportBatch::query()
+            ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
             ->whereHas('academicTerms', fn ($query) => $query->whereKey($term->id))
-            ->exists() ? $requestedBatch : null;
+            ->latest('completed_at')
+            ->latest('id')
+            ->value('id');
     }
 
     public function getTitle(): string

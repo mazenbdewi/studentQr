@@ -28,14 +28,6 @@ class AcademicTermActivationService
                 return $target;
             }
 
-            if ($previous && array_key_exists('is_archived', $previous->getAttributes())) {
-                $previous->forceFill(['is_archived' => true])->save();
-            }
-
-            if (array_key_exists('is_archived', $target->getAttributes())) {
-                $target->forceFill(['is_archived' => false])->save();
-            }
-
             AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $target->id);
 
             AuditLog::query()->create([
@@ -91,6 +83,7 @@ class AcademicTermActivationService
 
     public function clearCaches(): void
     {
+        app(AcademicTermContext::class)->forget();
         Cache::forget('academic-term-context');
     }
 }

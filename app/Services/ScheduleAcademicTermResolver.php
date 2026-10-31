@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\AcademicTerm;
 use App\Models\ImportBatch;
-use Illuminate\Support\Collection;
+use App\Support\AcademicTermContext;
 use RuntimeException;
 
 class ScheduleAcademicTermResolver
@@ -33,29 +33,29 @@ class ScheduleAcademicTermResolver
             return [$batch, $this->soleUsableTerm($batch)];
         }
 
-        $eligible = ImportBatch::query()
+        $currentTermId = app(AcademicTermContext::class)->currentId();
+
+        if ($currentTermId === null) {
+            throw new RuntimeException(__('academic-term.no_current'));
+        }
+
+        $batch = ImportBatch::query()
             ->eligibleEnrollmentSource()
             ->with('academicTerms')
-            ->get()
-            ->filter(fn (ImportBatch $batch): bool => $batch->academicTerms->count() === 1)
-            ->values();
+            ->whereHas('academicTerms', fn ($query) => $query->whereKey($currentTermId))
+            ->latest('completed_at')
+            ->latest('id')
+            ->first();
 
-        if ($eligible->isEmpty()) {
+        if (! $batch instanceof ImportBatch) {
             throw new RuntimeException('لا توجد دفعة تسجيل طلاب مكتملة ومؤهلة. استورد تسجيلات الطلاب أولاً ثم افتح استيراد الجدول من نتيجة الاستيراد.');
         }
-
-        if ($eligible->count() > 1) {
-            throw new RuntimeException('توجد أكثر من دفعة تسجيل طلاب مؤهلة. افتح استيراد الجدول من رابط المتابعة داخل نتيجة استيراد التسجيلات المطلوبة.');
-        }
-
-        $batch = $eligible->firstOrFail();
 
         return [$batch, $this->soleUsableTerm($batch)];
     }
 
     private function soleUsableTerm(ImportBatch $batch): AcademicTerm
     {
-        /** @var Collection<int, AcademicTerm> $terms */
         $terms = $batch->academicTerms;
 
         if ($terms->count() !== 1) {

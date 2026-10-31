@@ -139,6 +139,7 @@ class Subject extends Model
         return $this->hasMany(SubjectSection::class);
     }
 
+    /** @return HasMany<Enrollment, $this> */
     public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class);
@@ -148,7 +149,7 @@ class Subject extends Model
     {
         return $this->belongsToMany(Student::class, 'enrollments', 'subject_id', 'student_id')
             ->withTrashed()
-            ->withPivot(['semester', 'year', 'status', 'theoretical_section_id', 'practical_section_id', 'registration_date'])
+            ->withPivot(['academic_term_id', 'semester', 'year', 'status', 'theoretical_section_id', 'practical_section_id', 'registration_date'])
             ->withTimestamps();
     }
 }

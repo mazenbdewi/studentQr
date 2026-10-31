@@ -2,13 +2,12 @@
 
 namespace App\Filament\Resources\Subjects;
 
-
-use App\Filament\Resources\Students\RelationManagers\SubjectsRelationManager;
 use App\Filament\Resources\Subjects\RelationManagers\StudentsRelationManager;
 use App\Filament\Resources\Subjects\RelationManagers\SubjectSectionsRelationManager;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\Subject;
+use App\Support\AcademicTermContext;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -16,20 +15,19 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\ForceDeleteBulkAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Forms;
 use Filament\Resources\Resource;
-use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Forms;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Validation\ValidationException;
-use Filament\Actions\RestoreAction;
-use Filament\Actions\RestoreBulkAction;
-
 
 class SubjectResource extends Resource
 {
@@ -53,11 +51,11 @@ class SubjectResource extends Resource
     {
         return 10;
     }
+
     public static function getModelLabel(): string
     {
         return __('subjects.singular');
     }
-
 
     public static function getPluralModelLabel(): string
     {
@@ -76,9 +74,8 @@ class SubjectResource extends Resource
 
     public static function getRecordTitle($record): ?string
     {
-        return $record->name ?? __('subjects.record_title') . ' #' . $record->id;
+        return $record->name ?? __('subjects.record_title').' #'.$record->id;
     }
-
 
     public static function form(Schema $schema): Schema
     {
@@ -148,12 +145,26 @@ class SubjectResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query
-                ->withCount('sections')
-                ->with(['sections' => fn ($sectionsQuery) => $sectionsQuery
-                    ->select(['id', 'subject_id', 'code'])
-                    ->orderBy('code'),
-                ]))
+            ->modifyQueryUsing(function (Builder $query): Builder {
+                $termId = app(AcademicTermContext::class)->currentId();
+
+                if ($termId === null) {
+                    return $query->whereRaw('1 = 0');
+                }
+
+                return $query
+                    ->where(fn (Builder $termQuery): Builder => $termQuery
+                        ->whereHas('sections', fn (Builder $sections): Builder => $sections->where('academic_term_id', $termId))
+                        ->orWhereHas('enrollments', fn (Builder $enrollments): Builder => $enrollments->where('academic_term_id', $termId)))
+                    ->withCount([
+                        'sections' => fn (Builder $sections): Builder => $sections->where('academic_term_id', $termId),
+                    ])
+                    ->with(['sections' => fn ($sectionsQuery) => $sectionsQuery
+                        ->where('academic_term_id', $termId)
+                        ->select(['id', 'subject_id', 'academic_term_id', 'code'])
+                        ->orderBy('code'),
+                    ]);
+            })
             ->columns([
                 Tables\Columns\TextColumn::make('code')
                     ->label(__('subjects.code'))
@@ -200,7 +211,7 @@ class SubjectResource extends Resource
                     ->relationship(
                         name: 'department',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn (Builder $query) => $query->withoutTrashed(),
+                        modifyQueryUsing: fn (Builder $query) => $query->whereNull('deleted_at'),
                     ),
                 Tables\Filters\TrashedFilter::make(),
                 Tables\Filters\TernaryFilter::make('is_active')
@@ -225,14 +236,20 @@ class SubjectResource extends Resource
                     ForceDeleteBulkAction::make()
                         ->visible(fn (): bool => auth()->user()->hasRole('super-admin')),
                 ]),
-            ]);
+            ])
+            ->emptyStateHeading(fn (): string => app(AcademicTermContext::class)->hasCurrent()
+                ? __('filament-tables::table.empty.heading')
+                : __('academic-term.no_current_short'))
+            ->emptyStateDescription(fn (): ?string => app(AcademicTermContext::class)->hasCurrent()
+                ? null
+                : __('academic-term.no_current'));
     }
 
     public static function getRelations(): array
     {
         return [
             SubjectSectionsRelationManager::class,
-            StudentsRelationManager::class
+            StudentsRelationManager::class,
 
         ];
     }
@@ -276,7 +293,7 @@ class SubjectResource extends Resource
             ->all();
     }
 
-    public static function getDepartmentOptionsForFaculty(int | string | null $facultyId): array
+    public static function getDepartmentOptionsForFaculty(int|string|null $facultyId): array
     {
         if (blank($facultyId)) {
             return [];

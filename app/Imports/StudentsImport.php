@@ -7,6 +7,7 @@ use App\Models\Enrollment;
 use App\Models\Faculty;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Support\AcademicTermContext;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Validator;
 use Maatwebsite\Excel\Concerns\OnEachRow;
@@ -19,9 +20,13 @@ class StudentsImport implements OnEachRow, WithHeadingRow, WithValidation
     private int $importedCount = 0;
 
     private array $faculties = [];
+
     private array $departmentsByName = [];
+
     private array $departmentsByFacultyAndName = [];
+
     private array $subjectsByCode = [];
+
     private array $subjectsByDepartmentAndCode = [];
 
     public function __construct()
@@ -85,6 +90,7 @@ class StudentsImport implements OnEachRow, WithHeadingRow, WithValidation
     public function onRow(Row $row): void
     {
         $row = $row->toArray();
+        $academicTermId = app(AcademicTermContext::class)->requireCurrent()->id;
 
         $student = Student::create([
             'national_number' => $row['national_number'] ?? null,
@@ -103,6 +109,7 @@ class StudentsImport implements OnEachRow, WithHeadingRow, WithValidation
         foreach ($this->subjectsForIds((array) ($row['subject_ids'] ?? [])) as $subject) {
             Enrollment::query()->updateOrCreate(
                 [
+                    'academic_term_id' => $academicTermId,
                     'student_id' => $student->id,
                     'subject_id' => $subject->id,
                 ],
@@ -245,7 +252,7 @@ class StudentsImport implements OnEachRow, WithHeadingRow, WithValidation
         }
 
         $value = str_replace("\xc2\xa0", ' ', (string) $value);
-        $value = preg_replace('/\s+/u', ' ', $value ?? '');
+        $value = preg_replace('/\s+/u', ' ', $value);
         $value = trim((string) $value);
 
         if ($value === '') {

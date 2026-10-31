@@ -22,7 +22,7 @@ class WeeklyScheduleIssueService
 
     public function result(AcademicTerm $term, ?int $importBatchId = null): WeeklyScheduleIssueResult
     {
-        $preview = $this->generation->preview($term);
+        $preview = $this->generation->previewForTerm($term);
         $reasonsBySlot = [];
 
         foreach ($preview['blocked_slots'] as $blocked) {

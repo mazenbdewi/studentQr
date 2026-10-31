@@ -2,6 +2,7 @@
 
 use App\Imports\WeeklyScheduleImport;
 use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\ImportBatch;
 use App\Models\Lecturer;
@@ -103,7 +104,7 @@ it('uses an explicit eligible enrollment batch before key matching and reconcile
     }
 });
 
-it('does not select a newest batch when direct resolution has multiple compatible batches', function (): void {
+it('selects the newest eligible enrollment batch within the current term when none is explicit', function (): void {
     [$term, $sourceBatch] = weeklyScheduleSource();
     $otherBatch = ImportBatch::query()->create([
         'deduplication_key' => hash('sha256', 'other-compatible-source'),
@@ -119,9 +120,11 @@ it('does not select a newest batch when direct resolution has multiple compatibl
     ]);
 
     try {
-        expect(fn () => app(WeeklyScheduleImport::class)->import($path, 'ambiguous-batches.xlsx'))
-            ->toThrow(RuntimeException::class, 'أكثر من دفعة تسجيل طلاب مؤهلة');
-        expect(ImportBatch::query()->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)->count())->toBe(0);
+        $import = app(WeeklyScheduleImport::class);
+        $import->import($path, 'resolved-current-term-batch.xlsx');
+
+        expect($import->getBatch()?->source_import_batch_id)->toBe($otherBatch->id)
+            ->and(ImportBatch::query()->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)->count())->toBe(1);
     } finally {
         @unlink($path);
     }
@@ -175,6 +178,7 @@ function weeklyScheduleSource(): array
         'display_name' => 'الفصل الصيفي 2025/2026',
         'canonical_name' => 'الفصل الصيفي 2025/2026',
     ]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
     $batch = ImportBatch::query()->create([
         'deduplication_key' => hash('sha256', 'weekly-source-'.uniqid()),
         'import_type' => ImportBatch::TYPE_ENROLLMENTS,

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\LectureSessionGenerationRun;
 use App\Models\ScheduleImportRow;
 use App\Models\SubjectSectionScheduleSlot;
+use App\Support\AcademicTermContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -12,10 +13,17 @@ use Illuminate\Support\Collection;
 class BlockedWeeklySlotReportService
 {
     /** @return array{run: ?LectureSessionGenerationRun, rows: array<int, array<string, mixed>>, conflicts: array<int, array<string, mixed>>, summary: array<string, int>} */
-    public function latestReport(): array
+    public function latestReport(?int $academicTermId = null): array
     {
+        $academicTermId ??= app(AcademicTermContext::class)->currentId();
+
         return $this->reportForRun(
             LectureSessionGenerationRun::query()
+                ->when(
+                    $academicTermId,
+                    fn ($query, int $termId) => $query->where('academic_term_id', $termId),
+                    fn ($query) => $query->whereRaw('1 = 0'),
+                )
                 ->latest('id')
                 ->first(),
         );

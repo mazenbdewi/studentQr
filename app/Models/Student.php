@@ -35,6 +35,7 @@ class Student extends Model
         return $this->hasMany(Attendance::class);
     }
 
+    /** @return HasMany<Enrollment, $this> */
     public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class, 'student_id');
@@ -44,7 +45,7 @@ class Student extends Model
     {
         return $this->belongsToMany(Subject::class, 'enrollments', 'student_id', 'subject_id')
             ->withTrashed()
-            ->withPivot(['semester', 'year', 'status', 'theoretical_section_id', 'practical_section_id', 'registration_date'])
+            ->withPivot(['academic_term_id', 'semester', 'year', 'status', 'theoretical_section_id', 'practical_section_id', 'registration_date'])
             ->withTimestamps();
     }
 

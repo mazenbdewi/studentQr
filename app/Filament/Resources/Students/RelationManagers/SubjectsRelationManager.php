@@ -4,8 +4,10 @@ namespace App\Filament\Resources\Students\RelationManagers;
 
 use App\Filament\Resources\Subjects\SubjectResource;
 use App\Models\Enrollment;
+use App\Models\Student;
 use App\Models\Subject;
 use App\Models\SubjectSection;
+use App\Support\AcademicTermContext;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -13,6 +15,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Schemas\Components\Component;
 use Filament\Tables;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -29,7 +32,13 @@ class SubjectsRelationManager extends RelationManager
 
     public static function getBadge(Model $ownerRecord, string $pageClass): ?string
     {
-        return (string) $ownerRecord->enrollments()->count();
+        if (! $ownerRecord instanceof Student) {
+            return null;
+        }
+
+        return (string) $ownerRecord->enrollments()
+            ->where('academic_term_id', app(AcademicTermContext::class)->currentId() ?? 0)
+            ->count();
     }
 
     public function table(Tables\Table $table): Tables\Table
@@ -37,14 +46,20 @@ class SubjectsRelationManager extends RelationManager
         return $table
             ->modelLabel(__('enrollments.singular'))
             ->pluralModelLabel(__('enrollments.plural'))
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->forCurrentAcademicTerm()->with([
-                'subject',
-                'academicTerm',
-                'theoreticalSection',
-                'practicalSection',
-            ]))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                ->where('academic_term_id', app(AcademicTermContext::class)->currentId() ?? 0)
+                ->with([
+                    'subject',
+                    'academicTerm',
+                    'theoreticalSection',
+                    'practicalSection',
+                ]))
             ->defaultSort('subject_id')
-            ->recordTitle(fn (Enrollment $record): string => $record->subject?->name ?? __('subjects.record_title'))
+            ->recordTitle(function (Enrollment $record): string {
+                $subject = $record->subject;
+
+                return $subject ? $subject->name : __('subjects.record_title');
+            })
             ->columns([
                 Tables\Columns\TextColumn::make('subject.code')
                     ->label(__('subjects.code'))
@@ -106,7 +121,15 @@ class SubjectsRelationManager extends RelationManager
                     ->label(__('enrollments.add_subject'))
                     ->modalHeading(__('enrollments.create_subject_enrollment'))
                     ->modalSubmitActionLabel(__('enrollments.save_enrollment'))
-                    ->schema($this->getEnrollmentFormSchema()),
+                    ->schema($this->getEnrollmentFormSchema())
+                    ->disabled(fn (): bool => ! app(AcademicTermContext::class)->hasCurrent())
+                    ->tooltip(fn (): ?string => app(AcademicTermContext::class)->hasCurrent()
+                        ? null
+                        : __('academic-term.no_current'))
+                    ->mutateDataUsing(fn (array $data): array => [
+                        ...$data,
+                        'academic_term_id' => app(AcademicTermContext::class)->requireCurrent()->id,
+                    ]),
             ])
             ->actions([
                 EditAction::make()
@@ -127,7 +150,7 @@ class SubjectsRelationManager extends RelationManager
     }
 
     /**
-     * @return array<int, Forms\Components\Component>
+     * @return array<int, Component>
      */
     protected function getEnrollmentFormSchema(): array
     {
@@ -138,10 +161,12 @@ class SubjectsRelationManager extends RelationManager
                     name: 'subject',
                     titleAttribute: 'name',
                     modifyQueryUsing: fn (Builder $query) => $query
-                        ->withoutTrashed()
+                        ->whereNull('deleted_at')
                         ->whereDoesntHave(
                             'enrollments',
-                            fn (Builder $enrollmentsQuery) => $enrollmentsQuery->where('student_id', $this->ownerRecord->getKey()),
+                            fn (Builder $enrollmentsQuery) => $enrollmentsQuery
+                                ->where('student_id', $this->ownerRecord->getKey())
+                                ->where('academic_term_id', app(AcademicTermContext::class)->currentId() ?? 0),
                         ),
                 )
                 ->getOptionLabelFromRecordUsing(
@@ -168,7 +193,9 @@ class SubjectsRelationManager extends RelationManager
                 })
                 ->rule(
                     Rule::unique('enrollments', 'subject_id')
-                        ->where(fn ($query) => $query->where('student_id', $this->ownerRecord->getKey())),
+                        ->where(fn ($query) => $query
+                            ->where('academic_term_id', app(AcademicTermContext::class)->currentId())
+                            ->where('student_id', $this->ownerRecord->getKey())),
                 )
                 ->validationMessages([
                     'unique' => __('student.already_enrolled'),
@@ -179,7 +206,7 @@ class SubjectsRelationManager extends RelationManager
     }
 
     /**
-     * @return array<int, Forms\Components\Component>
+     * @return array<int, Component>
      */
     protected function getEnrollmentMetadataSchema(): array
     {
@@ -209,8 +236,15 @@ class SubjectsRelationManager extends RelationManager
 
             Forms\Components\Placeholder::make('academic_term_display_name')
                 ->label(__('enrollments.academic_term'))
-                ->content(fn (?Enrollment $record): string => $record?->academicTerm?->display_name
-                    ?? __('enrollments.academic_term_unspecified')),
+                ->content(function (?Enrollment $record): string {
+                    if ($record?->academicTerm) {
+                        return (string) $record->academicTerm()->value('display_name');
+                    }
+
+                    $term = app(AcademicTermContext::class)->currentOrNull();
+
+                    return $term ? $term->display_name : __('academic-term.no_current');
+                }),
 
             Forms\Components\TextInput::make('year')
                 ->label(__('enrollments.year'))
@@ -234,6 +268,7 @@ class SubjectsRelationManager extends RelationManager
         }
 
         return SubjectSection::query()
+            ->where('academic_term_id', app(AcademicTermContext::class)->currentId() ?? 0)
             ->where('subject_id', $subjectId)
             ->where('section_type', $sectionType)
             ->orderBy('code')

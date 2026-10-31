@@ -38,6 +38,13 @@
                 </div>
 
                 <div class="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+                    <x-filament::input.wrapper>
+                        <x-filament::input.select wire:model.live="academicTermId">
+                            @foreach ($this->academicTermOptions() as $termId => $termName)
+                                <option value="{{ $termId }}">{{ $termName }}</option>
+                            @endforeach
+                        </x-filament::input.select>
+                    </x-filament::input.wrapper>
                     <x-filament::button
                         color="danger"
                         icon="heroicon-o-document-arrow-down"
