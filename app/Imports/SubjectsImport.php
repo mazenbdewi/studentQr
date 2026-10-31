@@ -6,6 +6,7 @@ use App\Models\Department;
 use App\Models\Subject;
 use App\Models\SubjectSection;
 use App\Models\User;
+use App\Support\AcademicTermContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Concerns\OnEachRow;
@@ -14,20 +15,20 @@ use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 use Maatwebsite\Excel\Row;
 
-class SubjectsImport implements OnEachRow, WithHeadingRow, WithValidation, SkipsEmptyRows
+class SubjectsImport implements OnEachRow, SkipsEmptyRows, WithHeadingRow, WithValidation
 {
     private int $importedCount = 0;
 
     private $lecturers;
+
     private $departments;
 
     public function __construct()
     {
 
-        $this->lecturers = User::whereHas('roles', fn($q) => $q->where('name', 'course_lecturer'))
+        $this->lecturers = User::whereHas('roles', fn ($q) => $q->where('name', 'course_lecturer'))
             ->pluck('id', 'name')
             ->toArray();
-
 
         $this->departments = Department::query()
             ->get(['id', 'name', 'code'])
@@ -46,6 +47,7 @@ class SubjectsImport implements OnEachRow, WithHeadingRow, WithValidation, Skips
             })
             ->toArray();
     }
+
     public function prepareForValidation($data, $index)
     {
         $data['code'] = $data['code'] ?? $data['subject_code'] ?? null;
@@ -101,6 +103,7 @@ class SubjectsImport implements OnEachRow, WithHeadingRow, WithValidation, Skips
 
             foreach ($this->parseSections($data['sections'] ?? null) as $sectionCode) {
                 $subject->sections()->create([
+                    'academic_term_id' => app(AcademicTermContext::class)->requireCurrent()->id,
                     'section_type' => \App\Models\SubjectSection::inferSectionTypeFromCode($sectionCode) ?? $subject->subject_type,
                     'code' => $sectionCode,
                 ]);
@@ -120,13 +123,14 @@ class SubjectsImport implements OnEachRow, WithHeadingRow, WithValidation, Skips
             'sections' => ['nullable', 'string'],
         ];
     }
+
     public function customValidationMessages(): array
     {
         return [
             'code.required' => __('validation.code_required'),
-            'code.unique'   => __('validation.code_unique'),
+            'code.unique' => __('validation.code_unique'),
             'name.required' => __('validation.name_required'),
-            'name.max'      => __('validation.name_max'),
+            'name.max' => __('validation.name_max'),
             'subject_type.required' => __('subjects.subject_type_required'),
             'subject_type.in' => __('subjects.subject_type_invalid'),
         ];

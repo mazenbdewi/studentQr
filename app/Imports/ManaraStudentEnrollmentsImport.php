@@ -143,6 +143,7 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
                         $subject,
                         Subject::TYPE_THEORETICAL,
                         $data['theoretical_section_number'],
+                        $data['theoretical_section_capacity'],
                     )
                     : null;
 
@@ -246,9 +247,20 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
             });
 
         SubjectSection::query()
-            ->get(['id', 'academic_term_id', 'subject_id', 'section_type', 'code', 'raw_section_number', 'section_number'])
+            ->orderBy('id')
+            ->get([
+                'id', 'academic_term_id', 'subject_id', 'section_type', 'code',
+                'raw_section_number', 'section_number', 'capacity', 'lecturer_id', 'name',
+            ])
             ->each(function (SubjectSection $section): void {
-                $this->sections[$this->sectionKey($section->academic_term_id, $section->subject_id, $section->code)] = $section;
+                $key = $this->sectionKey(
+                    $section->academic_term_id,
+                    $section->subject_id,
+                    $section->section_type,
+                    $section->code,
+                );
+
+                $this->sections[$key] ??= $section;
             });
 
         Enrollment::query()
@@ -403,6 +415,7 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
         Subject $subject,
         string $sectionType,
         string $rawNumber,
+        ?int $capacity = null,
     ): SubjectSection {
         $code = SubjectSection::normalizeCodeForType($rawNumber, $sectionType);
 
@@ -410,7 +423,7 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
             throw new RuntimeException('لا يمكن إنشاء T0 أو P0 / T0 and P0 cannot be created.');
         }
 
-        $key = $this->sectionKey($academicTerm->id, $subject->id, $code);
+        $key = $this->sectionKey($academicTerm->id, $subject->id, $sectionType, $code);
         $section = $this->sections[$key] ?? null;
         $attributes = [
             'academic_term_id' => $academicTerm->id,
@@ -421,18 +434,30 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
             'section_number' => $this->rowNormalizer->integerSectionNumber($rawNumber),
         ];
 
-        if (! $section) {
-            $section = SubjectSection::query()->create($attributes);
+        if ($capacity !== null) {
+            $attributes['capacity'] = $capacity;
+        }
 
-            if ($sectionType === Subject::TYPE_PRACTICAL) {
-                $this->summary['created_practical_sections']++;
-            } else {
-                $this->summary['created_theoretical_sections']++;
+        if (! $section) {
+            $section = SubjectSection::query()->createOrFirst(
+                [
+                    'academic_term_id' => $academicTerm->id,
+                    'subject_id' => $subject->id,
+                    'section_type' => $sectionType,
+                    'code' => $code,
+                ],
+                $attributes,
+            );
+
+            if ($section->wasRecentlyCreated) {
+                if ($sectionType === Subject::TYPE_PRACTICAL) {
+                    $this->summary['created_practical_sections']++;
+                } else {
+                    $this->summary['created_theoretical_sections']++;
+                }
             }
 
             $this->sections[$key] = $section;
-
-            return $section;
         }
 
         $this->updateIfChanged($section, $attributes);
@@ -525,9 +550,13 @@ class ManaraStudentEnrollmentsImport extends StringValueBinder implements OnEach
         return ((string) $facultyId).'|'.$this->rowNormalizer->normalizeKey($name);
     }
 
-    private function sectionKey(int|string|null $termId, int|string|null $subjectId, mixed $code): string
-    {
-        return ((string) $termId).'|'.((string) $subjectId).'|'.$this->rowNormalizer->normalizeKey($code);
+    private function sectionKey(
+        int|string|null $termId,
+        int|string|null $subjectId,
+        mixed $sectionType,
+        mixed $code,
+    ): string {
+        return SubjectSection::logicalIdentityKey($termId, $subjectId, $sectionType, $code);
     }
 
     private function enrollmentKey(

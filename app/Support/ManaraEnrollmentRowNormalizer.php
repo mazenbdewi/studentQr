@@ -40,6 +40,7 @@ class ManaraEnrollmentRowNormalizer
         'رمز الفئة النظرية' => 'theoretical_section_number',
         'رمز الفئة العملية' => 'practical_section_number',
         'مستوى المقرر' => 'course_level',
+        'سعة الفئة النظرية' => 'theoretical_section_capacity',
     ];
 
     public function __construct(
@@ -105,6 +106,7 @@ class ManaraEnrollmentRowNormalizer
         $row['practical_section_number'] = $this->normalizeSectionNumber($row['practical_section_number'] ?? null);
         $row['registration_date'] = $this->parseRegistrationDate($row['registration_date'] ?? null);
         $row['course_level'] = $this->normalizeCourseLevel($row['course_level'] ?? null);
+        $row['theoretical_section_capacity'] = $this->normalizePositiveInteger($row['theoretical_section_capacity'] ?? null);
         $row['academic_term_display_name'] = $this->academicTermNormalizer->displayName($row['academic_term_name'] ?? null);
         $row['academic_term_canonical_name'] = $this->academicTermNormalizer->canonicalName($row['academic_term_name'] ?? null);
 
@@ -264,6 +266,19 @@ class ManaraEnrollmentRowNormalizer
         }
 
         return null;
+    }
+
+    private function normalizePositiveInteger(mixed $value): ?int
+    {
+        $value = $this->normalizeValue($value);
+
+        if ($value === null || ! ctype_digit($value)) {
+            return null;
+        }
+
+        $integer = (int) $value;
+
+        return $integer > 0 ? $integer : null;
     }
 
     private function parseRegistrationDate(mixed $value): ?string

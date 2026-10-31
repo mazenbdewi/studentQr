@@ -10,7 +10,9 @@ use App\Models\SubjectSection;
 use App\Models\User;
 use App\Support\XlsxNumericCellSanitizer;
 use Filament\Facades\Filament;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
@@ -301,6 +303,122 @@ it('normalizes decimal and prefixed section codes without numeric storage', func
     }
 });
 
+it('uses term subject type and normalized code as the complete section identity', function (): void {
+    $path = manaraWorkbookPath([
+        manaraRow('2026301', 'طالب أول', 'كلية العلوم', 'الفيزياء', 'ميكانيك', 'PHY301', '01/10/2026', ' t1 ', ' p1 ', academicTerm: 'الفصل الأول 2026/2027'),
+        manaraRow('2026302', 'طالب ثان', 'كلية العلوم', 'الفيزياء', 'ميكانيك', 'PHY301', '01/10/2026', 'T1', 'P1', academicTerm: 'الفصل الأول 2026/2027'),
+        manaraRow('2026303', 'طالب ثالث', 'كلية العلوم', 'الفيزياء', 'أمواج', 'PHY302', '01/10/2026', 'T1', null, academicTerm: 'الفصل الأول 2026/2027'),
+        manaraRow('2026304', 'طالب رابع', 'كلية العلوم', 'الفيزياء', 'ميكانيك', 'PHY301', '01/02/2027', 'T1', null, academicTerm: 'الفصل الثاني 2026/2027'),
+    ]);
+
+    try {
+        Excel::import(new ManaraStudentEnrollmentsImport, $path);
+        Excel::import(new ManaraStudentEnrollmentsImport, $path);
+
+        $subject = Subject::query()->where('code', 'PHY301')->firstOrFail();
+        $firstTerm = AcademicTerm::query()->where('canonical_name', 'الفصل الأول 2026/2027')->firstOrFail();
+
+        expect(SubjectSection::query()
+            ->whereBelongsTo($subject)
+            ->whereBelongsTo($firstTerm, 'academicTerm')
+            ->where('section_type', Subject::TYPE_THEORETICAL)
+            ->where('code', 'T1')
+            ->count())->toBe(1)
+            ->and(SubjectSection::query()->where('code', 'T1')->count())->toBe(3)
+            ->and(SubjectSection::query()
+                ->whereBelongsTo($subject)
+                ->whereBelongsTo($firstTerm, 'academicTerm')
+                ->orderBy('code')
+                ->pluck('section_type', 'code')->all())->toBe([
+                    'P1' => Subject::TYPE_PRACTICAL,
+                    'T1' => Subject::TYPE_THEORETICAL,
+                ]);
+    } finally {
+        @unlink($path);
+    }
+});
+
+it('does not use lecturer or capacity as section identity during re-import', function (): void {
+    $initialPath = manaraWorkbookPath([
+        manaraRow('2026401', 'طالب', 'كلية العلوم', 'الكيمياء', 'كيمياء عضوية', 'CHM401', '01/10/2026', 1, null, academicTerm: 'الفصل الأول 2026/2027', theoreticalCapacity: 20),
+    ]);
+    $updatedPath = manaraWorkbookPath([
+        manaraRow('2026401', 'طالب', 'كلية العلوم', 'الكيمياء', 'كيمياء عضوية', 'CHM401', '01/10/2026', 1, null, academicTerm: 'الفصل الأول 2026/2027', theoreticalCapacity: 45),
+    ]);
+
+    try {
+        Excel::import(new ManaraStudentEnrollmentsImport, $initialPath);
+        $section = SubjectSection::query()->sole();
+        $secondLecturer = User::factory()->create();
+
+        $section->update(['lecturer_id' => $secondLecturer->id]);
+        Excel::import(new ManaraStudentEnrollmentsImport, $updatedPath);
+
+        expect(SubjectSection::query()->count())->toBe(1)
+            ->and(SubjectSection::query()->sole()->id)->toBe($section->id)
+            ->and(SubjectSection::query()->sole()->lecturer_id)->toBe($secondLecturer->id)
+            ->and(SubjectSection::query()->sole()->capacity)->toBe(45);
+    } finally {
+        @unlink($initialPath);
+        @unlink($updatedPath);
+    }
+});
+
+it('keeps the real six-section shape after two consecutive re-imports', function (): void {
+    $path = manaraWorkbookPath([
+        manaraRow('2026501', 'طالب 1', 'كلية الهندسة', 'هندسة الحاسوب', 'مشروع', 'CSE500', '01/10/2026', 'T1', 'P1', academicTerm: 'الفصل الأول 2026/2027'),
+        manaraRow('2026502', 'طالب 2', 'كلية الهندسة', 'هندسة الحاسوب', 'مشروع', 'CSE500', '01/10/2026', 'T2', 'P2', academicTerm: 'الفصل الأول 2026/2027'),
+        manaraRow('2026503', 'طالب 3', 'كلية الهندسة', 'هندسة الحاسوب', 'مشروع', 'CSE500', '01/10/2026', 'T1', 'P3', academicTerm: 'الفصل الأول 2026/2027'),
+        manaraRow('2026504', 'طالب 4', 'كلية الهندسة', 'هندسة الحاسوب', 'مشروع', 'CSE500', '01/10/2026', 'T2', 'P4', academicTerm: 'الفصل الأول 2026/2027'),
+    ]);
+
+    try {
+        Excel::import(new ManaraStudentEnrollmentsImport, $path);
+        Excel::import(new ManaraStudentEnrollmentsImport, $path);
+        Excel::import(new ManaraStudentEnrollmentsImport, $path);
+
+        $subject = Subject::query()->where('code', 'CSE500')->firstOrFail();
+
+        expect($subject->sections()->where('section_type', Subject::TYPE_THEORETICAL)->count())->toBe(2)
+            ->and($subject->sections()->where('section_type', Subject::TYPE_PRACTICAL)->count())->toBe(4)
+            ->and($subject->sections()->count())->toBe(6)
+            ->and($subject->sections()->orderBy('code')->pluck('code')->all())->toBe(['P1', 'P2', 'P3', 'P4', 'T1', 'T2']);
+    } finally {
+        @unlink($path);
+    }
+});
+
+it('enforces the subject-section logical identity with a database constraint', function (): void {
+    $path = manaraWorkbookPath([
+        manaraRow('2026701', 'طالب قيد', 'كلية الهندسة', 'هندسة المعلوماتية', 'أمن', 'SEC701', '01/10/2026', 1, null, academicTerm: 'الفصل الأول 2026/2027'),
+    ]);
+
+    try {
+        Excel::import(new ManaraStudentEnrollmentsImport, $path);
+        $section = SubjectSection::query()->sole();
+
+        expect(fn () => DB::table('subject_sections')->insert([
+            'academic_term_id' => $section->academic_term_id,
+            'subject_id' => $section->subject_id,
+            'section_type' => $section->section_type,
+            'code' => $section->code,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]))->toThrow(QueryException::class);
+
+        expect(fn () => DB::table('subject_sections')->insert([
+            'academic_term_id' => null,
+            'subject_id' => $section->subject_id,
+            'section_type' => Subject::TYPE_THEORETICAL,
+            'code' => 'T9',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]))->toThrow(QueryException::class);
+    } finally {
+        @unlink($path);
+    }
+});
+
 it('does not require academic year or semester on the Manara import page', function (): void {
     $user = User::factory()->create([
         'login_username' => 'manara_admin',
@@ -463,6 +581,7 @@ function manaraRow(
     mixed $practicalSection,
     mixed $courseLevel = null,
     mixed $academicTerm = 'الفصل الصيفي 2025/2026',
+    mixed $theoreticalCapacity = null,
 ): array {
     return [
         null,
@@ -479,7 +598,7 @@ function manaraRow(
         null,
         null,
         $courseLevel,
-        null,
+        $theoreticalCapacity,
     ];
 }
 

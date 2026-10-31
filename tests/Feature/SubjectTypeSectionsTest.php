@@ -1,6 +1,8 @@
 <?php
 
 use App\Imports\SubjectsImport;
+use App\Models\AcademicTerm;
+use App\Models\AppSetting;
 use App\Models\Attendance;
 use App\Models\Enrollment;
 use App\Models\Faculty;
@@ -15,6 +17,15 @@ use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+
+beforeEach(function (): void {
+    $term = AcademicTerm::query()->create([
+        'display_name' => 'الفصل الاختباري',
+        'canonical_name' => 'test-term',
+    ]);
+
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
+});
 
 it('creates a theoretical subject with T sections and suggests the next code', function (): void {
     $subject = subjectTypeSectionsSubject(Subject::TYPE_THEORETICAL, 'THEORY-101');

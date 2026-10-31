@@ -33,6 +33,17 @@ class SubjectSection extends Model
     protected static function booted(): void
     {
         static::saving(function (self $section): void {
+            $academicTermId = $section->getAttribute('academic_term_id')
+                ?? app(\App\Support\AcademicTermContext::class)->currentId();
+
+            if ($academicTermId === null) {
+                throw ValidationException::withMessages([
+                    'academic_term_id' => 'An academic term is required for every subject section.',
+                ]);
+            }
+
+            $section->academic_term_id = $academicTermId;
+
             $section->section_type = self::normalizeSectionType($section->section_type)
                 ?? self::inferSectionTypeFromCode($section->code)
                 ?? Subject::TYPE_THEORETICAL;
@@ -41,6 +52,12 @@ class SubjectSection extends Model
                 ?? self::rawSectionNumberFromCode($section->code);
             $section->section_number = $section->section_number
                 ?? self::integerSectionNumber($section->raw_section_number);
+
+            if (in_array($section->code, ['T0', 'P0'], true)) {
+                throw ValidationException::withMessages([
+                    'code' => 'T0 and P0 cannot be used as section codes.',
+                ]);
+            }
 
             if (! self::codeMatchesSectionType($section->code, $section->section_type)) {
                 throw ValidationException::withMessages([
@@ -119,6 +136,24 @@ class SubjectSection extends Model
         }
 
         return $normalized;
+    }
+
+    public static function logicalIdentityKey(
+        int|string|null $academicTermId,
+        int|string|null $subjectId,
+        mixed $sectionType,
+        mixed $code,
+    ): string {
+        $sectionType = self::normalizeSectionType($sectionType)
+            ?? self::inferSectionTypeFromCode($code)
+            ?? Subject::TYPE_THEORETICAL;
+
+        return implode('|', [
+            (string) $academicTermId,
+            (string) $subjectId,
+            $sectionType,
+            self::normalizeCodeForType($code, $sectionType),
+        ]);
     }
 
     public static function normalizeSectionType(mixed $sectionType): ?string
@@ -214,12 +249,17 @@ class SubjectSection extends Model
             : __('subjects.theory_section_code_must_start_with_t');
     }
 
-    public static function nextCodeForSubject(Subject $subject, ?string $sectionType = null): string
-    {
+    public static function nextCodeForSubject(
+        Subject $subject,
+        ?string $sectionType = null,
+        int|string|null $academicTermId = null,
+    ): string {
         $sectionType = self::normalizeSectionType($sectionType) ?? $subject->subject_type;
         $prefix = self::prefixForSectionType($sectionType);
+        $academicTermId ??= app(\App\Support\AcademicTermContext::class)->currentId();
 
         $maxNumber = $subject->sections()
+            ->when($academicTermId !== null, fn (Builder $query): Builder => $query->where('academic_term_id', $academicTermId))
             ->where('section_type', $sectionType)
             ->where('code', 'like', $prefix.'%')
             ->pluck('code')
