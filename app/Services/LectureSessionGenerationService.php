@@ -30,26 +30,27 @@ class LectureSessionGenerationService
     /** @var array<int, SubjectSectionScheduleSlot> */
     private array $reportSlots = [];
 
-    public function preview(AcademicTerm $term): array
+    public function preview(AcademicTerm $term, ?int $importBatchId = null): array
     {
         $this->ensureCurrentTerm($term);
 
-        return $this->previewForTerm($term);
+        return $this->previewForTerm($term, $importBatchId);
     }
 
-    public function previewForTerm(AcademicTerm $term): array
+    public function previewForTerm(AcademicTerm $term, ?int $importBatchId = null): array
     {
         $term->refresh();
 
         $dateRange = $this->dateRange($term);
-        $prerequisiteErrors = $this->prerequisiteErrors($term, $dateRange);
-        $excludedSlotIds = $this->excludedScheduleSlotIds($term);
-        $structuralReadiness = $this->structuralReadiness($term);
+        $prerequisiteErrors = $this->prerequisiteErrors($term, $dateRange, $importBatchId);
+        $excludedSlotIds = $this->excludedScheduleSlotIds($term, $importBatchId);
+        $structuralReadiness = $this->structuralReadiness($term, $importBatchId);
         $plannedCandidates = [];
 
         $preview = [
             'ready' => false,
             'academic_term_id' => $term->id,
+            'schedule_import_batch_id' => $importBatchId,
             'teaching_start_date' => $dateRange['start']?->toDateString(),
             'teaching_end_date' => $dateRange['end']?->toDateString(),
             'prerequisite_errors' => $prerequisiteErrors,
@@ -71,16 +72,8 @@ class LectureSessionGenerationService
             'candidates' => [],
         ];
 
-        if ($dateRange['start'] === null || $dateRange['end'] === null) {
-            $preview['source_slot_count'] = $structuralReadiness['total_weekly_slots'];
-            $preview['blocked_slot_count'] = $structuralReadiness['blocked_slots'];
-            $preview['blocked_unique_count'] = $structuralReadiness['blocked_slots'];
-
-            return $preview;
-        }
-
         /** @var Collection<int, SubjectSectionScheduleSlot> $slots */
-        $slots = $this->sourceSlotQuery($term)
+        $slots = $this->sourceSlotQuery($term, $importBatchId)
             ->with(['subject', 'subjectSection', 'lecturer.user', 'hall'])
             ->orderBy('weekday')
             ->orderBy('start_time')
@@ -88,7 +81,9 @@ class LectureSessionGenerationService
             ->get();
 
         $this->reportSlots = $slots->keyBy('id')->all();
-        $evaluationContext = $this->candidateEvaluationContext($dateRange['start'], $dateRange['end']);
+        $evaluationContext = $dateRange['start'] !== null && $dateRange['end'] !== null
+            ? $this->candidateEvaluationContext($dateRange['start'], $dateRange['end'])
+            : null;
 
         $preview['source_slot_count'] = $slots->count();
 
@@ -101,6 +96,15 @@ class LectureSessionGenerationService
             }
 
             $slotErrors = $this->slotErrors($slot);
+
+            if ($dateRange['start'] === null || $dateRange['end'] === null) {
+                if ($slotErrors !== []) {
+                    $preview['blocked_slots'][] = $this->blockedSlot($slot, $slotErrors);
+                }
+
+                continue;
+            }
+
             $sessionDates = $this->sessionDatesForSlot($slot, $dateRange['start'], $dateRange['end']);
 
             if ($slotErrors !== []) {
@@ -155,9 +159,9 @@ class LectureSessionGenerationService
         return $preview;
     }
 
-    public function generate(AcademicTerm $term, ?User $user = null): array
+    public function generate(AcademicTerm $term, ?User $user = null, ?int $importBatchId = null): array
     {
-        $preview = $this->preview($term);
+        $preview = $this->preview($term, $importBatchId);
 
         if (! $preview['ready']) {
             throw ValidationException::withMessages([
@@ -169,7 +173,7 @@ class LectureSessionGenerationService
             $now = now(config('app.timezone', 'Asia/Damascus'));
             $run = LectureSessionGenerationRun::query()->create([
                 'academic_term_id' => $term->id,
-                'schedule_import_batch_id' => $this->latestWeeklyScheduleBatch($term)?->id,
+                'schedule_import_batch_id' => $preview['schedule_import_batch_id'] ?? $this->latestWeeklyScheduleBatch($term)?->id,
                 'started_by' => $user?->id,
                 'teaching_start_date' => $preview['teaching_start_date'],
                 'teaching_end_date' => $preview['teaching_end_date'],
@@ -249,9 +253,9 @@ class LectureSessionGenerationService
         });
     }
 
-    public function generateReadySessions(AcademicTerm $term, ?User $user = null): array
+    public function generateReadySessions(AcademicTerm $term, ?User $user = null, ?int $importBatchId = null): array
     {
-        $preview = $this->preview($term);
+        $preview = $this->preview($term, $importBatchId);
         $fatalPrerequisites = $preview['prerequisite_errors'];
 
         if ($fatalPrerequisites !== []) {
@@ -269,7 +273,7 @@ class LectureSessionGenerationService
 
         $run = LectureSessionGenerationRun::query()->create([
             'academic_term_id' => $term->id,
-            'schedule_import_batch_id' => $this->latestWeeklyScheduleBatch($term)?->id,
+            'schedule_import_batch_id' => $preview['schedule_import_batch_id'] ?? $this->latestWeeklyScheduleBatch($term)?->id,
             'started_by' => $user?->id,
             'teaching_start_date' => $preview['teaching_start_date'],
             'teaching_end_date' => $preview['teaching_end_date'],
@@ -396,7 +400,7 @@ class LectureSessionGenerationService
     }
 
     /** @param array{start: ?CarbonImmutable, end: ?CarbonImmutable} $dateRange */
-    private function prerequisiteErrors(AcademicTerm $term, array $dateRange): array
+    private function prerequisiteErrors(AcademicTerm $term, array $dateRange, ?int $importBatchId = null): array
     {
         $errors = [];
 
@@ -410,11 +414,11 @@ class LectureSessionGenerationService
             $errors[] = 'missing_completed_enrollment_batch';
         }
 
-        if (! $this->hasCompletedWeeklyScheduleBatch($term)) {
+        if (! $this->hasCompletedWeeklyScheduleBatch($term, $importBatchId)) {
             $errors[] = 'missing_completed_weekly_schedule_batch';
         }
 
-        if (! $this->sourceSlotQuery($term)->exists()) {
+        if (! $this->sourceSlotQuery($term, $importBatchId)->exists()) {
             $errors[] = 'missing_weekly_schedule_slots';
         }
 
@@ -422,10 +426,11 @@ class LectureSessionGenerationService
     }
 
     /** @return Builder<SubjectSectionScheduleSlot> */
-    private function sourceSlotQuery(AcademicTerm $term): Builder
+    private function sourceSlotQuery(AcademicTerm $term, ?int $importBatchId = null): Builder
     {
         return SubjectSectionScheduleSlot::query()
-            ->where('academic_term_id', $term->id);
+            ->where('academic_term_id', $term->id)
+            ->when($importBatchId, fn (Builder $query, int $batchId): Builder => $query->where('import_batch_id', $batchId));
     }
 
     private function hasCompletedEnrollmentBatch(AcademicTerm $term): bool
@@ -436,11 +441,12 @@ class LectureSessionGenerationService
             ->exists();
     }
 
-    private function hasCompletedWeeklyScheduleBatch(AcademicTerm $term): bool
+    private function hasCompletedWeeklyScheduleBatch(AcademicTerm $term, ?int $importBatchId = null): bool
     {
         return ImportBatch::query()
             ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
             ->whereIn('status', [ImportBatch::STATUS_COMPLETED, ImportBatch::STATUS_COMPLETED_WITH_ERRORS])
+            ->when($importBatchId, fn (Builder $query, int $batchId): Builder => $query->whereKey($batchId))
             ->whereHas('academicTerms', fn (Builder $query): Builder => $query->whereKey($term->id))
             ->whereHas('scheduleSlots', fn (Builder $query): Builder => $query->where('academic_term_id', $term->id))
             ->exists();
@@ -458,10 +464,11 @@ class LectureSessionGenerationService
             ->first();
     }
 
-    private function excludedScheduleSlotIds(AcademicTerm $term): Collection
+    private function excludedScheduleSlotIds(AcademicTerm $term, ?int $importBatchId = null): Collection
     {
         return ScheduleImportRow::query()
             ->where('academic_term_id', $term->id)
+            ->when($importBatchId, fn (Builder $query, int $batchId): Builder => $query->where('import_batch_id', $batchId))
             ->where(function (Builder $query): void {
                 $query
                     ->whereNotNull('excluded_from_weekly_schedule_at')
@@ -473,10 +480,10 @@ class LectureSessionGenerationService
             ->values();
     }
 
-    public function structuralReadiness(AcademicTerm $term): array
+    public function structuralReadiness(AcademicTerm $term, ?int $importBatchId = null): array
     {
         /** @var Collection<int, SubjectSectionScheduleSlot> $slots */
-        $slots = $this->sourceSlotQuery($term)
+        $slots = $this->sourceSlotQuery($term, $importBatchId)
             ->with(['subject', 'subjectSection', 'lecturer.user.roles', 'hall'])
             ->get();
 

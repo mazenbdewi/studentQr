@@ -14,7 +14,17 @@
             $readiness = $preview['structural_readiness'] ?? [];
             $blockedReadiness = $preview['blocked_readiness_counts'] ?? [];
             $hasReadinessIssues = $blockedUnique > 0;
-            $hasIssues = $hasReadinessIssues || $issues !== [];
+            $issueGroups = $issueGroups ?? [];
+            if ($issueGroups === [] && ($issues ?? []) !== []) {
+                $issueGroups['schedule_data'] = [
+                    'label' => __('lecture-session.lecture_generation.issue_groups.schedule_data'),
+                    'issues' => $issues,
+                ];
+            }
+            $hasTermConfigurationIssues = isset($issueGroups['term_configuration']);
+            $hasScheduleIssues = isset($issueGroups['schedule_data']);
+            $hasAccountIssues = isset($issueGroups['accounts']);
+            $hasIssues = $hasReadinessIssues || $issueGroups !== [];
         @endphp
 
         <x-filament::section :heading="__('lecture-session.lecture_generation.main.title')" icon="heroicon-o-sparkles">
@@ -63,8 +73,11 @@
                             </li>
                         @endif
                     @endif
-                    @foreach ($issues as $issue)
-                        <li class="flex items-center gap-2 text-sm text-rose-800 dark:text-rose-200"><x-filament::icon icon="heroicon-o-x-circle" class="h-5 w-5 shrink-0" />{{ __('lecture-session.lecture_generation.issues.counted', ['count' => $issue['count'], 'reason' => $issue['label']]) }}</li>
+                    @foreach ($issueGroups as $group)
+                        <li class="mt-3 text-sm font-bold text-gray-950 dark:text-white">{{ $group['label'] }}</li>
+                        @foreach ($group['issues'] as $issue)
+                            <li class="flex items-center gap-2 text-sm text-rose-800 dark:text-rose-200"><x-filament::icon icon="heroicon-o-x-circle" class="h-5 w-5 shrink-0" />{{ __('lecture-session.lecture_generation.issues.counted', ['count' => $issue['count'], 'reason' => $issue['label']]) }}</li>
+                        @endforeach
                     @endforeach
                 </ul>
                 @if ($hasReadinessIssues)
@@ -72,8 +85,18 @@
                 @endif
             @endif
 
-            @if ($hasIssues && filled($issuesUrl ?? null))
-                <div class="mt-4"><x-filament::button tag="a" :href="$issuesUrl" color="warning" icon="heroicon-o-wrench-screwdriver">{{ __('lecture-session.lecture_generation.issues.manage', ['count' => $blockedUnique]) }}</x-filament::button></div>
+            @if ($hasIssues)
+                <div class="mt-4 flex flex-wrap gap-2">
+                    @if ($hasTermConfigurationIssues && filled($termSetupUrl ?? null))
+                        <x-filament::button tag="a" :href="$termSetupUrl" color="warning" icon="heroicon-o-calendar-days">{{ __('lecture-session.lecture_generation.actions.configure_teaching_dates') }}</x-filament::button>
+                    @endif
+                    @if ($hasScheduleIssues && filled($issuesUrl ?? null))
+                        <x-filament::button tag="a" :href="$issuesUrl" color="danger" icon="heroicon-o-wrench-screwdriver">{{ __('lecture-session.lecture_generation.actions.resolve_schedule_issues') }}</x-filament::button>
+                    @endif
+                    @if ($hasAccountIssues && filled($accountPreparationUrl ?? null))
+                        <x-filament::button tag="a" :href="$accountPreparationUrl" color="gray" icon="heroicon-o-user-group">{{ __('lecture-session.lecture_generation.actions.prepare_lecturer_accounts') }}</x-filament::button>
+                    @endif
+                </div>
             @endif
         </x-filament::section>
 

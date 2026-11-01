@@ -184,12 +184,18 @@ return [
         'issues' => [
             'title' => 'المشكلات التي تحتاج إلى معالجة', 'none' => 'جميع المتطلبات الأساسية مكتملة.', 'counted' => ':count خانة: :reason', 'not_ready_unique' => 'الخانات غير الجاهزة للتوليد: :count', 'missing_lecturer' => ':count خانة لم يُحدد لها مدرّس', 'missing_hall' => ':count خانة لم تُحدد لها قاعة', 'breakdown' => 'بدون مدرّس فقط: :lecturer_only، بدون قاعة فقط: :hall_only، بدون مدرّس وبدون قاعة: :both', 'unique_note' => 'قد تحتوي الخانة الواحدة على أكثر من مشكلة، لذلك لا يمثل مجموع الأسباب عدد الخانات غير الجاهزة للتوليد.', 'manage' => 'معالجة المشكلات (:count)',
         ],
+        'issue_groups' => [
+            'term_configuration' => 'إعداد الفصل الدراسي', 'schedule_data' => 'بيانات البرنامج الأسبوعي', 'accounts' => 'حسابات وصلاحيات المدرسين',
+        ],
+        'actions' => [
+            'configure_teaching_dates' => 'تحديد تواريخ التدريس', 'resolve_schedule_issues' => 'معالجة مشكلات البرنامج', 'prepare_lecturer_accounts' => 'تهيئة حسابات المدرسين',
+        ],
         'details' => ['title' => 'عرض تفاصيل التحقق'],
         'readiness' => [
             'valid_subject_sections' => 'خانة مرتبطة بمادة وشعبة صحيحتين', 'with_lecturer' => 'خانة مرتبطة بمدرّس', 'without_lecturer' => 'خانة بدون مدرّس', 'with_valid_account_role' => 'خانة مرتبطة بمدرّس لديه حساب ودور صالحان', 'with_hall' => 'خانة مرتبطة بقاعة', 'without_hall' => 'خانة بدون قاعة', 'ready' => 'خانة مستوفية للمتطلبات الأساسية', 'not_ready' => 'خانة غير جاهزة للتوليد',
         ],
         'reasons' => [
-            'missing_teaching_dates' => 'لم يتم تحديد تواريخ التدريس', 'invalid_teaching_date_range' => 'نطاق تواريخ التدريس غير صالح', 'missing_completed_enrollment_batch' => 'لا توجد عملية استيراد بيانات مكتملة للفصل الدراسي', 'missing_completed_weekly_schedule_batch' => 'لا توجد عملية استيراد برنامج دوام مكتملة للفصل الدراسي', 'missing_weekly_schedule_slots' => 'لا توجد خانات في البرنامج الأسبوعي',
+            'missing_teaching_dates' => 'لم يتم تحديد تاريخ بداية ونهاية التدريس للفصل الدراسي الحالي.', 'invalid_teaching_date_range' => 'نطاق تواريخ التدريس غير صالح', 'missing_completed_enrollment_batch' => 'لا توجد عملية استيراد بيانات مكتملة للفصل الدراسي', 'missing_completed_weekly_schedule_batch' => 'لا توجد عملية استيراد برنامج دوام مكتملة للفصل الدراسي', 'missing_weekly_schedule_slots' => 'لا توجد خانات في البرنامج الأسبوعي',
             'missing_lecturer_identity' => 'لم يتم تحديد المدرّس', 'missing_active_lecturer_login' => 'لا يوجد حساب دخول نشط للمدرّس', 'missing_course_lecturer_role' => 'حساب المدرّس لا يملك دور مدرّس مقرر', 'missing_hall' => 'لم يتم تحديد القاعة', 'invalid_subject_section' => 'المادة أو الشعبة غير صالحة', 'invalid_weekday' => 'يوم الموعد الأسبوعي غير صالح', 'invalid_time_range' => 'وقت البداية أو النهاية غير صالح',
             'persisted_session_overlap' => 'يوجد تعارض مع جلسة محفوظة مسبقًا', 'weekly_schedule_overlap' => 'يوجد تعارض في الجدول الأسبوعي', 'scheduling_conflict' => 'يوجد تعارض في الجدولة', 'source_date_already_generated' => 'تم توليد جلسة من هذا الموعد والتاريخ مسبقًا', 'matching_manual_session_exists' => 'توجد جلسة يدوية مطابقة', 'excluded_from_weekly_schedule' => 'الموعد مستبعد من البرنامج الأسبوعي', 'unexpected_item_failure' => 'تعذر إنشاء الجلسة', 'unknown' => 'حالة تحتاج إلى مراجعة',
         ],

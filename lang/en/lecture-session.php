@@ -175,12 +175,18 @@ return [
         'issues' => [
             'title' => 'Issues requiring attention', 'none' => 'All core requirements are complete.', 'counted' => ':count slot(s): :reason', 'not_ready_unique' => 'Slots not ready for generation: :count', 'missing_lecturer' => ':count slot(s) have no assigned lecturer', 'missing_hall' => ':count slot(s) have no assigned hall', 'breakdown' => 'Lecturer only: :lecturer_only; hall only: :hall_only; both: :both', 'unique_note' => 'One slot can have more than one issue, so the sum of reasons does not represent the number of slots not ready for generation.', 'manage' => 'Resolve issues (:count)',
         ],
+        'issue_groups' => [
+            'term_configuration' => 'Academic term setup', 'schedule_data' => 'Weekly schedule data', 'accounts' => 'Lecturer accounts and permissions',
+        ],
+        'actions' => [
+            'configure_teaching_dates' => 'Set teaching dates', 'resolve_schedule_issues' => 'Resolve schedule issues', 'prepare_lecturer_accounts' => 'Prepare lecturer accounts',
+        ],
         'details' => ['title' => 'Show verification details'],
         'readiness' => [
             'valid_subject_sections' => 'Slot linked to a valid subject and section', 'with_lecturer' => 'Slot linked to a lecturer', 'without_lecturer' => 'Slot without a lecturer', 'with_valid_account_role' => 'Slot linked to a lecturer with a valid account and role', 'with_hall' => 'Slot linked to a hall', 'without_hall' => 'Slot without a hall', 'ready' => 'Slot meeting core requirements', 'not_ready' => 'Slot not ready for generation',
         ],
         'reasons' => [
-            'missing_teaching_dates' => 'Teaching dates have not been set', 'invalid_teaching_date_range' => 'The teaching date range is invalid', 'missing_completed_enrollment_batch' => 'No completed enrollment import exists for the academic term', 'missing_completed_weekly_schedule_batch' => 'No completed weekly schedule import exists for the academic term', 'missing_weekly_schedule_slots' => 'No weekly schedule slots exist',
+            'missing_teaching_dates' => 'The current academic term teaching start and end dates have not been set.', 'invalid_teaching_date_range' => 'The teaching date range is invalid', 'missing_completed_enrollment_batch' => 'No completed enrollment import exists for the academic term', 'missing_completed_weekly_schedule_batch' => 'No completed weekly schedule import exists for the academic term', 'missing_weekly_schedule_slots' => 'No weekly schedule slots exist',
             'missing_lecturer_identity' => 'No lecturer has been assigned', 'missing_active_lecturer_login' => 'The lecturer has no active login account', 'missing_course_lecturer_role' => 'The lecturer account is missing the course lecturer role', 'missing_hall' => 'No hall has been assigned', 'invalid_subject_section' => 'The subject or section is invalid', 'invalid_weekday' => 'The weekly slot weekday is invalid', 'invalid_time_range' => 'The start or end time is invalid',
             'persisted_session_overlap' => 'There is an overlap with an existing session', 'weekly_schedule_overlap' => 'There is an overlap in the weekly schedule', 'scheduling_conflict' => 'There is a scheduling conflict', 'source_date_already_generated' => 'A session has already been generated for this slot and date', 'matching_manual_session_exists' => 'A matching manual session already exists', 'excluded_from_weekly_schedule' => 'The slot is excluded from the weekly schedule', 'unexpected_item_failure' => 'The session could not be created', 'unknown' => 'A case requires review',
         ],

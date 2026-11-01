@@ -255,8 +255,62 @@ it('reports structural readiness even when teaching dates are missing', function
         ->and($preview['ready_for_partial_generation'])->toBeFalse()
         ->and($preview['prerequisite_errors'])->toContain('missing_teaching_dates')
         ->and($preview['source_slot_count'])->toBe(1)
+        ->and($preview['blocked_slot_count'])->toBe(0)
+        ->and($preview['blocked_slots'])->toBe([])
         ->and($preview['structural_readiness']['total_weekly_slots'])->toBe(1)
         ->and($preview['structural_readiness']['ready_slots'])->toBe(1);
+
+    $issues = app(WeeklyScheduleIssueService::class)->forTerm($fixture['term'], $fixture['scheduleBatch']->id);
+
+    expect($issues['ready_slots'])->toBe(1)
+        ->and($issues['blocked_unique_count'])->toBe(0);
+});
+
+it('makes structurally valid slots generatable after teaching dates are configured', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $fixture['term']->update([
+        'teaching_start_date' => null,
+        'teaching_end_date' => null,
+    ]);
+
+    $missingDatesPreview = app(LectureSessionGenerationService::class)
+        ->preview($fixture['term'], $fixture['scheduleBatch']->id);
+
+    $fixture['term']->update([
+        'teaching_start_date' => '2026-09-07',
+        'teaching_end_date' => '2026-09-21',
+    ]);
+
+    $configuredPreview = app(LectureSessionGenerationService::class)
+        ->preview($fixture['term'], $fixture['scheduleBatch']->id);
+
+    expect($missingDatesPreview['prerequisite_errors'])->toContain('missing_teaching_dates')
+        ->and($missingDatesPreview['to_create_count'])->toBe(0)
+        ->and($configuredPreview['prerequisite_errors'])->not->toContain('missing_teaching_dates')
+        ->and($configuredPreview['to_create_count'])->toBeGreaterThan(0)
+        ->and($configuredPreview['ready_for_partial_generation'])->toBeTrue();
+});
+
+it('keeps an explicit schedule batch scoped to its own academic term', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $otherTerm = AcademicTerm::query()->create([
+        'display_name' => 'Spring 2027',
+        'canonical_name' => 'spring-2027',
+        'teaching_start_date' => '2027-02-01',
+        'teaching_end_date' => '2027-02-28',
+    ]);
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $otherTerm->id);
+
+    $preview = app(LectureSessionGenerationService::class)
+        ->previewForTerm($fixture['term'], $fixture['scheduleBatch']->id);
+    $issues = app(WeeklyScheduleIssueService::class)
+        ->result($fixture['term'], $fixture['scheduleBatch']->id);
+
+    expect($preview['academic_term_id'])->toBe($fixture['term']->id)
+        ->and($preview['schedule_import_batch_id'])->toBe($fixture['scheduleBatch']->id)
+        ->and($preview['source_slot_count'])->toBe(1)
+        ->and($issues->academicTermId)->toBe($fixture['term']->id)
+        ->and($issues->importBatchId)->toBe($fixture['scheduleBatch']->id);
 });
 
 it('treats weekly schedule weekday seven as Sunday', function (): void {

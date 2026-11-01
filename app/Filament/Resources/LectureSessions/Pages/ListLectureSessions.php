@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\LectureSessions\Pages;
 
 use App\Filament\Pages\AcademicTermManagement;
+use App\Filament\Pages\LecturerAccountPreparation;
 use App\Filament\Pages\ScheduleImportIssues;
 use App\Filament\Resources\LectureSessions\LectureSessionResource;
 use App\Models\AcademicTerm;
@@ -224,7 +225,11 @@ class ListLectureSessions extends ListRecords
 
                     try {
                         $generator = app(LectureSessionGenerationService::class);
-                        $result = $generator->generateReadySessions($term, auth()->user());
+                        $result = $generator->generateReadySessions(
+                            $term,
+                            auth()->user(),
+                            static::currentWeeklyScheduleBatch()?->id,
+                        );
 
                         Notification::make()
                             ->title('تم توليد جلسات المحاضرات بنجاح.')
@@ -840,13 +845,17 @@ class ListLectureSessions extends ListRecords
             ])->render());
         }
 
-        $issueResult = app(WeeklyScheduleIssueService::class)->result($term);
+        $batch = static::currentWeeklyScheduleBatch();
+        $issueResult = app(WeeklyScheduleIssueService::class)->result($term, $batch?->id);
         $preview = $issueResult->preview;
 
         return new HtmlString(view('filament.components.lecture-session-generation-preview', [
             'preview' => $preview,
             'issues' => static::weeklyGenerationIssues($preview),
+            'issueGroups' => static::weeklyGenerationIssueGroups($preview),
             'issuesUrl' => static::weeklyScheduleIssuesUrl($term, $issueResult->importBatchId),
+            'termSetupUrl' => AcademicTermManagement::getUrl(['term' => $term->id]),
+            'accountPreparationUrl' => LecturerAccountPreparation::getUrl(['term' => $term->id]),
         ])->render());
     }
 
@@ -858,7 +867,9 @@ class ListLectureSessions extends ListRecords
             return 0;
         }
 
-        return (int) app(WeeklyScheduleIssueService::class)->result($term)->preview['to_create_count'];
+        return (int) app(WeeklyScheduleIssueService::class)
+            ->result($term, static::currentWeeklyScheduleBatch()?->id)
+            ->preview['to_create_count'];
     }
 
     /** @return array<int, array{code: string, label: string, count: int}> */
@@ -888,6 +899,45 @@ class ListLectureSessions extends ListRecords
         return $label === $key
             ? __('lecture-session.lecture_generation.reasons.unknown')
             : $label;
+    }
+
+    /** @return array<string, array{label: string, issues: array<int, array{code: string, label: string, count: int}>}> */
+    protected static function weeklyGenerationIssueGroups(array $preview): array
+    {
+        $termConfigurationReasons = ['missing_teaching_dates', 'invalid_teaching_date_range'];
+        $accountReasons = ['missing_active_lecturer_login', 'missing_course_lecturer_role'];
+        $reasonCounts = collect($preview['prerequisite_errors'] ?? [])
+            ->merge(collect($preview['blocked_slots'] ?? [])->flatMap(fn (array $slot): array => $slot['reasons'] ?? []))
+            ->merge(collect($preview['conflicts'] ?? [])->pluck('reason')->filter())
+            ->countBy();
+
+        $groups = [
+            'term_configuration' => [
+                'label' => __('lecture-session.lecture_generation.issue_groups.term_configuration'),
+                'issues' => [],
+            ],
+            'schedule_data' => [
+                'label' => __('lecture-session.lecture_generation.issue_groups.schedule_data'),
+                'issues' => [],
+            ],
+            'accounts' => [
+                'label' => __('lecture-session.lecture_generation.issue_groups.accounts'),
+                'issues' => [],
+            ],
+        ];
+
+        foreach ($reasonCounts as $reason => $count) {
+            $group = in_array($reason, $termConfigurationReasons, true)
+                ? 'term_configuration'
+                : (in_array($reason, $accountReasons, true) ? 'accounts' : 'schedule_data');
+            $groups[$group]['issues'][] = [
+                'code' => (string) $reason,
+                'label' => static::weeklyGenerationReasonLabel((string) $reason),
+                'count' => (int) $count,
+            ];
+        }
+
+        return array_filter($groups, fn (array $group): bool => $group['issues'] !== []);
     }
 
     protected static function weeklyScheduleIssuesUrl(AcademicTerm $term, ?int $importBatchId): string

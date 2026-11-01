@@ -1,5 +1,14 @@
 <?php
 
+use App\Filament\Resources\LectureSessions\Pages\ListLectureSessions;
+
+function generationPreviewIssueGroups(array $preview): array
+{
+    $method = new ReflectionMethod(ListLectureSessions::class, 'weeklyGenerationIssueGroups');
+
+    return $method->invoke(null, $preview);
+}
+
 it('renders the generation preview in separate Arabic sections without internal reason keys', function (): void {
     app()->setLocale('ar');
 
@@ -66,6 +75,128 @@ it('renders the generation preview in separate Arabic sections without internal 
         ->toContain('heroicon-o-x-circle')
         ->toContain('grid gap-3');
 });
+
+it('routes term schedule and account generation issues to their dedicated actions', function (): void {
+    app()->setLocale('ar');
+
+    $preview = [
+        'source_slot_count' => 2,
+        'candidate_session_count' => 0,
+        'to_create_count' => 0,
+        'already_existing_count' => 0,
+        'manual_existing_count' => 0,
+        'blocked_slot_count' => 2,
+        'blocked_unique_count' => 2,
+        'blocked_readiness_counts' => [
+            'missing_lecturer_count' => 1,
+            'missing_hall_count' => 1,
+            'missing_lecturer_only' => 1,
+            'missing_hall_only' => 1,
+            'missing_both' => 0,
+        ],
+        'conflict_count' => 0,
+        'prerequisite_errors' => ['missing_teaching_dates'],
+        'blocked_slots' => [
+            ['reasons' => ['missing_lecturer_identity', 'missing_active_lecturer_login']],
+            ['reasons' => ['missing_hall']],
+        ],
+        'conflicts' => [],
+        'structural_readiness' => [],
+    ];
+    $groups = generationPreviewIssueGroups($preview);
+
+    $html = view('filament.components.lecture-session-generation-preview', [
+        'preview' => $preview,
+        'issues' => [],
+        'issueGroups' => $groups,
+        'termSetupUrl' => '/admin/current-academic-term',
+        'issuesUrl' => '/admin/schedule-import-issues?batch=7',
+        'accountPreparationUrl' => '/admin/lecturer-account-preparation',
+    ])->render();
+
+    expect($groups)->toHaveKeys(['term_configuration', 'schedule_data', 'accounts'])
+        ->and($html)->toContain('لم يتم تحديد تاريخ بداية ونهاية التدريس للفصل الدراسي الحالي.')
+        ->toContain('تحديد تواريخ التدريس')
+        ->toContain('/admin/current-academic-term')
+        ->toContain('معالجة مشكلات البرنامج')
+        ->toContain('/admin/schedule-import-issues?batch=7')
+        ->toContain('تهيئة حسابات المدرسين')
+        ->toContain('/admin/lecturer-account-preparation');
+});
+
+it('does not route a teaching-date-only issue to schedule import issues', function (): void {
+    app()->setLocale('ar');
+
+    $preview = [
+        'source_slot_count' => 1,
+        'candidate_session_count' => 0,
+        'to_create_count' => 0,
+        'already_existing_count' => 0,
+        'manual_existing_count' => 0,
+        'blocked_slot_count' => 0,
+        'blocked_unique_count' => 0,
+        'blocked_readiness_counts' => [],
+        'conflict_count' => 0,
+        'prerequisite_errors' => ['missing_teaching_dates'],
+        'blocked_slots' => [],
+        'conflicts' => [],
+        'structural_readiness' => [],
+    ];
+    $groups = generationPreviewIssueGroups($preview);
+
+    $html = view('filament.components.lecture-session-generation-preview', [
+        'preview' => $preview,
+        'issues' => [],
+        'issueGroups' => $groups,
+        'termSetupUrl' => '/admin/current-academic-term',
+        'issuesUrl' => '/admin/schedule-import-issues?batch=7',
+        'accountPreparationUrl' => '/admin/lecturer-account-preparation',
+    ])->render();
+
+    expect($groups)->toHaveKey('term_configuration')
+        ->not->toHaveKey('schedule_data')
+        ->and($html)->toContain('تحديد تواريخ التدريس')
+        ->not->toContain('معالجة مشكلات البرنامج')
+        ->not->toContain('/admin/schedule-import-issues?batch=7');
+});
+
+it('routes an actual schedule data problem to schedule import issues', function (string $reason): void {
+    app()->setLocale('ar');
+
+    $preview = [
+        'source_slot_count' => 1,
+        'candidate_session_count' => 0,
+        'to_create_count' => 0,
+        'already_existing_count' => 0,
+        'manual_existing_count' => 0,
+        'blocked_slot_count' => 1,
+        'blocked_unique_count' => 1,
+        'blocked_readiness_counts' => [],
+        'conflict_count' => 0,
+        'prerequisite_errors' => [],
+        'blocked_slots' => [['reasons' => [$reason]]],
+        'conflicts' => [],
+        'structural_readiness' => [],
+    ];
+    $groups = generationPreviewIssueGroups($preview);
+
+    $html = view('filament.components.lecture-session-generation-preview', [
+        'preview' => $preview,
+        'issues' => [],
+        'issueGroups' => $groups,
+        'termSetupUrl' => '/admin/current-academic-term',
+        'issuesUrl' => '/admin/schedule-import-issues?batch=7',
+        'accountPreparationUrl' => '/admin/lecturer-account-preparation',
+    ])->render();
+
+    expect($groups)->toHaveKey('schedule_data')
+        ->and($html)->toContain('معالجة مشكلات البرنامج')
+        ->toContain('/admin/schedule-import-issues?batch=7')
+        ->not->toContain('تحديد تواريخ التدريس');
+})->with([
+    'missing lecturer' => 'missing_lecturer_identity',
+    'missing hall' => 'missing_hall',
+]);
 
 it('defines every generation preview reason in Arabic and English', function (): void {
     $reasons = [
