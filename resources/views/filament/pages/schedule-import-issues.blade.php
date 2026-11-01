@@ -12,7 +12,12 @@
         <x-filament::section heading="معالجة مشكلات الجدول الأسبوعي" description="تستند هذه الصفحة إلى معاينة التوليد نفسها. عداداتها التالية تخص كامل الفصل والدفعة المحددين، ولا تتغير عند تطبيق الفلاتر." icon="heroicon-o-wrench-screwdriver">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="space-y-1 text-sm"><p><strong>الفصل الدراسي:</strong> {{ $term?->display_name }}</p>@if($batch)<p><strong>دفعة استيراد البرنامج:</strong> {{ $batch->source_filename ?: $batch->completed_at?->format('d/m/Y') }}</p>@endif</div>
-                <x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\LectureSessions\LectureSessionResource::getUrl('index')">العودة إلى معاينة توليد الجلسات</x-filament::button>
+                <div class="flex flex-wrap gap-2">
+                    @if($this->canAutoFillAssignments() && $this->importBatchId)
+                        <x-filament::button icon="heroicon-o-sparkles" wire:click="openAutoFillConfirmation">{{ __('schedule-import-issues.auto_fill.action') }}</x-filament::button>
+                    @endif
+                    <x-filament::button tag="a" color="gray" :href="\App\Filament\Resources\LectureSessions\LectureSessionResource::getUrl('index')">العودة إلى معاينة توليد الجلسات</x-filament::button>
+                </div>
             </div>
             <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 @foreach ([['الخانات التي تحتاج معالجة', $summary['unique_affected_slots'], 'danger'], ['مشكلة المدرّس', $summary['issue_counts_by_key']['missing_lecturer_identity'] ?? 0, 'warning'], ['مشكلة القاعة', $summary['issue_counts_by_key']['missing_hall'] ?? 0, 'warning'], ['تعارضات الجدول', $summary['issue_counts_by_key']['weekly_schedule_overlap'] ?? 0, 'danger'], ['مشكلات حساب أو دور المدرّس', ($summary['issue_counts_by_key']['missing_active_lecturer_login'] ?? 0) + ($summary['issue_counts_by_key']['missing_course_lecturer_role'] ?? 0), 'gray']] as [$label, $count, $color])
@@ -169,6 +174,36 @@
                             <span wire:loading wire:target="applyResolution">جارٍ الحفظ وإعادة التحقق...</span>
                         </x-filament::button>
                 @elseif($resolutionType === 'time')<p class="mt-2 text-sm text-gray-600">الخانة الحالية فقط هي التي ستتغير. لا تُحذف أو تُعدّل الخانة المتعارضة تلقائيًا.</p>@if($selectedConflicts)<ul class="mt-3 list-inside list-disc rounded-lg bg-amber-50 p-3 text-sm text-amber-900">@foreach($selectedConflicts as $conflict)<li>الخانة المتعارضة: {{ $conflict['conflicting_source_slot_id'] ?? 'جلسة منشأة مسبقًا' }} — {{ $this->reasonLabel($conflict['reason'] ?? '') }}</li>@endforeach</ul>@endif<div class="mt-4 grid grid-cols-2 gap-3"><input type="time" wire:model="selectedStartTime" class="fi-input rounded-lg"><input type="time" wire:model="selectedEndTime" class="fi-input rounded-lg"></div><div class="mt-5 flex gap-2"><x-filament::button wire:click="applyTimeResolution">حفظ الوقت وإعادة التحقق</x-filament::button>@else<div class="mt-2 rounded-lg border border-warning-200 bg-warning-50 p-3 text-sm leading-6 text-warning-900 dark:border-warning-800 dark:bg-warning-950 dark:text-warning-100">{{ __('schedule-import-issues.exclusion.description') }}</div><label class="mt-4 block text-sm font-medium">{{ __('schedule-import-issues.exclusion.reason_label') }}</label><select wire:model.live="exclusionReasonChoice" class="fi-input mt-2 w-full rounded-lg"><option value="">{{ __('schedule-import-issues.exclusion.reason_placeholder') }}</option>@foreach(__('schedule-import-issues.exclusion.reasons') as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select>@if($exclusionReasonChoice === 'other')<textarea wire:model="exclusionReason" class="fi-input mt-3 w-full rounded-lg" rows="3" placeholder="{{ __('schedule-import-issues.exclusion.other_placeholder') }}"></textarea>@endif<div class="mt-5 flex gap-2"><x-filament::button color="danger" wire:click="applyExclusion" :disabled="blank($exclusionReasonChoice)">{{ __('schedule-import-issues.exclusion.confirm') }}</x-filament::button>@endif <x-filament::button color="gray" wire:click="closeResolution">إلغاء</x-filament::button></div></div></div>
+        @endif
+
+        @if($showAutoFillConfirmation)
+            <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+                <div class="w-full max-w-lg rounded-xl bg-white p-6 dark:bg-gray-900">
+                    <h2 class="text-lg font-bold">{{ __('schedule-import-issues.auto_fill.title') }}</h2>
+                    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                        @foreach([
+                            'theoretical_lecturer_count' => 'theoretical_lecturer',
+                            'practical_lecturer_count' => 'practical_lecturer',
+                            'hall_count' => 'hall',
+                            'affected_slot_count' => 'affected_slots',
+                            'missing_both_count' => 'missing_both',
+                        ] as $countKey => $labelKey)
+                            <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                                <p class="text-sm text-gray-500">{{ __('schedule-import-issues.auto_fill.'.$labelKey) }}</p>
+                                <p class="mt-1 text-xl font-bold">{{ $autoFillPreview[$countKey] ?? 0 }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                    <p class="mt-4 rounded-lg bg-warning-50 p-3 text-sm leading-6 text-warning-900 dark:bg-warning-950/30 dark:text-warning-100">{{ __('schedule-import-issues.auto_fill.confirmation') }}</p>
+                    <div class="mt-5 flex gap-2">
+                        <x-filament::button wire:click="applyAutoFillAssignments" wire:loading.attr="disabled" wire:target="applyAutoFillAssignments">
+                            <span wire:loading.remove wire:target="applyAutoFillAssignments">{{ __('schedule-import-issues.auto_fill.confirm') }}</span>
+                            <span wire:loading wire:target="applyAutoFillAssignments">{{ __('schedule-import-issues.auto_fill.processing') }}</span>
+                        </x-filament::button>
+                        <x-filament::button color="gray" wire:click="closeAutoFillConfirmation">{{ __('schedule-import-issues.auto_fill.cancel') }}</x-filament::button>
+                    </div>
+                </div>
+            </div>
         @endif
     </div>
 </x-filament-panels::page>

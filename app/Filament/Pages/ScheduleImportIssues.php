@@ -8,6 +8,7 @@ use App\Models\AcademicTerm;
 use App\Models\ImportBatch;
 use App\Models\User;
 use App\Services\BlockedWeeklySlotReconciliationService;
+use App\Services\SchedulePlaceholderAssignmentService;
 use App\Services\WeeklyScheduleIssueResult;
 use App\Services\WeeklyScheduleIssueService;
 use App\Support\AcademicTermContext;
@@ -76,6 +77,11 @@ class ScheduleImportIssues extends Page
 
     /** Bumps after a write so the next render obtains a fresh server-side page. */
     public int $issuesVersion = 0;
+
+    public bool $showAutoFillConfirmation = false;
+
+    /** @var array<string, int> */
+    public array $autoFillPreview = [];
 
     public ?string $selectedStartTime = null;
 
@@ -217,6 +223,52 @@ class ScheduleImportIssues extends Page
         $label = __($key);
 
         return $label === $key ? __('lecture-session.lecture_generation.reasons.unknown') : $label;
+    }
+
+    public function canAutoFillAssignments(): bool
+    {
+        $actor = Filament::auth()->user();
+
+        return $actor instanceof User
+            && Gate::forUser($actor)->allows(\App\Policies\ScheduleImportRowPolicy::CHANGE_RECONCILED_LECTURER)
+            && Gate::forUser($actor)->allows(\App\Policies\ScheduleImportRowPolicy::CHANGE_RECONCILED_HALL);
+    }
+
+    public function openAutoFillConfirmation(): void
+    {
+        abort_unless($this->canAutoFillAssignments(), 403);
+
+        $term = AcademicTerm::query()->findOrFail($this->academicTermId);
+        $batch = ImportBatch::query()->findOrFail($this->importBatchId);
+        $this->autoFillPreview = app(SchedulePlaceholderAssignmentService::class)->preview($term, $batch);
+        $this->showAutoFillConfirmation = true;
+    }
+
+    public function closeAutoFillConfirmation(): void
+    {
+        $this->showAutoFillConfirmation = false;
+        $this->autoFillPreview = [];
+    }
+
+    public function applyAutoFillAssignments(): void
+    {
+        abort_unless($this->canAutoFillAssignments(), 403);
+        $actor = Filament::auth()->user();
+        abort_unless($actor instanceof User, 403);
+
+        $term = AcademicTerm::query()->findOrFail($this->academicTermId);
+        $batch = ImportBatch::query()->findOrFail($this->importBatchId);
+        $result = app(SchedulePlaceholderAssignmentService::class)->apply($term, $batch, $actor);
+
+        $this->closeAutoFillConfirmation();
+        $this->issuesVersion++;
+        $this->page = 1;
+
+        Notification::make()
+            ->title(__('schedule-import-issues.auto_fill.completed_title'))
+            ->body(__('schedule-import-issues.auto_fill.completed_body', ['count' => $result['affected_slot_count']]))
+            ->success()
+            ->send();
     }
 
     public function openResolution(int $slotId, string $type): void

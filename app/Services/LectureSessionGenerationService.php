@@ -490,6 +490,10 @@ class LectureSessionGenerationService
         $validSubjectAndSection = $slots->filter(fn (SubjectSectionScheduleSlot $slot): bool => $this->hasValidSubjectSection($slot));
         $withLecturerIdentity = $slots->filter(fn (SubjectSectionScheduleSlot $slot): bool => filled($slot->lecturer_id) && filled($slot->lecturer));
         $withValidLinkedLecturerAccountAndRole = $slots->filter(function (SubjectSectionScheduleSlot $slot): bool {
+            if ($slot->lecturer?->isPlaceholder()) {
+                return true;
+            }
+
             $user = $slot->lecturer?->user;
 
             return $user instanceof User
@@ -539,7 +543,7 @@ class LectureSessionGenerationService
 
         if (! $slot->lecturer) {
             $errors[] = 'missing_lecturer_identity';
-        } else {
+        } elseif (! $slot->lecturer->isPlaceholder()) {
             $lecturerLogin = $slot->lecturer->user;
 
             if (! $slot->lecturer->user_id || ! $lecturerLogin instanceof User || $lecturerLogin->trashed() || ! ($lecturerLogin->is_active ?? true)) {
@@ -588,7 +592,9 @@ class LectureSessionGenerationService
             'subject_section_id' => $slot->subject_section_id,
             'lecturer_identity_id' => $slot->lecturer_id,
             'lecturer_user_id' => $slot->lecturer->user_id,
+            'lecturer_is_placeholder' => $slot->lecturer->isPlaceholder(),
             'hall_id' => $slot->hall_id,
+            'hall_is_placeholder' => $slot->hall->isPlaceholder(),
             'session_date' => $sessionDate,
             'weekday' => $slot->weekday,
             'start_time' => (string) $slot->start_time,
@@ -723,8 +729,8 @@ class LectureSessionGenerationService
 
             if (
                 (int) $session->subject_section_id === (int) $candidate['subject_section_id']
-                || (int) $session->lecturer_id === (int) $candidate['lecturer_user_id']
-                || (int) $session->hall_id === (int) $candidate['hall_id']
+                || (! $candidate['lecturer_is_placeholder'] && (int) $session->lecturer_id === (int) $candidate['lecturer_user_id'])
+                || (! $candidate['hall_is_placeholder'] && (int) $session->hall_id === (int) $candidate['hall_id'])
             ) {
                 return [
                     'status' => self::STATUS_CONFLICT,
@@ -768,10 +774,15 @@ class LectureSessionGenerationService
             ->whereTime('start_time', '<', $candidate['end_time'])
             ->whereTime('end_time', '>', $candidate['start_time'])
             ->where(function (Builder $query) use ($candidate): void {
-                $query
-                    ->where('subject_section_id', $candidate['subject_section_id'])
-                    ->orWhere('lecturer_id', $candidate['lecturer_user_id'])
-                    ->orWhere('hall_id', $candidate['hall_id']);
+                $query->where('subject_section_id', $candidate['subject_section_id']);
+
+                if (! $candidate['lecturer_is_placeholder']) {
+                    $query->orWhere('lecturer_id', $candidate['lecturer_user_id']);
+                }
+
+                if (! $candidate['hall_is_placeholder']) {
+                    $query->orWhere('hall_id', $candidate['hall_id']);
+                }
             })
             ->orderBy('start_time')
             ->first();
@@ -795,8 +806,12 @@ class LectureSessionGenerationService
 
             if (
                 (int) $plannedCandidate['subject_section_id'] === (int) $candidate['subject_section_id']
-                || (int) $plannedCandidate['lecturer_user_id'] === (int) $candidate['lecturer_user_id']
-                || (int) $plannedCandidate['hall_id'] === (int) $candidate['hall_id']
+                || (! $candidate['lecturer_is_placeholder']
+                    && ! $plannedCandidate['lecturer_is_placeholder']
+                    && (int) $plannedCandidate['lecturer_user_id'] === (int) $candidate['lecturer_user_id'])
+                || (! $candidate['hall_is_placeholder']
+                    && ! $plannedCandidate['hall_is_placeholder']
+                    && (int) $plannedCandidate['hall_id'] === (int) $candidate['hall_id'])
             ) {
                 return $plannedCandidate;
             }

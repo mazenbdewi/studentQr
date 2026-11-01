@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Hall;
+use App\Models\Lecturer;
 use App\Models\ScheduleImportRow;
 use App\Models\SubjectSectionScheduleSlot;
 use Illuminate\Database\Eloquent\Builder;
@@ -36,15 +38,25 @@ class WeeklyScheduleSlotConflictDetector
         $conflicts = collect();
         $this->append($conflicts, (clone $base)->where('subject_section_id', $candidate['subject_section_id'])->get(), 'section');
 
-        if ($candidate['lecturer_id'] ?? null) {
+        if (($candidate['lecturer_id'] ?? null) && ! $this->lecturerIsPlaceholder((int) $candidate['lecturer_id'])) {
             $this->append($conflicts, (clone $base)->where('lecturer_id', $candidate['lecturer_id'])->get(), 'lecturer');
         }
 
-        if ($candidate['hall_id'] ?? null) {
+        if (($candidate['hall_id'] ?? null) && ! $this->hallIsPlaceholder((int) $candidate['hall_id'])) {
             $this->append($conflicts, (clone $base)->where('hall_id', $candidate['hall_id'])->get(), 'hall');
         }
 
         return $conflicts->unique(fn (array $item): string => $item['type'].'|'.$item['slot_id'])->values()->all();
+    }
+
+    private function lecturerIsPlaceholder(int $lecturerId): bool
+    {
+        return Lecturer::query()->find($lecturerId)?->isPlaceholder() ?? false;
+    }
+
+    private function hallIsPlaceholder(int $hallId): bool
+    {
+        return Hall::withTrashed()->find($hallId)?->isPlaceholder() ?? false;
     }
 
     public function message(array $conflicts): string
