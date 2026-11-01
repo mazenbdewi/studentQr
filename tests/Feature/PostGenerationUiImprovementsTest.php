@@ -19,6 +19,7 @@ use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use App\Services\BlockedWeeklySlotReportService;
 use App\Services\LectureSessionGenerationService;
+use App\Services\SchedulePlaceholderService;
 use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -195,10 +196,93 @@ it('displays the linked lecturer user name and filters by lecturer user id', fun
 
 it('uses the lecture session lecturer relation to users, not lecturer identities', function (): void {
     $relation = (new LectureSession)->lecturer();
+    $identityRelation = (new LectureSession)->lecturerIdentity();
 
     expect($relation)->toBeInstanceOf(BelongsTo::class)
         ->and($relation->getRelated())->toBeInstanceOf(User::class)
-        ->and($relation->getForeignKeyName())->toBe('lecturer_id');
+        ->and($relation->getForeignKeyName())->toBe('lecturer_id')
+        ->and($identityRelation)->toBeInstanceOf(BelongsTo::class)
+        ->and($identityRelation->getRelated())->toBeInstanceOf(Lecturer::class)
+        ->and($identityRelation->getForeignKeyName())->toBe('lecturer_identity_id');
+});
+
+it('shows assignment placeholders and a separate needs-assignment indicator only for affected sessions', function (): void {
+    $admin = postGenerationAdmin();
+    $lecturer = postGenerationLecturer('مدرس مكتمل');
+    $term = postGenerationTerm();
+    $subject = postGenerationSubject($lecturer);
+    $section = postGenerationSection($term, $subject, $lecturer);
+    $realHall = postGenerationHall('ASSIGN-H1');
+    $placeholderLecturer = app(SchedulePlaceholderService::class)->theoreticalLecturer();
+    $placeholderHall = app(SchedulePlaceholderService::class)->unassignedHall();
+    $batch = postGenerationBatch($term);
+    $slot = SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $batch->id,
+        'academic_term_id' => $term->id,
+        'subject_id' => $subject->id,
+        'subject_section_id' => $section->id,
+        'lecturer_id' => $placeholderLecturer->id,
+        'hall_id' => $placeholderHall->id,
+        'weekday' => Carbon::THURSDAY,
+        'start_time' => '11:00:00',
+        'end_time' => '12:00:00',
+    ]);
+    $placeholderSession = LectureSession::query()->create([
+        'academic_term_id' => $term->id,
+        'subject_id' => $subject->id,
+        'subject_section_id' => $section->id,
+        'subject_section_schedule_slot_id' => $slot->id,
+        'lecturer_id' => null,
+        'lecturer_identity_id' => $placeholderLecturer->id,
+        'hall_id' => $placeholderHall->id,
+        'session_date' => '2026-07-23',
+        'start_time' => '11:00:00',
+        'end_time' => '12:00:00',
+        'status' => 'scheduled',
+        'attendance_mode' => 'qr_otp',
+        'qr_refresh_rate' => 120,
+    ]);
+    $completeSession = postGenerationSession($lecturer, [
+        'term' => $term,
+        'subject' => $subject,
+        'section' => $section,
+        'hall' => $realHall,
+        'session_date' => '2026-07-23',
+        'start_time' => '13:00:00',
+        'end_time' => '14:00:00',
+    ]);
+
+    $placeholderSession->load(['lecturerIdentity', 'hall']);
+    $completeSession->load(['lecturerIdentity', 'lecturer', 'hall']);
+
+    expect($placeholderSession->displayLecturerName())->toBe('مدرس نظري غير محدد')
+        ->and($placeholderSession->displayHallName())->toBe('قاعة غير محددة')
+        ->and($placeholderSession->assignmentReadinessKey())->toBe('both_unassigned')
+        ->and($placeholderSession->needsAssignment())->toBeTrue()
+        ->and($completeSession->needsAssignment())->toBeFalse();
+
+    Livewire\Livewire::actingAs($admin)
+        ->test(ListLectureSessions::class)
+        ->set('activeTab', 'upcoming')
+        ->assertSee('مدرس نظري غير محدد')
+        ->assertSee('قاعة غير محددة')
+        ->assertSee(__('lecture-session.assignment_status.both_unassigned'))
+        ->filterTable('needs_assignment', true)
+        ->assertCanSeeTableRecords([$placeholderSession])
+        ->assertCanNotSeeTableRecords([$completeSession]);
+
+    Livewire\Livewire::actingAs($lecturer)
+        ->test(ListLectureSessions::class)
+        ->set('activeTab', 'upcoming')
+        ->assertCanSeeTableRecords([$completeSession])
+        ->assertCanNotSeeTableRecords([$placeholderSession]);
+
+    app()->setLocale('en');
+    $placeholderSession->unsetRelation('lecturerIdentity')->unsetRelation('hall');
+
+    expect($placeholderSession->displayLecturerName())->toBe('Unassigned Theoretical Lecturer')
+        ->and($placeholderSession->displayHallName())->toBe('Unassigned Hall')
+        ->and(__('lecture-session.assignment_status.both_unassigned'))->toBe('Needs lecturer and hall assignment');
 });
 
 it('loads actual attendance counts as a distinct aggregate without per-row queries', function (): void {

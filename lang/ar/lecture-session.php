@@ -171,6 +171,15 @@ return [
     'weekly_generation_conflict_detected' => 'تم اكتشاف تعارض جديد أثناء التوليد. لم يتم إنشاء أي جلسات.',
     'weekly_generation_completed_title' => 'تم توليد الجلسات المؤرخة',
     'weekly_generation_completed_body' => 'تم إنشاء :created من أصل :total جلسة متوقعة. تم تخطي :skipped جلسة موجودة أو غير آمنة.',
+    'assignment_readiness' => 'اكتمال التعيين',
+    'needs_assignment' => 'تحتاج إلى تعيين',
+    'needs_assignment_only' => 'الجلسات التي تحتاج إلى تعيين فقط',
+    'complete_assignment_only' => 'الجلسات مكتملة التعيين فقط',
+    'assignment_status' => [
+        'unassigned_lecturer' => 'تحتاج إلى تعيين مدرس',
+        'unassigned_hall' => 'تحتاج إلى تعيين قاعة',
+        'both_unassigned' => 'تحتاج إلى تعيين مدرس وقاعة',
+    ],
     'lecture_generation' => [
         'preview_title' => 'معاينة توليد الجلسات',
         'preview_description' => 'عاين الجلسات المؤرخة التي سيتم توليدها من خانات الجدول الأسبوعي. سيتم إنشاء الجلسات المستوفية للمتطلبات فقط، مع عرض تقرير واضح للحالات المستبعدة.',
@@ -180,6 +189,14 @@ return [
         ],
         'main' => [
             'title' => 'النتيجة الرئيسية', 'can_create' => 'يمكن إنشاء :count جلسة جديدة.', 'already_exists' => 'يوجد :count جلسة منشأة مسبقًا ولن يتم تكرارها.', 'none_ready' => 'لا توجد جلسات جديدة جاهزة للتوليد حاليًا.', 'resolve_issues' => 'يرجى معالجة المشكلات الموضحة أدناه.', 'no_source_slots' => 'لا توجد خانات في الجدول الأسبوعي يمكن استخدامها لتوليد الجلسات.', 'all_already_exists' => 'جميع الجلسات المتوقعة موجودة مسبقًا، ولا توجد جلسات جديدة لإنشائها.',
+        ],
+        'ready_breakdown' => [
+            'title' => 'الخانات الجاهزة حسب حالة التعيين',
+            'complete' => 'مكتملة',
+            'unassigned_lecturer' => 'المدرس غير معيّن',
+            'unassigned_hall' => 'القاعة غير معيّنة',
+            'both_unassigned' => 'المدرس والقاعة غير معيّنين',
+            'total' => 'إجمالي الخانات الجاهزة: :count. تبقى التعيينات البديلة جاهزة للتوليد.',
         ],
         'issues' => [
             'title' => 'المشكلات التي تحتاج إلى معالجة', 'none' => 'جميع المتطلبات الأساسية مكتملة.', 'counted' => ':count خانة: :reason', 'not_ready_unique' => 'الخانات غير الجاهزة للتوليد: :count', 'missing_lecturer' => ':count خانة لم يُحدد لها مدرّس', 'missing_hall' => ':count خانة لم تُحدد لها قاعة', 'breakdown' => 'بدون مدرّس فقط: :lecturer_only، بدون قاعة فقط: :hall_only، بدون مدرّس وبدون قاعة: :both', 'unique_note' => 'قد تحتوي الخانة الواحدة على أكثر من مشكلة، لذلك لا يمثل مجموع الأسباب عدد الخانات غير الجاهزة للتوليد.', 'manage' => 'معالجة المشكلات (:count)',

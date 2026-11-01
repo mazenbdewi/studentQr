@@ -301,14 +301,24 @@ class LectureSessionResource extends Resource
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('lecturer.name')
-                    ->label('المدرس')
+                    ->label(__('lecture-session.lecturer'))
+                    ->getStateUsing(fn (LectureSession $record): ?string => $record->displayLecturerName())
                     ->searchable()
                     ->sortable()
                     ->wrap(),
 
                 Tables\Columns\TextColumn::make('hall.name')
                     ->label(__('lecture-session.hall'))
+                    ->getStateUsing(fn (LectureSession $record): ?string => $record->displayHallName())
                     ->searchable(),
+
+                Tables\Columns\TextColumn::make('assignment_readiness')
+                    ->label(__('lecture-session.assignment_readiness'))
+                    ->getStateUsing(fn (LectureSession $record): ?string => $record->needsAssignment()
+                        ? __('lecture-session.assignment_status.'.$record->assignmentReadinessKey())
+                        : null)
+                    ->badge()
+                    ->color('warning'),
 
                 Tables\Columns\TextColumn::make('session_date')
                     ->label(__('lecture-session.session_date'))
@@ -366,6 +376,21 @@ class LectureSessionResource extends Resource
                         'completed' => __('lecture-session.status_completed'),
                         'cancelled' => __('lecture-session.status_cancelled'),
                     ]),
+
+                Tables\Filters\TernaryFilter::make('needs_assignment')
+                    ->label(__('lecture-session.needs_assignment'))
+                    ->trueLabel(__('lecture-session.needs_assignment_only'))
+                    ->falseLabel(__('lecture-session.complete_assignment_only'))
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query->where(function (Builder $query): void {
+                            $query
+                                ->whereHas('lecturerIdentity', fn (Builder $query): Builder => $query->whereNotNull('placeholder_type'))
+                                ->orWhereHas('hall', fn (Builder $query): Builder => $query->whereNotNull('placeholder_type'));
+                        }),
+                        false: fn (Builder $query): Builder => $query
+                            ->whereDoesntHave('lecturerIdentity', fn (Builder $query): Builder => $query->whereNotNull('placeholder_type'))
+                            ->whereDoesntHave('hall', fn (Builder $query): Builder => $query->whereNotNull('placeholder_type')),
+                    ),
             ])
             ->actions([
                 \Filament\Actions\Action::make('start')
@@ -507,7 +532,7 @@ class LectureSessionResource extends Resource
 
         $query = LectureSession::query()
             ->forCurrentAcademicTerm()
-            ->with(['subject', 'subjectSection', 'lecturer', 'hall'])
+            ->with(['subject', 'subjectSection', 'lecturer', 'lecturerIdentity', 'hall'])
             ->withCount([
                 'attendances as actual_attendance_count' => fn (Builder $query) => $query
                     ->select(DB::raw('count(distinct student_id)')),

@@ -7,12 +7,14 @@ use App\Models\Hall;
 use App\Models\ImportBatch;
 use App\Models\Lecturer;
 use App\Models\LectureSession;
+use App\Models\LectureSessionGenerationRun;
 use App\Models\ScheduleImportRow;
 use App\Models\Subject;
 use App\Models\SubjectSection;
 use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use App\Services\LectureSessionGenerationService;
+use App\Services\SchedulePlaceholderService;
 use App\Services\WeeklyScheduleIssueService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -160,6 +162,7 @@ it('generates dated sessions from weekly slots using the linked lecturer login a
 
     expect($session->lecturer_id)->toBe($fixture['lecturerUser']->id)
         ->and($session->lecturer_id)->not->toBe($fixture['lecturerIdentity']->id)
+        ->and($session->lecturer_identity_id)->toBe($fixture['lecturerIdentity']->id)
         ->and($session->subject_section_schedule_slot_id)->toBe($fixture['slot']->id)
         ->and($session->academic_term_id)->toBe($fixture['term']->id)
         ->and($session->generated_from_weekly_schedule_at)->not->toBeNull()
@@ -202,6 +205,172 @@ it('previews generation without creating users or sessions', function (): void {
         ->and($preview['structural_readiness']['ready_slots'])->toBe(1)
         ->and(User::query()->count())->toBe($usersBefore)
         ->and(LectureSession::query()->count())->toBe($sessionsBefore);
+});
+
+it('classifies placeholder assignments as ready and generates their sessions idempotently', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $fixture['term']->update(['teaching_end_date' => '2026-09-07']);
+    $placeholders = app(SchedulePlaceholderService::class);
+    $theoreticalPlaceholder = $placeholders->theoreticalLecturer();
+    $practicalPlaceholder = $placeholders->practicalLecturer();
+    $unassignedHall = $placeholders->unassignedHall();
+
+    $createSection = function (string $code, string $type) use ($fixture): SubjectSection {
+        return SubjectSection::query()->create([
+            'academic_term_id' => $fixture['term']->id,
+            'subject_id' => $fixture['subject']->id,
+            'lecturer_id' => $fixture['lecturerUser']->id,
+            'section_type' => $type,
+            'code' => $code,
+            'name' => $code,
+            'capacity' => 40,
+        ]);
+    };
+    $createHall = fn (string $code): Hall => Hall::query()->create([
+        'code' => $code,
+        'name' => "Hall {$code}",
+        'floor' => 1,
+        'is_active' => true,
+    ]);
+    $createSlot = function (SubjectSection $section, Lecturer $lecturer, Hall $hall, string $start, string $end) use ($fixture): SubjectSectionScheduleSlot {
+        return SubjectSectionScheduleSlot::query()->create([
+            'import_batch_id' => $fixture['scheduleBatch']->id,
+            'academic_term_id' => $fixture['term']->id,
+            'subject_id' => $fixture['subject']->id,
+            'subject_section_id' => $section->id,
+            'lecturer_id' => $lecturer->id,
+            'hall_id' => $hall->id,
+            'weekday' => Carbon::MONDAY,
+            'start_time' => $start,
+            'end_time' => $end,
+            'section_capacity' => 40,
+            'expected_student_count' => 30,
+        ]);
+    };
+
+    $theoreticalSlot = $createSlot(
+        $createSection('T2', Subject::TYPE_THEORETICAL),
+        $theoreticalPlaceholder,
+        $createHall('PH3-H2'),
+        '09:00:00',
+        '10:00:00',
+    );
+    $practicalSlot = $createSlot(
+        $createSection('P1', Subject::TYPE_PRACTICAL),
+        $practicalPlaceholder,
+        $createHall('PH3-H3'),
+        '10:00:00',
+        '11:00:00',
+    );
+    $hallOnlySlot = $createSlot(
+        $createSection('T3', Subject::TYPE_THEORETICAL),
+        $fixture['lecturerIdentity'],
+        $unassignedHall,
+        '11:00:00',
+        '12:00:00',
+    );
+    $bothSlot = $createSlot(
+        $createSection('T4', Subject::TYPE_THEORETICAL),
+        $theoreticalPlaceholder,
+        $unassignedHall,
+        '11:00:00',
+        '12:00:00',
+    );
+    $conflictHall = $createHall('PH3-H4');
+    $firstConflictSlot = $createSlot(
+        $createSection('T5', Subject::TYPE_THEORETICAL),
+        $fixture['lecturerIdentity'],
+        $conflictHall,
+        '13:00:00',
+        '14:00:00',
+    );
+    $secondConflictSlot = $createSlot(
+        $createSection('T6', Subject::TYPE_THEORETICAL),
+        $fixture['lecturerIdentity'],
+        $conflictHall,
+        '13:30:00',
+        '14:30:00',
+    );
+    $invalidTimeSlot = $createSlot(
+        $createSection('T7', Subject::TYPE_THEORETICAL),
+        $fixture['lecturerIdentity'],
+        $createHall('PH3-H5'),
+        '16:00:00',
+        '15:00:00',
+    );
+
+    $generator = app(LectureSessionGenerationService::class);
+    $preview = $generator->preview($fixture['term'], $fixture['scheduleBatch']->id);
+
+    expect($preview['source_slot_count'])->toBe(8)
+        ->and($preview['structural_readiness']['ready_slots'])->toBe(7)
+        ->and($preview['blocked_slot_count'])->toBe(1)
+        ->and($preview['blocked_slots'][0]['source_slot_id'])->toBe($invalidTimeSlot->id)
+        ->and($preview['conflict_count'])->toBe(1)
+        ->and($preview['ready_slot_count'])->toBe(5)
+        ->and($preview['ready_slot_breakdown'])->toBe([
+            'complete' => 1,
+            'unassigned_lecturer' => 2,
+            'unassigned_hall' => 1,
+            'both_unassigned' => 1,
+            'total' => 5,
+        ])
+        ->and(array_sum(collect($preview['ready_slot_breakdown'])->except('total')->all()))
+        ->toBe($preview['ready_slot_count']);
+
+    $result = $generator->generateReadySessions(
+        $fixture['term'],
+        $fixture['admin'],
+        $fixture['scheduleBatch']->id,
+    );
+
+    $sessionsBySlot = LectureSession::query()
+        ->with(['sourceWeeklyScheduleSlot.lecturer', 'hall'])
+        ->get()
+        ->keyBy('subject_section_schedule_slot_id');
+    $run = LectureSessionGenerationRun::query()->findOrFail($result['generation_run_id']);
+
+    expect($result['created_session_count'])->toBe(5)
+        ->and($sessionsBySlot)->toHaveCount(5)
+        ->and($sessionsBySlot[$theoreticalSlot->id]->lecturer_id)->toBeNull()
+        ->and($sessionsBySlot[$theoreticalSlot->id]->lecturer_identity_id)->toBe($theoreticalPlaceholder->id)
+        ->and($sessionsBySlot[$practicalSlot->id]->lecturer_id)->toBeNull()
+        ->and($sessionsBySlot[$practicalSlot->id]->lecturer_identity_id)->toBe($practicalPlaceholder->id)
+        ->and($sessionsBySlot[$hallOnlySlot->id]->hall_id)->toBe($unassignedHall->id)
+        ->and($sessionsBySlot[$bothSlot->id]->lecturer_id)->toBeNull()
+        ->and($sessionsBySlot[$bothSlot->id]->lecturer_identity_id)->toBe($theoreticalPlaceholder->id)
+        ->and($sessionsBySlot[$bothSlot->id]->hall_id)->toBe($unassignedHall->id)
+        ->and($sessionsBySlot->pluck('status')->unique()->all())->toBe(['scheduled'])
+        ->and($sessionsBySlot->filter->needsAssignment())->toHaveCount(4)
+        ->and($sessionsBySlot[$fixture['slot']->id]->needsAssignment())->toBeFalse()
+        ->and($sessionsBySlot->has($firstConflictSlot->id))->toBeFalse()
+        ->and($sessionsBySlot->has($secondConflictSlot->id))->toBeFalse()
+        ->and($sessionsBySlot->has($invalidTimeSlot->id))->toBeFalse()
+        ->and(collect($result['error_report'])->pluck('الموعد الأسبوعي المصدر')->unique()->sort()->values()->all())
+        ->toBe(collect([$firstConflictSlot->id, $secondConflictSlot->id, $invalidTimeSlot->id])->sort()->values()->all())
+        ->and($run->academic_term_id)->toBe($fixture['term']->id)
+        ->and($run->schedule_import_batch_id)->toBe($fixture['scheduleBatch']->id);
+
+    $bothSlot->update([
+        'lecturer_id' => $fixture['lecturerIdentity']->id,
+        'hall_id' => $fixture['hall']->id,
+    ]);
+    $historicalSession = $sessionsBySlot[$bothSlot->id]->refresh()->load(['lecturerIdentity', 'hall']);
+
+    expect($historicalSession->lecturer_identity_id)->toBe($theoreticalPlaceholder->id)
+        ->and($historicalSession->hall_id)->toBe($unassignedHall->id)
+        ->and($historicalSession->displayLecturerName())->toBe('مدرس نظري غير محدد')
+        ->and($historicalSession->displayHallName())->toBe('قاعة غير محددة')
+        ->and($historicalSession->needsAssignment())->toBeTrue();
+
+    $secondResult = $generator->generateReadySessions(
+        $fixture['term'],
+        $fixture['admin'],
+        $fixture['scheduleBatch']->id,
+    );
+
+    expect($secondResult['created_session_count'])->toBe(0)
+        ->and(LectureSession::query()->count())->toBe(5);
 });
 
 it('does not block partial-safe generation when the installed weekly schedule batch completed with errors', function (): void {

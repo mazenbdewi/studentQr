@@ -12,6 +12,7 @@
             $conflicts = (int) ($preview['conflict_count'] ?? 0);
             $sourceSlots = (int) ($preview['source_slot_count'] ?? 0);
             $readiness = $preview['structural_readiness'] ?? [];
+            $readyBreakdown = $preview['ready_slot_breakdown'] ?? [];
             $blockedReadiness = $preview['blocked_readiness_counts'] ?? [];
             $hasReadinessIssues = $blockedUnique > 0;
             $issueGroups = $issueGroups ?? [];
@@ -52,6 +53,30 @@
                     <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/30 dark:bg-rose-500/10"><div class="text-sm text-rose-700 dark:text-rose-300">{{ __('lecture-session.lecture_generation.summary.conflicts') }}</div><div class="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-100">{{ $conflicts }}</div></div>
                 </div>
             </div>
+        </x-filament::section>
+
+        <x-filament::section :heading="__('lecture-session.lecture_generation.ready_breakdown.title')" icon="heroicon-o-user-group">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                @foreach ([
+                    'complete' => 'success',
+                    'unassigned_lecturer' => 'warning',
+                    'unassigned_hall' => 'warning',
+                    'both_unassigned' => 'danger',
+                ] as $key => $tone)
+                    <div @class([
+                        'rounded-xl border p-4',
+                        'border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10' => $tone === 'success',
+                        'border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10' => $tone === 'warning',
+                        'border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10' => $tone === 'danger',
+                    ])>
+                        <div class="text-sm text-gray-700 dark:text-gray-200">{{ __('lecture-session.lecture_generation.ready_breakdown.'.$key) }}</div>
+                        <div class="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{{ (int) ($readyBreakdown[$key] ?? 0) }}</div>
+                    </div>
+                @endforeach
+            </div>
+            <p class="mt-3 text-xs text-gray-600 dark:text-gray-300">
+                {{ __('lecture-session.lecture_generation.ready_breakdown.total', ['count' => (int) ($readyBreakdown['total'] ?? 0)]) }}
+            </p>
         </x-filament::section>
 
         <x-filament::section :heading="__('lecture-session.lecture_generation.issues.title')" icon="heroicon-o-exclamation-triangle" :icon-color="$hasIssues ? 'danger' : 'success'">

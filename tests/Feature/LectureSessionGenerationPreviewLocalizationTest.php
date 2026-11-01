@@ -28,6 +28,14 @@ it('renders the generation preview in separate Arabic sections without internal 
             'missing_both' => 1,
         ],
         'conflict_count' => 1,
+        'ready_slot_count' => 2,
+        'ready_slot_breakdown' => [
+            'complete' => 1,
+            'unassigned_lecturer' => 1,
+            'unassigned_hall' => 0,
+            'both_unassigned' => 0,
+            'total' => 2,
+        ],
         'ready_for_partial_generation' => false,
         'prerequisite_errors' => [],
         'blocked_slots' => [['reasons' => ['missing_lecturer_identity', 'missing_hall']]],
@@ -58,6 +66,8 @@ it('renders the generation preview in separate Arabic sections without internal 
         ->toContain('يمكن إنشاء 10 جلسة جديدة.')
         ->toContain('يوجد 3 جلسة منشأة مسبقًا ولن يتم تكرارها.')
         ->toContain('المشكلات التي تحتاج إلى معالجة')
+        ->toContain('الخانات الجاهزة حسب حالة التعيين')
+        ->toContain('إجمالي الخانات الجاهزة: 2')
         ->toContain('الخانات غير الجاهزة للتوليد: 1')
         ->toContain('قد تحتوي الخانة الواحدة على أكثر من مشكلة')
         ->toContain('عرض تفاصيل التحقق')
@@ -213,6 +223,11 @@ it('defines every generation preview reason in Arabic and English', function ():
 
         foreach ($reasons as $reason) {
             expect(__('lecture-session.lecture_generation.reasons.'.$reason))->not->toBe('lecture-session.lecture_generation.reasons.'.$reason);
+        }
+
+        foreach (['complete', 'unassigned_lecturer', 'unassigned_hall', 'both_unassigned', 'total'] as $key) {
+            expect(__('lecture-session.lecture_generation.ready_breakdown.'.$key, ['count' => 2]))
+                ->not->toBe('lecture-session.lecture_generation.ready_breakdown.'.$key);
         }
     }
 });

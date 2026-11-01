@@ -67,6 +67,8 @@ class LectureSessionGenerationService
             'conflict_count' => 0,
             'ready_for_partial_generation' => false,
             'structural_readiness' => $structuralReadiness,
+            'ready_slot_count' => $structuralReadiness['ready_slots'],
+            'ready_slot_breakdown' => $structuralReadiness['ready_slot_breakdown'],
             'blocked_slots' => [],
             'conflicts' => [],
             'candidates' => [],
@@ -149,6 +151,12 @@ class LectureSessionGenerationService
             && $preview['blocked_slot_count'] === 0
             && $preview['conflict_count'] === 0;
         $unsafeSourceSlotIds = $this->unsafeConflictSourceSlotIds($preview['conflicts']);
+        $readySlots = $slots
+            ->reject(fn (SubjectSectionScheduleSlot $slot): bool => $excludedSlotIds->contains($slot->id))
+            ->reject(fn (SubjectSectionScheduleSlot $slot): bool => in_array($slot->id, $unsafeSourceSlotIds, true))
+            ->filter(fn (SubjectSectionScheduleSlot $slot): bool => $this->slotErrors($slot) === []);
+        $preview['ready_slot_count'] = $readySlots->count();
+        $preview['ready_slot_breakdown'] = $this->readySlotBreakdown($readySlots);
         $preview['safe_to_create_count'] = collect($preview['candidates'])
             ->filter(fn (array $candidate): bool => $candidate['status'] === self::STATUS_TO_CREATE)
             ->reject(fn (array $candidate): bool => in_array((int) $candidate['source_slot_id'], $unsafeSourceSlotIds, true))
@@ -218,6 +226,7 @@ class LectureSessionGenerationService
                     'lecture_session_generation_run_id' => $run->id,
                     'generated_from_weekly_schedule_at' => $now,
                     'lecturer_id' => $candidate['lecturer_user_id'],
+                    'lecturer_identity_id' => $candidate['lecturer_identity_id'],
                     'hall_id' => $candidate['hall_id'],
                     'session_date' => $candidate['session_date'],
                     'start_time' => $candidate['start_time'],
@@ -325,6 +334,7 @@ class LectureSessionGenerationService
                     'lecture_session_generation_run_id' => $run->id,
                     'generated_from_weekly_schedule_at' => $now,
                     'lecturer_id' => $candidate['lecturer_user_id'],
+                    'lecturer_identity_id' => $candidate['lecturer_identity_id'],
                     'hall_id' => $candidate['hall_id'],
                     'session_date' => $candidate['session_date'],
                     'start_time' => $candidate['start_time'],
@@ -510,6 +520,7 @@ class LectureSessionGenerationService
             && filled($slot->end_time)
             && strcmp((string) $slot->start_time, (string) $slot->end_time) < 0);
         $ready = $slots->filter(fn (SubjectSectionScheduleSlot $slot): bool => $this->slotErrors($slot) === []);
+        $readySlotBreakdown = $this->readySlotBreakdown($ready);
 
         return [
             'total_weekly_slots' => $slots->count(),
@@ -522,7 +533,39 @@ class LectureSessionGenerationService
             'slots_otherwise_invalid' => $otherwiseInvalid->count(),
             'ready_slots' => $ready->count(),
             'blocked_slots' => $slots->count() - $ready->count(),
+            'ready_slot_breakdown' => $readySlotBreakdown,
         ];
+    }
+
+    /**
+     * @param  Collection<int, SubjectSectionScheduleSlot>  $readySlots
+     * @return array{complete: int, unassigned_lecturer: int, unassigned_hall: int, both_unassigned: int, total: int}
+     */
+    private function readySlotBreakdown(Collection $readySlots): array
+    {
+        $breakdown = [
+            'complete' => 0,
+            'unassigned_lecturer' => 0,
+            'unassigned_hall' => 0,
+            'both_unassigned' => 0,
+            'total' => $readySlots->count(),
+        ];
+
+        foreach ($readySlots as $slot) {
+            $hasPlaceholderLecturer = $slot->lecturer?->isPlaceholder() === true;
+            $hasPlaceholderHall = $slot->hall?->isPlaceholder() === true;
+
+            $key = match (true) {
+                $hasPlaceholderLecturer && $hasPlaceholderHall => 'both_unassigned',
+                $hasPlaceholderLecturer => 'unassigned_lecturer',
+                $hasPlaceholderHall => 'unassigned_hall',
+                default => 'complete',
+            };
+
+            $breakdown[$key]++;
+        }
+
+        return $breakdown;
     }
 
     private function slotErrors(SubjectSectionScheduleSlot $slot): array

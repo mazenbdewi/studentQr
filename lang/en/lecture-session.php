@@ -162,6 +162,15 @@ return [
     'weekly_generation_conflict_detected' => 'A new conflict was detected while generating sessions. No sessions were created.',
     'weekly_generation_completed_title' => 'Dated sessions generated',
     'weekly_generation_completed_body' => ':created of :total candidate sessions were created. :skipped existing or unsafe sessions were skipped.',
+    'assignment_readiness' => 'Assignment readiness',
+    'needs_assignment' => 'Needs assignment',
+    'needs_assignment_only' => 'Needs assignment only',
+    'complete_assignment_only' => 'Complete assignment only',
+    'assignment_status' => [
+        'unassigned_lecturer' => 'Needs lecturer assignment',
+        'unassigned_hall' => 'Needs hall assignment',
+        'both_unassigned' => 'Needs lecturer and hall assignment',
+    ],
     'lecture_generation' => [
         'preview_title' => 'Session generation preview',
         'preview_description' => 'Preview the dated sessions that will be generated from weekly schedule slots. Only sessions meeting the requirements will be created, with a clear report for excluded cases.',
@@ -171,6 +180,14 @@ return [
         ],
         'main' => [
             'title' => 'Main result', 'can_create' => ':count new sessions can be created.', 'already_exists' => ':count sessions already exist and will not be duplicated.', 'none_ready' => 'No new sessions are currently ready for generation.', 'resolve_issues' => 'Please resolve the issues shown below.', 'no_source_slots' => 'There are no weekly schedule slots that can be used to generate sessions.', 'all_already_exists' => 'All expected sessions already exist; there are no new sessions to create.',
+        ],
+        'ready_breakdown' => [
+            'title' => 'Ready weekly slots by assignment state',
+            'complete' => 'Complete',
+            'unassigned_lecturer' => 'Unassigned lecturer',
+            'unassigned_hall' => 'Unassigned hall',
+            'both_unassigned' => 'Unassigned lecturer and hall',
+            'total' => 'Total ready slots: :count. Placeholder assignments remain ready for generation.',
         ],
         'issues' => [
             'title' => 'Issues requiring attention', 'none' => 'All core requirements are complete.', 'counted' => ':count slot(s): :reason', 'not_ready_unique' => 'Slots not ready for generation: :count', 'missing_lecturer' => ':count slot(s) have no assigned lecturer', 'missing_hall' => ':count slot(s) have no assigned hall', 'breakdown' => 'Lecturer only: :lecturer_only; hall only: :hall_only; both: :both', 'unique_note' => 'One slot can have more than one issue, so the sum of reasons does not represent the number of slots not ready for generation.', 'manage' => 'Resolve issues (:count)',

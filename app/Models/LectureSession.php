@@ -25,6 +25,7 @@ class LectureSession extends Model
         'lecture_session_generation_run_id',
         'generated_from_weekly_schedule_at',
         'lecturer_id',
+        'lecturer_identity_id',
         'hall_id',
         'session_date',
         'start_time',
@@ -256,6 +257,68 @@ class LectureSession extends Model
     public function lecturer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'lecturer_id')->withTrashed();
+    }
+
+    public function lecturerIdentity(): BelongsTo
+    {
+        return $this->belongsTo(Lecturer::class, 'lecturer_identity_id');
+    }
+
+    public function usesPlaceholderLecturer(): bool
+    {
+        $lecturerIdentity = $this->lecturerIdentity;
+
+        return $lecturerIdentity instanceof Lecturer && $lecturerIdentity->isPlaceholder();
+    }
+
+    public function usesPlaceholderHall(): bool
+    {
+        $hall = $this->hall;
+
+        return $hall instanceof Hall && $hall->isPlaceholder();
+    }
+
+    public function needsAssignment(): bool
+    {
+        return $this->usesPlaceholderLecturer() || $this->usesPlaceholderHall();
+    }
+
+    public function assignmentReadinessKey(): string
+    {
+        return match (true) {
+            $this->usesPlaceholderLecturer() && $this->usesPlaceholderHall() => 'both_unassigned',
+            $this->usesPlaceholderLecturer() => 'unassigned_lecturer',
+            $this->usesPlaceholderHall() => 'unassigned_hall',
+            default => 'complete',
+        };
+    }
+
+    public function displayLecturerName(): ?string
+    {
+        $lecturerIdentity = $this->lecturerIdentity;
+
+        if ($lecturerIdentity instanceof Lecturer) {
+            return app()->getLocale() === 'en' && filled($lecturerIdentity->name_en)
+                ? $lecturerIdentity->name_en
+                : $lecturerIdentity->name;
+        }
+
+        $lecturer = $this->lecturer;
+
+        return $lecturer instanceof User ? $lecturer->name : null;
+    }
+
+    public function displayHallName(): ?string
+    {
+        $hall = $this->hall;
+
+        if (! $hall instanceof Hall) {
+            return null;
+        }
+
+        return app()->getLocale() === 'en' && filled($hall->name_en)
+            ? $hall->name_en
+            : $hall->name;
     }
 
     public function hall(): BelongsTo
