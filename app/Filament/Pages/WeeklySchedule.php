@@ -11,10 +11,15 @@ use App\Models\ScheduleImportIssue;
 use App\Models\ScheduleImportRow;
 use App\Models\Subject;
 use App\Models\SubjectSectionScheduleSlot;
+use App\Models\User;
+use App\Policies\ScheduleImportRowPolicy;
+use App\Services\FutureLectureSessionAssignmentService;
 use App\Support\AcademicTermContext;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Select;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -112,7 +117,8 @@ class WeeklySchedule extends Page implements HasTable
                     'lecturer',
                     'hall',
                     'importBatch',
-                ]))
+                ])
+                ->withCount('lectureSessions'))
             ->columns([
                 TextColumn::make('academicTerm.display_name')
                     ->label(__('weekly-schedule.columns.academic_term'))
@@ -244,6 +250,10 @@ class WeeklySchedule extends Page implements HasTable
                     ->searchable()
                     ->preload(),
             ])
+            ->recordActions([
+                $this->replacePlaceholderAssignmentsAction(),
+                $this->applyAssignmentsToFutureSessionsAction(),
+            ])
             ->defaultSort('weekday')
             ->paginated([25, 50, 100]);
     }
@@ -323,5 +333,115 @@ class WeeklySchedule extends Page implements HasTable
                 ->visible(fn (): bool => ManaraScheduleImport::canAccess())
                 ->url(fn (): string => ManaraScheduleImport::getUrl()),
         ];
+    }
+
+    private function replacePlaceholderAssignmentsAction(): Action
+    {
+        return Action::make('replace_placeholder_assignments')
+            ->label(__('weekly-schedule.future_assignment.replace_action'))
+            ->icon('heroicon-o-pencil-square')
+            ->color('warning')
+            ->visible(fn (SubjectSectionScheduleSlot $record): bool => $this->canReplacePlaceholder($record))
+            ->modalHeading(__('weekly-schedule.future_assignment.replace_heading'))
+            ->modalDescription(__('weekly-schedule.future_assignment.replace_description'))
+            ->modalSubmitActionLabel(__('weekly-schedule.future_assignment.save_slot_only'))
+            ->form(fn (SubjectSectionScheduleSlot $record): array => [
+                Select::make('lecturer_id')
+                    ->label(__('weekly-schedule.columns.lecturer'))
+                    ->options(fn (): array => Lecturer::query()
+                        ->whereNull('placeholder_type')
+                        ->where('is_active', true)
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
+                    ->searchable()
+                    ->preload()
+                    ->visible(fn (): bool => $record->lecturer?->isPlaceholder() === true && $this->canChangeLecturer()),
+                Select::make('hall_id')
+                    ->label(__('weekly-schedule.columns.hall'))
+                    ->options(fn (): array => Hall::query()
+                        ->withoutTrashed()
+                        ->whereNull('placeholder_type')
+                        ->where('is_active', true)
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
+                    ->searchable()
+                    ->preload()
+                    ->visible(fn (): bool => $record->hall?->isPlaceholder() === true && $this->canChangeHall()),
+            ])
+            ->action(function (SubjectSectionScheduleSlot $record, array $data): void {
+                $actor = Filament::auth()->user();
+                abort_unless($actor instanceof User, 403);
+
+                app(FutureLectureSessionAssignmentService::class)->replacePlaceholders(
+                    $record,
+                    filled($data['lecturer_id'] ?? null) ? (int) $data['lecturer_id'] : null,
+                    filled($data['hall_id'] ?? null) ? (int) $data['hall_id'] : null,
+                    $actor,
+                );
+
+                Notification::make()
+                    ->title(__('weekly-schedule.future_assignment.slot_updated_title'))
+                    ->body(__('weekly-schedule.future_assignment.slot_updated_body'))
+                    ->success()
+                    ->send();
+            });
+    }
+
+    private function applyAssignmentsToFutureSessionsAction(): Action
+    {
+        return Action::make('apply_assignments_to_future_sessions')
+            ->label(__('weekly-schedule.future_assignment.apply_action'))
+            ->icon('heroicon-o-arrow-path')
+            ->color('primary')
+            ->visible(fn (SubjectSectionScheduleSlot $record): bool => $record->lecture_sessions_count > 0
+                && $this->canApplyFutureAssignments($record))
+            ->modalHeading(__('weekly-schedule.future_assignment.preview_heading'))
+            ->modalContent(fn (SubjectSectionScheduleSlot $record) => view('filament.components.future-session-assignment-preview', [
+                'preview' => app(FutureLectureSessionAssignmentService::class)->preview($record),
+            ]))
+            ->modalSubmitActionLabel(__('weekly-schedule.future_assignment.apply_action'))
+            ->requiresConfirmation()
+            ->action(function (SubjectSectionScheduleSlot $record): void {
+                $actor = Filament::auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $result = app(FutureLectureSessionAssignmentService::class)->apply($record, $actor);
+
+                Notification::make()
+                    ->title(__('weekly-schedule.future_assignment.applied_title'))
+                    ->body(__('weekly-schedule.future_assignment.applied_body', ['count' => $result['updated_sessions_count']]))
+                    ->success()
+                    ->send();
+
+                if ($result['lecturer_account_missing']) {
+                    Notification::make()
+                        ->title(__('weekly-schedule.future_assignment.account_warning'))
+                        ->warning()
+                        ->send();
+                }
+            });
+    }
+
+    private function canReplacePlaceholder(SubjectSectionScheduleSlot $slot): bool
+    {
+        return ($slot->lecturer?->isPlaceholder() === true && $this->canChangeLecturer())
+            || ($slot->hall?->isPlaceholder() === true && $this->canChangeHall());
+    }
+
+    private function canApplyFutureAssignments(SubjectSectionScheduleSlot $slot): bool
+    {
+        return ($slot->lecturer?->isPlaceholder() === false && $this->canChangeLecturer())
+            || ($slot->hall?->isPlaceholder() === false && $this->canChangeHall());
+    }
+
+    private function canChangeLecturer(): bool
+    {
+        return Filament::auth()->user()?->can(ScheduleImportRowPolicy::CHANGE_RECONCILED_LECTURER) ?? false;
+    }
+
+    private function canChangeHall(): bool
+    {
+        return Filament::auth()->user()?->can(ScheduleImportRowPolicy::CHANGE_RECONCILED_HALL) ?? false;
     }
 }
