@@ -10,6 +10,8 @@ class Hall extends Model
 {
     use SoftDeletes;
 
+    public const PLACEHOLDER_UNASSIGNED = 'unassigned';
+
     public const TYPE_LECTURE_HALL = 'lecture_hall';
 
     public const TYPE_LABORATORY = 'laboratory';
@@ -27,6 +29,8 @@ class Hall extends Model
     protected $fillable = [
         'code',
         'name',
+        'name_en',
+        'placeholder_type',
         'capacity',
         'hall_type',
         'building_name',
@@ -42,6 +46,11 @@ class Hall extends Model
         'floor' => 'integer',
         'is_active' => 'boolean',
     ];
+
+    public function isPlaceholder(): bool
+    {
+        return $this->placeholder_type === self::PLACEHOLDER_UNASSIGNED;
+    }
 
     /** @return array<string, string> */
     public static function hallTypeOptions(): array

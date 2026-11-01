@@ -70,7 +70,7 @@ class LecturerAccountPreparation extends Page implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query(Lecturer::query()->with(['user.roles'])->withCount('scheduleSlots'))
+            ->query(Lecturer::query()->whereNull('placeholder_type')->with(['user.roles'])->withCount('scheduleSlots'))
             ->columns([
                 TextColumn::make('name')
                     ->label(__('lecturer-account-preparation.fields.lecturer_name'))

@@ -77,5 +77,6 @@ return [
         'user_already_linked' => 'This account is already linked to another lecturer.',
         'no_linked_user' => 'This lecturer has no linked account.',
         'login_identifier_taken' => 'The login username collides with an existing username, email, or student number.',
+        'placeholder_account_forbidden' => 'A login account cannot be created or linked for an unassigned placeholder lecturer.',
     ],
 ];

@@ -24,6 +24,8 @@ class LecturerAccountPreparationService
 
     public function loginUsernameForLecturer(Lecturer $lecturer): string
     {
+        $this->ensureNotPlaceholder($lecturer);
+
         $proposal = $this->usernameGenerator->proposal($lecturer);
 
         if (($proposal['requires_manual_review'] ?? true) || ($proposal['duplicate'] ?? false) || blank($proposal['proposed_username'])) {
@@ -38,6 +40,7 @@ class LecturerAccountPreparationService
         /** @var Collection<int, Lecturer> $lecturers */
         $lecturers = Lecturer::query()
             ->with(['user.roles'])
+            ->whereNull('placeholder_type')
             ->whereHas('scheduleSlots', fn ($query) => $query->where('academic_term_id', $term->id))
             ->withCount(['scheduleSlots as current_term_weekly_slots_count' => fn ($query) => $query->where('academic_term_id', $term->id)])
             ->orderBy('name')
@@ -172,7 +175,9 @@ class LecturerAccountPreparationService
         @set_time_limit(300);
         Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']);
 
-        $lecturerCollection = collect($lecturers)->values();
+        $lecturerCollection = collect($lecturers)
+            ->reject(fn (Lecturer $lecturer): bool => $lecturer->isPlaceholder())
+            ->values();
         $run = LecturerAccountGenerationRun::query()->create([
             'academic_term_id' => $term->id,
             'started_by' => $actor?->id,
@@ -232,6 +237,7 @@ class LecturerAccountPreparationService
 
     public function createLoginAccount(Lecturer $lecturer, string $email, string $password, string $passwordConfirmation): User
     {
+        $this->ensureNotPlaceholder($lecturer);
         $this->ensureLecturerIsUnlinked($lecturer);
         $this->ensurePasswordConfirmed($password, $passwordConfirmation);
 
@@ -259,6 +265,7 @@ class LecturerAccountPreparationService
 
     public function linkExistingAccount(Lecturer $lecturer, User $user): Lecturer
     {
+        $this->ensureNotPlaceholder($lecturer);
         $this->ensureLecturerIsUnlinked($lecturer);
         $this->ensureUserCanBeLinked($user);
 
@@ -270,6 +277,8 @@ class LecturerAccountPreparationService
 
     public function grantCourseLecturerRole(Lecturer $lecturer): User
     {
+        $this->ensureNotPlaceholder($lecturer);
+
         $user = $lecturer->user;
 
         if (! $user instanceof User) {
@@ -349,6 +358,10 @@ class LecturerAccountPreparationService
     private function processLecturerAccountRow(LecturerAccountGenerationRun $run, array $row, array &$usedPlainPasswords, Collection $recoveryLecturerIds): array
     {
         $lecturer = Lecturer::query()->with('user.roles')->lockForUpdate()->findOrFail($row['lecturer_id']);
+
+        if ($lecturer->isPlaceholder()) {
+            return [];
+        }
 
         if ($recoveryLecturerIds->contains((int) $lecturer->id) && $lecturer->user instanceof User) {
             $credential = $this->resetTemporaryPasswordForLinkedLecturer($lecturer, $lecturer->user, $usedPlainPasswords);
@@ -604,6 +617,15 @@ class LecturerAccountPreparationService
         if ($lecturer->user_id) {
             throw ValidationException::withMessages([
                 'user_id' => __('lecturer-account-preparation.validation.lecturer_already_linked'),
+            ]);
+        }
+    }
+
+    private function ensureNotPlaceholder(Lecturer $lecturer): void
+    {
+        if ($lecturer->isPlaceholder()) {
+            throw ValidationException::withMessages([
+                'lecturer_id' => __('lecturer-account-preparation.validation.placeholder_account_forbidden'),
             ]);
         }
     }
