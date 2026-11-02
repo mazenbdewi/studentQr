@@ -198,9 +198,15 @@
 
                 <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     @foreach (__('manara-schedule-import.summary_labels') as $key => $label)
+                        @php($reviewFilter = match ($key) { 'missing_subjects' => 'missing_subject', 'missing_sections' => 'missing_section', default => null })
                         <div class="rounded-md border border-gray-200 p-3 dark:border-gray-700">
                             <div class="text-xs text-gray-500 dark:text-gray-400">{{ $label }}</div>
                             <div class="mt-1 break-words text-lg font-semibold text-gray-950 dark:text-white">{{ $summary[$key] ?? 0 }}</div>
+                            @if ($reviewFilter && ($reviewUrl = $this->reconciliationFilterUrl($reviewFilter)))
+                                <a href="{{ $reviewUrl }}" class="mt-2 inline-flex text-sm font-semibold text-primary-600 hover:underline dark:text-primary-400">
+                                    {{ __('manara-schedule-import.review_'.$reviewFilter, ['count' => number_format((int) ($summary[$key] ?? 0))]) }}
+                                </a>
+                            @endif
                         </div>
                     @endforeach
                 </div>

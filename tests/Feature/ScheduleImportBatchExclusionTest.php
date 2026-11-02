@@ -238,7 +238,7 @@ it('excludes the row, marks schedule-only identity issues not applicable, and pr
     }
 });
 
-it('keeps an unrelated warning active after exclusion while missing lecturer and hall become not applicable', function (): void {
+it('marks every unresolved schedule issue not applicable when the raw row is excluded', function (): void {
     [$path, , $batch, , , $row, $noTime, $warnings] = batchExclusionFixture();
 
     try {
@@ -254,20 +254,21 @@ it('keeps an unrelated warning active after exclusion while missing lecturer and
         app(ScheduleImportReconciliationService::class)->excludeFromBatchSchedule($noTime, $super, 'مشروع فصلي تتم متابعته خارج برنامج الدوام الأسبوعي.');
 
         expect($warnings->every(fn (ScheduleImportIssue $warning): bool => $warning->fresh()->resolution_status === ScheduleImportIssue::STATUS_RESOLVED))->toBeTrue()
-            ->and($unrelatedWarning->fresh()->resolution_status)->toBe(ScheduleImportIssue::STATUS_UNRESOLVED)
-            ->and($row->fresh()->current_reconciliation_status)->toBe(ScheduleImportRow::STATUS_UNRESOLVED)
-            ->and(app(ScheduleImportReconciliationSummaryService::class)->forBatch($batch->id)['excluded_from_batch_schedule_rows'])->toBe(0);
+            ->and($unrelatedWarning->fresh()->resolution_status)->toBe(ScheduleImportIssue::STATUS_RESOLVED)
+            ->and($unrelatedWarning->fresh()->resolution_action)->toBe(ScheduleImportIssue::RESOLUTION_ACTION_NOT_APPLICABLE_DUE_TO_BATCH_EXCLUSION)
+            ->and($row->fresh()->current_reconciliation_status)->toBe(ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE)
+            ->and(app(ScheduleImportReconciliationSummaryService::class)->forBatch($batch->id)['excluded_from_batch_schedule_rows'])->toBe(1);
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $component = Livewire::actingAs($super)->test(ScheduleImportReconciliationReport::class, ['batch' => $batch->uuid]);
-        expect($component->instance()->tabCounts()['warnings'])->toBe(1)
-            ->and($component->instance()->tabCounts()['excluded'])->toBe(0);
+        expect($component->instance()->tabCounts()['warnings'])->toBe(0)
+            ->and($component->instance()->tabCounts()['excluded'])->toBe(1);
     } finally {
         @unlink($path);
     }
 });
 
-it('does not allow exclusion while a subject or section issue remains unresolved', function (): void {
+it('allows explicit exclusion while a subject or section issue remains unresolved', function (): void {
     [$path, , $batch, , , $row, $noTime] = batchExclusionFixture(withWarnings: false);
 
     try {
@@ -281,14 +282,17 @@ it('does not allow exclusion while a subject or section issue remains unresolved
         ]);
         $super = User::factory()->create(['role' => 'super_admin', 'type' => 'admin']);
 
-        expect(fn () => app(ScheduleImportReconciliationService::class)->excludeFromBatchSchedule(
+        $result = app(ScheduleImportReconciliationService::class)->excludeFromBatchSchedule(
             $noTime,
             $super,
             'لا يجب الاستبعاد قبل معالجة مشكلة المادة.',
-        ))->toThrow(RuntimeException::class, __('schedule-import-reconciliation.validation.resolve_catalog_issues_first'))
-            ->and($noTime->fresh()->resolution_status)->toBe(ScheduleImportIssue::STATUS_UNRESOLVED)
-            ->and($row->fresh()->excluded_from_weekly_schedule_at)->toBeNull()
-            ->and(ScheduleImportIssueAction::query()->count())->toBe(0);
+        );
+
+        expect($result['status'])->toBe('applied')
+            ->and($noTime->fresh()->resolution_status)->toBe(ScheduleImportIssue::STATUS_RESOLVED)
+            ->and($row->fresh()->excluded_from_weekly_schedule_at)->not->toBeNull()
+            ->and($row->fresh()->current_reconciliation_status)->toBe(ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE)
+            ->and(ScheduleImportIssueAction::query()->count())->toBe(2);
 
     } finally {
         @unlink($path);

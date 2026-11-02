@@ -233,7 +233,7 @@ it('creates unresolved ambiguity warnings while leaving optional slot identities
     }
 });
 
-it('keeps a mapped row visible and performs the controlled map then retry Filament sequence', function (): void {
+it('maps the subject and automatically retries when the exact section is available', function (): void {
     [$path, , $batch, $subject, $section, $row] = effectiveIdentityRow('نتالي محمد موسى', 'F-02A');
 
     try {
@@ -253,18 +253,15 @@ it('keeps a mapped row visible and performs the controlled map then retry Filame
 
         $component->callTableAction('link-subject', $row, [
             'subject_id' => $subject->id,
-            'section_id' => $section->id,
             'note' => 'اختبار الربط المتحكم به',
         ]);
 
-        expect($row->fresh()->resolved_subject_id)->toBe($subject->id)
-            ->and($row->fresh()->resolved_subject_section_id)->toBe($section->id)
-            ->and($component->instance()->tabCounts()['needs_attention'])->toBe(1);
-
-        $component->callTableAction('retry-row', $row->fresh(), ['note' => 'اختبار إعادة المعالجة المتحكم بها']);
         $slot = SubjectSectionScheduleSlot::query()->sole();
 
-        expect($slot->hall_id)->toBe($hall->id)
+        expect($row->fresh()->resolved_subject_id)->toBe($subject->id)
+            ->and($row->fresh()->resolved_subject_section_id)->toBe($section->id)
+            ->and($component->instance()->tabCounts()['needs_attention'])->toBe(0)
+            ->and($slot->hall_id)->toBe($hall->id)
             ->and($slot->lecturer_id)->toBeNull()
             ->and($row->fresh()->current_reconciliation_status)->toBe(ScheduleImportRow::STATUS_UNRESOLVED)
             ->and($component->instance()->tabCounts()['warnings'])->toBe(1)

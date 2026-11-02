@@ -45,6 +45,73 @@ class ScheduleImportReconciliationService
         return $this->mapCatalog($row, $subjectId, $sectionId, $actor, ScheduleImportIssueWorkflow::SUBJECT_ISSUES, ScheduleImportIssueAction::ACTION_LINK_SUBJECT, $note);
     }
 
+    public function mapSubjectOnly(ScheduleImportRow $row, int $subjectId, User $actor, ?string $note = null): ScheduleImportRow
+    {
+        $issue = $this->firstIssue($row, ScheduleImportIssueWorkflow::SUBJECT_ISSUES);
+        Gate::forUser($actor)->authorize('resolveSubjectMapping', $issue);
+
+        return DB::transaction(function () use ($row, $subjectId, $actor, $note): ScheduleImportRow {
+            $locked = $this->lockRow($row);
+            $subject = Subject::query()->withoutTrashed()->findOrFail($subjectId);
+            $slotConflict = $this->relatedSlots($locked, lock: true)
+                ->first(fn (SubjectSectionScheduleSlot $slot): bool => (int) $slot->subject_id !== $subject->id);
+
+            if ($slotConflict) {
+                throw new RuntimeException(__('schedule-import-reconciliation.validation.catalog_slot_conflict'));
+            }
+
+            $before = $this->rowSnapshot($locked, $actor);
+            $section = $this->exactSectionForSubject($locked, $subject);
+            $locked->update($this->resolutionUpdate($actor, [
+                'resolved_subject_id' => $subject->id,
+                'resolved_subject_section_id' => $section?->id,
+                'resolved_section_capacity' => $locked->resolved_section_capacity ?? ($locked->normalized_payload['section_capacity'] ?? null),
+                'resolved_expected_student_count' => $locked->resolved_expected_student_count ?? ($locked->normalized_payload['expected_student_count'] ?? null),
+            ]));
+
+            $subjectIssues = $this->setIssueStatuses(
+                $locked,
+                ScheduleImportIssueWorkflow::SUBJECT_ISSUES,
+                ScheduleImportIssue::STATUS_RESOLVED,
+                ScheduleImportIssueAction::ACTION_LINK_SUBJECT,
+                $actor,
+                $note,
+            );
+
+            if ($section instanceof SubjectSection) {
+                $sectionIssues = $this->setIssueStatuses(
+                    $locked,
+                    ScheduleImportIssueWorkflow::SECTION_ISSUES,
+                    ScheduleImportIssue::STATUS_RESOLVED,
+                    ScheduleImportIssueAction::ACTION_LINK_SUBJECT,
+                    $actor,
+                    $note,
+                );
+                $subjectIssues = new EloquentCollection([...$subjectIssues, ...$sectionIssues]);
+            } elseif (! $locked->issues->whereIn('issue_type', ScheduleImportIssueWorkflow::SECTION_ISSUES)->contains(
+                fn (ScheduleImportIssue $rowIssue): bool => in_array($rowIssue->resolution_status, [ScheduleImportIssue::STATUS_UNRESOLVED, ScheduleImportIssue::STATUS_RETRY_FAILED], true),
+            )) {
+                ScheduleImportIssue::query()->firstOrCreate(
+                    ['deduplication_key' => hash('sha256', "manual-section-after-subject|{$locked->id}")],
+                    [
+                        'schedule_import_row_id' => $locked->id,
+                        'issue_type' => ScheduleImportIssue::TYPE_SECTION_NOT_FOUND,
+                        'severity' => ScheduleImportIssue::SEVERITY_ERROR,
+                        'reason_ar' => __('schedule-import-reconciliation.reasons.section_not_found', [
+                            'section' => $locked->normalized_payload['section_code'] ?? '—',
+                        ]),
+                        'resolution_status' => ScheduleImportIssue::STATUS_UNRESOLVED,
+                    ],
+                );
+                $locked->setRelation('issues', $locked->issues()->lockForUpdate()->orderBy('id')->get());
+            }
+
+            $this->finishAction($locked, $subjectIssues, ScheduleImportIssueAction::ACTION_LINK_SUBJECT, $actor, $before, null, $note);
+
+            return $locked->fresh(['issues', 'resolvedSubject', 'resolvedSubjectSection']);
+        });
+    }
+
     public function mapSection(ScheduleImportRow $row, int $sectionId, User $actor, ?string $note = null): ScheduleImportRow
     {
         $issue = $this->firstIssue($row, ScheduleImportIssueWorkflow::SECTION_ISSUES);
@@ -329,7 +396,11 @@ class ScheduleImportReconciliationService
     {
         Gate::forUser($actor)->authorize('excludeFromBatchSchedule', $issue);
 
-        if ($issue->issue_type !== ScheduleImportIssue::TYPE_NO_WEEKLY_TIME) {
+        if (! in_array($issue->issue_type, [
+            ...ScheduleImportIssueWorkflow::SUBJECT_ISSUES,
+            ...ScheduleImportIssueWorkflow::SECTION_ISSUES,
+            ScheduleImportIssue::TYPE_NO_WEEKLY_TIME,
+        ], true)) {
             throw new RuntimeException(__('schedule-import-reconciliation.validation.no_time_only'));
         }
 
@@ -360,10 +431,6 @@ class ScheduleImportReconciliationService
                 throw new RuntimeException(__('schedule-import-reconciliation.validation.schedule_decision_review_required'));
             }
 
-            if ($this->workflow->hasUnresolvedIssue($lockedRow, [...ScheduleImportIssueWorkflow::SUBJECT_ISSUES, ...ScheduleImportIssueWorkflow::SECTION_ISSUES])) {
-                throw new RuntimeException(__('schedule-import-reconciliation.validation.resolve_catalog_issues_first'));
-            }
-
             if (! in_array($lockedIssue->resolution_status, [
                 ScheduleImportIssue::STATUS_UNRESOLVED,
                 ScheduleImportIssue::STATUS_RETRY_FAILED,
@@ -375,10 +442,6 @@ class ScheduleImportReconciliationService
             $excludedAt = now();
             $subject = $this->resolutionContext->effectiveSubject($lockedRow);
             $section = $this->resolutionContext->effectiveSubjectSection($lockedRow);
-
-            if (! $subject || ! $section) {
-                throw new RuntimeException(__('schedule-import-reconciliation.validation.subject_section_required'));
-            }
 
             $lockedRow->update($this->resolutionUpdate($actor, [
                 'excluded_from_weekly_schedule_at' => $excludedAt,
@@ -392,10 +455,7 @@ class ScheduleImportReconciliationService
                 $note,
             ));
             $notApplicableIssues = $lockedRow->issues
-                ->whereIn('issue_type', [
-                    ScheduleImportIssue::TYPE_LECTURER_MISSING,
-                    ScheduleImportIssue::TYPE_HALL_MISSING,
-                ])
+                ->where('id', '!=', $lockedIssue->id)
                 ->filter(fn (ScheduleImportIssue $rowIssue): bool => in_array($rowIssue->resolution_status, [
                     ScheduleImportIssue::STATUS_UNRESOLVED,
                     ScheduleImportIssue::STATUS_RETRY_FAILED,
@@ -421,8 +481,8 @@ class ScheduleImportReconciliationService
                 'status' => 'applied',
                 'batch' => ['id' => $lockedRow->import_batch_id, 'uuid' => $lockedRow->importBatch()->value('uuid')],
                 'source_row_number' => $lockedRow->source_row_number,
-                'subject' => ['id' => $subject->id, 'code' => $subject->code, 'name' => $subject->name],
-                'section' => ['id' => $section->id, 'code' => $section->code],
+                'subject' => $subject ? ['id' => $subject->id, 'code' => $subject->code, 'name' => $subject->name] : null,
+                'section' => $section ? ['id' => $section->id, 'code' => $section->code] : null,
                 'previous_issue_status' => collect($before['issues'])->firstWhere('id', $lockedIssue->id)['status'] ?? ScheduleImportIssue::STATUS_UNRESOLVED,
                 'new_issue_status' => ScheduleImportIssue::STATUS_RESOLVED,
                 'actor' => ['id' => $actor->id, 'name' => $actor->name],
@@ -665,6 +725,26 @@ class ScheduleImportReconciliationService
         if ($expected && $section->section_type !== $expected) {
             throw new RuntimeException(__('schedule-import-reconciliation.validation.section_type'));
         }
+    }
+
+    private function exactSectionForSubject(ScheduleImportRow $row, Subject $subject): ?SubjectSection
+    {
+        $sectionCode = SubjectSection::normalizeCode((string) ($row->normalized_payload['section_code'] ?? ''));
+        $sourceType = $row->normalized_payload['section_type'] ?? null;
+        $sectionType = match ($sourceType) {
+            'T' => Subject::TYPE_THEORETICAL,
+            'P' => Subject::TYPE_PRACTICAL,
+            default => null,
+        };
+        $matches = SubjectSection::query()
+            ->where('academic_term_id', $row->academic_term_id)
+            ->where('subject_id', $subject->id)
+            ->when($sectionType, fn ($query, string $type) => $query->where('section_type', $type))
+            ->get()
+            ->filter(fn (SubjectSection $section): bool => SubjectSection::normalizeCode($section->code) === $sectionCode)
+            ->values();
+
+        return $matches->count() === 1 ? $matches->sole() : null;
     }
 
     private function assertCatalogDoesNotConflictWithSlots(ScheduleImportRow $row, Subject $subject, SubjectSection $section): void

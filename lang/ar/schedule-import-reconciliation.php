@@ -6,6 +6,16 @@ return [
     'academic_term' => 'الفصل الدراسي',
     'action_completed' => 'تم حفظ إجراء المراجعة',
     'summary_title' => 'ملخص حالات المعالجة',
+    'filters_title' => 'تصفية صفوف الاستيراد حسب الحالة',
+    'filters' => [
+        'missing_subject' => 'مقرر مفقود',
+        'missing_section' => 'شعبة مفقودة',
+        'missing_lecturer' => 'مدرس مفقود',
+        'missing_hall' => 'قاعة مفقودة',
+        'conflict' => 'تعارض',
+        'excluded' => 'مستبعد',
+        'ready' => 'جاهز',
+    ],
     'tabs' => [
         'needs_attention' => 'يحتاج معالجة',
         'warnings' => 'تحذيرات',
@@ -86,7 +96,17 @@ return [
         'retry_failed' => 'فشلت إعادة المعالجة',
     ],
     'issue_types' => [
+        'subject_not_found' => 'المقرر غير موجود',
+        'subject_not_unique' => 'رمز المقرر غير فريد',
         'non_authoritative_subject_code' => 'رمز المادة غير معتمد',
+        'section_not_found' => 'الشعبة غير موجودة',
+        'zero_student_subject_missing' => 'مقرر صف صفري غير مطابق',
+        'zero_student_section_missing' => 'شعبة صف صفري غير مطابقة',
+        'lecturer_missing' => 'المدرس مفقود',
+        'lecturer_ambiguous' => 'المدرس ملتبس',
+        'hall_missing' => 'القاعة مفقودة',
+        'hall_ambiguous' => 'القاعة ملتبسة',
+        'duplicate_conflict' => 'تعارض صفوف مكررة',
     ],
     'exclusion' => [
         'title' => 'استبعاد الصف من برنامج الدوام لهذه الدفعة',
@@ -100,7 +120,7 @@ return [
         'keep' => 'إبقاء الحالة دون معالجة',
     ],
     'required_actions' => [
-        'subject' => 'اختر مادة وشعبة',
+        'subject' => 'حدد المادة',
         'section' => 'اختر شعبة',
         'lecturer' => 'اختر مدرسًا',
         'hall' => 'اختر قاعة',
@@ -120,6 +140,11 @@ return [
     ],
     'notices' => [
         'optional_identities' => 'يمكن حفظ الموعد الآن وإسناد المدرس أو القاعة لاحقًا.',
+    ],
+    'reasons' => [
+        'subject_not_found' => 'لم يتم العثور على مقرر مطابق للرمز :code.',
+        'section_not_found' => 'تم تحديد المادة، لكن لم يتم العثور على الشعبة :section ضمن الفصل الدراسي المرتبط.',
+        'section_not_found_for_subject' => 'تم العثور على المادة :subject، لكن لم يتم العثور على الشعبة :section في الفصل الدراسي المرتبط.',
     ],
     'identity_sources' => [
         'manual' => 'اختيار يدوي معتمد',

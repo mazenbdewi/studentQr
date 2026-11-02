@@ -6,6 +6,27 @@
 
     @php($counts = $this->tabCounts())
     @php($summary = $this->remediationSummary())
+    @php($issueCounts = $this->issueFilterCounts())
+
+    <section aria-label="{{ __('schedule-import-reconciliation.filters_title') }}">
+        <h2 class="mb-3 text-base font-semibold text-gray-950 dark:text-white">{{ __('schedule-import-reconciliation.filters_title') }}</h2>
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            @foreach ($this->issueFilterLabels() as $key => $label)
+                <button
+                    type="button"
+                    wire:click="selectIssueFilter('{{ $key }}')"
+                    @class([
+                        'rounded-lg border p-3 text-start transition',
+                        'border-primary-500 bg-primary-50 text-primary-800 dark:bg-primary-950' => $issueFilter === $key,
+                        'border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200' => $issueFilter !== $key,
+                    ])
+                >
+                    <div class="text-sm font-semibold">{{ $label }}</div>
+                    <div class="mt-1 text-2xl font-bold">{{ $issueCounts[$key] ?? 0 }}</div>
+                </button>
+            @endforeach
+        </div>
+    </section>
 
     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         @foreach ($this->tabLabels() as $key => $label)

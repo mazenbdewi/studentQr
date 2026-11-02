@@ -12,6 +12,7 @@ use App\Filament\Pages\ManaraEnrollmentImport;
 use App\Filament\Pages\ManaraScheduleImport;
 use App\Filament\Pages\PortalSettings;
 use App\Filament\Pages\ScheduleImportIssues;
+use App\Filament\Pages\ScheduleImportReconciliationReport;
 use App\Filament\Pages\UserGuide;
 use App\Filament\Pages\WeeklySchedule;
 use App\Filament\Pages\WeeklyScheduleReports;
@@ -104,6 +105,7 @@ class AdminPanelProvider extends PanelProvider
                 WeeklyScheduleReports::class,
                 LecturerAccountPreparation::class,
                 ScheduleImportIssues::class,
+                ScheduleImportReconciliationReport::class,
                 PortalSettings::class,
                 UserGuide::class,
                 DatabaseBackups::class,

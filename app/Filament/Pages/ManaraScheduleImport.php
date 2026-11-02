@@ -328,7 +328,7 @@ class ManaraScheduleImport extends Page implements HasForms
                     $fileName,
                     $this->pendingFilePath,
                 );
-                $this->reconciliationUrl = ScheduleImportIssues::getUrl(['batch' => $batch->id]);
+                $this->reconciliationUrl = ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid]);
             }
 
             if ($import->getErrors() !== [] && $batch) {
@@ -498,7 +498,7 @@ class ManaraScheduleImport extends Page implements HasForms
             ? WeeklySchedule::getUrl(['batch' => $batch->uuid])
             : null;
         $this->reconciliationUrl = $this->resultHasPersistedSchedule
-            ? ScheduleImportIssues::getUrl(['batch' => $batch->id])
+            ? ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid])
             : null;
 
         if (filled($batch->error_file_path)) {
@@ -540,6 +540,18 @@ class ManaraScheduleImport extends Page implements HasForms
         };
 
         $notification->send();
+    }
+
+    public function reconciliationFilterUrl(string $filter): ?string
+    {
+        if (! $this->resultHasPersistedSchedule || blank($this->resultBatchUuid)) {
+            return null;
+        }
+
+        return ScheduleImportReconciliationReport::getUrl([
+            'batch' => $this->resultBatchUuid,
+            'issue' => $filter,
+        ]);
     }
 
     private function sendFailedNotification(?string $detail = null): void

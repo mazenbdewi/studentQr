@@ -1,7 +1,7 @@
 <?php
 
 use App\Filament\Pages\ManaraScheduleImport;
-use App\Filament\Pages\ScheduleImportIssues;
+use App\Filament\Pages\ScheduleImportReconciliationReport;
 use App\Filament\Pages\WeeklySchedule;
 use App\Models\AcademicTerm;
 use App\Models\AppSetting;
@@ -132,7 +132,7 @@ it('shows a warning notification with result links for completed with errors', f
         )
         ->and($component->get('weeklyScheduleUrl'))->toContain('weekly-schedule')->toContain($batch->uuid)
         ->and($component->get('reconciliationUrl'))->toBe(
-            ScheduleImportIssues::getUrl(['batch' => $batch->id]),
+            ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid]),
         );
 });
 

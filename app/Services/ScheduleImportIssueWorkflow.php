@@ -94,15 +94,11 @@ class ScheduleImportIssueWorkflow
             return __('schedule-import-reconciliation.dependencies.schedule_decision_review_required');
         }
 
-        if ($action === 'exclude' && $this->hasUnresolvedIssue($row, [...self::SUBJECT_ISSUES, ...self::SECTION_ISSUES])) {
-            return __('schedule-import-reconciliation.dependencies.resolve_catalog_issues_first');
-        }
-
-        if ($action !== 'subject' && ! $this->subjectResolved($row)) {
+        if (! in_array($action, ['subject', 'exclude'], true) && ! $this->subjectResolved($row)) {
             return __('schedule-import-reconciliation.dependencies.subject_first');
         }
 
-        if (in_array($action, ['lecturer', 'hall', 'time', 'exclude', 'retry'], true) && ! $this->sectionResolved($row)) {
+        if (in_array($action, ['lecturer', 'hall', 'time', 'retry'], true) && ! $this->sectionResolved($row)) {
             return __('schedule-import-reconciliation.dependencies.section_first');
         }
 
