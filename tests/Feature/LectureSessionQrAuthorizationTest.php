@@ -7,6 +7,7 @@ use App\Models\LectureSession;
 use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
 function createLectureSessionForQrTests(User $lecturer): LectureSession
@@ -67,6 +68,48 @@ beforeEach(function () {
 
 afterEach(function () {
     Carbon::setTestNow();
+});
+
+it('closes ended sessions in one update while preserving their scheduled historical end', function () {
+    $lecturer = User::factory()->create([
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+    ]);
+    $ended = createLectureSessionForQrTests($lecturer);
+    $ended->update(['session_date' => '2026-05-18', 'status' => 'scheduled']);
+    $future = $ended->replicate();
+    $future->fill(['session_date' => '2026-05-20', 'status' => 'scheduled'])->save();
+    $cancelled = $ended->replicate();
+    $cancelled->fill(['status' => 'cancelled'])->save();
+    $completed = $ended->replicate();
+    $completed->fill(['status' => 'completed', 'qr_expired' => false])->save();
+    $previousActualEnd = Carbon::parse('2026-05-18 09:45:00');
+    $withActualEnd = $ended->replicate();
+    $withActualEnd->status = 'active';
+    $withActualEnd->actual_end = $previousActualEnd;
+    $withActualEnd->save();
+
+    DB::enableQueryLog();
+    try {
+        LectureSession::syncExpiredSessions();
+        $updates = collect(DB::getQueryLog())
+            ->filter(fn (array $query): bool => str_starts_with(strtolower($query['query']), 'update'));
+    } finally {
+        DB::disableQueryLog();
+        DB::flushQueryLog();
+    }
+
+    expect($updates)->toHaveCount(1)
+        ->and($ended->fresh()->status)->toBe('completed')
+        ->and($ended->fresh()->qr_expired)->toBeTrue()
+        ->and($ended->fresh()->actual_end->format('Y-m-d H:i:s'))->toBe('2026-05-18 10:00:00')
+        ->and($future->fresh()->status)->toBe('scheduled')
+        ->and($cancelled->fresh()->status)->toBe('cancelled')
+        ->and($cancelled->fresh()->qr_expired)->toBeFalse()
+        ->and($completed->fresh()->status)->toBe('completed')
+        ->and($completed->fresh()->qr_expired)->toBeFalse()
+        ->and($withActualEnd->fresh()->status)->toBe('completed')
+        ->and($withActualEnd->fresh()->actual_end->format('Y-m-d H:i:s'))->toBe($previousActualEnd->format('Y-m-d H:i:s'));
 });
 
 it('shows the qr action only for the owning lecturer during the lecture window', function () {

@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class LectureSession extends Model
@@ -210,23 +211,24 @@ class LectureSession extends Model
         $reference ??= now();
         $today = $reference->toDateString();
         $currentTime = $reference->format('H:i:s');
+        $scheduledEnd = config('database.default') === 'sqlite'
+            ? "datetime(date(session_date) || ' ' || time(end_time))"
+            : "concat(date(session_date), ' ', time(end_time))";
 
         static::query()
             ->whereNotIn('status', ['completed', 'cancelled'])
-            ->where(function (Builder $query) use ($today, $currentTime) {
-                $query
-                    ->where(function (Builder $query) use ($today, $currentTime) {
-                        $query
-                            ->whereDate('session_date', '<', $today)
-                            ->orWhere(function (Builder $query) use ($today, $currentTime) {
-                                $query
-                                    ->whereDate('session_date', $today)
-                                    ->whereTime('end_time', '<=', $currentTime);
-                            });
+            ->where(function (Builder $query) use ($today, $currentTime): void {
+                $query->where('session_date', '<', $today)
+                    ->orWhere(function (Builder $query) use ($today, $currentTime): void {
+                        $query->where('session_date', $today)
+                            ->where('end_time', '<=', $currentTime);
                     });
             })
-            ->get()
-            ->each(fn (self $session) => $session->syncLifecycleState($reference, refresh: false));
+            ->update([
+                'status' => 'completed',
+                'qr_expired' => true,
+                'actual_end' => DB::raw('coalesce(actual_end, '.$scheduledEnd.')'),
+            ]);
     }
 
     public function subject(): BelongsTo
