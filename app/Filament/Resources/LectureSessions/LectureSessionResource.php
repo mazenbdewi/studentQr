@@ -309,7 +309,13 @@ class LectureSessionResource extends Resource
 
                 Tables\Columns\TextColumn::make('hall.name')
                     ->label(__('lecture-session.hall'))
-                    ->getStateUsing(fn (LectureSession $record): ?string => $record->displayHallName())
+                    ->getStateUsing(function (LectureSession $record): ?string {
+                        $hall = $record->hall;
+
+                        return $hall instanceof Hall && $hall->isPlaceholder()
+                            ? $hall->displayLabel()
+                            : $record->displayHallName();
+                    })
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('assignment_readiness')

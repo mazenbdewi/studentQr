@@ -1,17 +1,21 @@
 <?php
 
 use App\Filament\Pages\ScheduleImportIssues;
+use App\Filament\Resources\LectureSessions\LectureSessionResource;
+use App\Filament\Resources\LectureSessions\Pages\ListLectureSessions;
 use App\Models\AcademicTerm;
 use App\Models\AppSetting;
 use App\Models\AuditLog;
 use App\Models\Hall;
 use App\Models\ImportBatch;
 use App\Models\Lecturer;
+use App\Models\LectureSession;
 use App\Models\ScheduleImportRow;
 use App\Models\Subject;
 use App\Models\SubjectSection;
 use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
+use App\Services\LectureSessionGenerationService;
 use App\Services\SchedulePlaceholderAssignmentService;
 use App\Services\SchedulePlaceholderService;
 use App\Services\WeeklyScheduleIssueService;
@@ -324,6 +328,41 @@ it('does not treat placeholder resources as conflicts but retains real resource 
         ->and($theoreticalConflicts)->toBe([])
         ->and($practicalConflicts)->toBe([])
         ->and(collect($realConflicts)->pluck('type')->all())->toContain('lecturer', 'hall');
+});
+
+it('assigns placeholders from generation preview without silently generating sessions', function (): void {
+    $term = taskTwoTerm('generation-preview-action');
+    taskTwoCompletedEnrollmentBatch($term, 'generation-preview-action');
+    $batch = taskTwoBatch($term, 'generation-preview-action');
+    $slot = taskTwoSlot($batch, taskTwoSection($term, Subject::TYPE_PRACTICAL));
+    $admin = taskTwoAdmin();
+    AppSetting::put(AppSetting::CURRENT_ACADEMIC_TERM_ID_KEY, (string) $term->id);
+
+    Livewire::actingAs($admin)
+        ->test(ListLectureSessions::class)
+        ->call('assignGenerationPlaceholders');
+
+    $slot->refresh()->load(['lecturer', 'hall']);
+    expect($slot->lecturer?->placeholder_type)->toBe(Lecturer::PLACEHOLDER_PRACTICAL)
+        ->and($slot->hall?->placeholder_type)->toBe(Hall::PLACEHOLDER_UNASSIGNED)
+        ->and(LectureSession::query()->count())->toBe(0)
+        ->and(AuditLog::query()->where('action', 'auto_fill_missing_assignments')->count())->toBe(1);
+
+    $result = app(LectureSessionGenerationService::class)->generateReadySessions($term, $admin, $batch->id);
+    $session = LectureSession::query()->firstOrFail();
+
+    expect($result['created_session_count'])->toBeGreaterThan(0)
+        ->and($session->lecturer_id)->toBeNull()
+        ->and($session->lecturer_identity_id)->toBe($slot->lecturer_id)
+        ->and($session->hall_id)->toBe($slot->hall_id)
+        ->and(LectureSessionResource::getEloquentQuery()->whereKey($session->id)->exists())->toBeTrue();
+
+    Livewire::actingAs($admin)
+        ->test(ListLectureSessions::class)
+        ->set('activeTab', 'completed')
+        ->assertSee('مدرس عملي غير محدد')
+        ->assertSee('X0')
+        ->assertSee('تحتاج إلى تعيين');
 });
 
 it('keeps generation-backed issue conflicts clear for placeholders and present for real resources', function (): void {
