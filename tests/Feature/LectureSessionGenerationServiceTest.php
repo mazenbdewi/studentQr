@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\LectureSessionGenerationService;
 use App\Services\SchedulePlaceholderService;
 use App\Services\WeeklyScheduleIssueService;
+use App\Services\WeeklyScheduleSlotConflictDetector;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -146,6 +147,36 @@ it('loads persisted sessions once when previewing generation candidates', functi
 
     expect($preview['candidate_session_count'])->toBe(3)
         ->and($lectureSessionQueries->count())->toBe(1);
+});
+
+it('finds the same real weekly conflict participants without treating placeholders as resources', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $conflicting = $fixture['slot']->replicate()->fill([
+        'start_time' => '08:30:00',
+        'end_time' => '09:30:00',
+    ]);
+    $conflicting->save();
+    $placeholderSlot = $fixture['slot']->replicate()->fill([
+        'subject_section_id' => SubjectSection::query()->create([
+            'academic_term_id' => $fixture['term']->id,
+            'subject_id' => $fixture['subject']->id,
+            'section_type' => Subject::TYPE_THEORETICAL,
+            'code' => 'T2',
+        ])->id,
+        'lecturer_id' => app(SchedulePlaceholderService::class)->theoreticalLecturer()->id,
+        'hall_id' => app(SchedulePlaceholderService::class)->unassignedHall()->id,
+        'start_time' => '08:30:00',
+        'end_time' => '09:30:00',
+    ]);
+    $placeholderSlot->save();
+
+    $affected = app(WeeklyScheduleSlotConflictDetector::class)->affectedSlotIds(
+        $fixture['term'],
+        $fixture['scheduleBatch']->id,
+    );
+
+    expect($affected)->toContain($fixture['slot']->id, $conflicting->id)
+        ->and($affected)->not->toContain($placeholderSlot->id);
 });
 
 it('generates dated sessions from weekly slots using the linked lecturer login account', function (): void {

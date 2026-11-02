@@ -5,13 +5,16 @@ use App\Filament\Pages\ScheduleImportReconciliationReport;
 use App\Filament\Pages\WeeklySchedule;
 use App\Models\AcademicTerm;
 use App\Models\AppSetting;
+use App\Models\Hall;
 use App\Models\ImportBatch;
+use App\Models\Lecturer;
 use App\Models\ScheduleImportIssue;
 use App\Models\ScheduleImportRow;
 use App\Models\Subject;
 use App\Models\SubjectSection;
 use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
+use App\Services\SchedulePlaceholderService;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -228,6 +231,7 @@ it('displays recurring weekly slots rather than dated lecture sessions and scope
         'practical_sections' => 1,
         'needs_review' => 1,
     ])->and($component->instance()->getTable()->getModel())->toBe(SubjectSectionScheduleSlot::class)
+        ->and($component->instance()->getTable()->getDefaultPaginationPageOption())->toBe(50)
         ->and(array_keys($component->instance()->getTable()->getFilters()))->toBe([
             'faculty_id',
             'department_id',
@@ -323,4 +327,96 @@ it('renders weekly schedule actions without the duplicate reconciliation report 
         ])->toBe($before)
         ->and($component->instance()->getTable()->getQuery()->pluck('academic_term_id')->unique()->all())
         ->toBe([$term->id]);
+});
+
+it('shows batch-scoped readiness actions and source-row counters for catalog issues', function (): void {
+    [$term, $batch] = weeklyScheduleUiBatch(ImportBatch::STATUS_COMPLETED_WITH_ERRORS);
+    $row = ScheduleImportRow::query()->create([
+        'import_batch_id' => $batch->id,
+        'academic_term_id' => $term->id,
+        'source_sheet_name' => 'Schedule',
+        'source_row_number' => 9,
+        'row_fingerprint' => hash('sha256', 'weekly-readiness-missing-subject'),
+        'source_payload' => ['subject_code' => 'MISSING101'],
+        'normalized_payload' => ['subject_code_key' => 'missing101'],
+        'original_import_status' => ScheduleImportRow::ORIGINAL_REJECTED,
+        'current_reconciliation_status' => ScheduleImportRow::STATUS_UNRESOLVED,
+    ]);
+    ScheduleImportIssue::query()->create([
+        'schedule_import_row_id' => $row->id,
+        'deduplication_key' => hash('sha256', 'weekly-readiness-missing-subject-issue'),
+        'issue_type' => ScheduleImportIssue::TYPE_SUBJECT_NOT_FOUND,
+        'severity' => ScheduleImportIssue::SEVERITY_ERROR,
+        'reason_ar' => 'مقرر مفقود',
+        'resolution_status' => ScheduleImportIssue::STATUS_UNRESOLVED,
+    ]);
+
+    $component = Livewire::withQueryParams(['batch' => $batch->uuid])
+        ->actingAs(weeklyScheduleUiAdmin())
+        ->test(WeeklySchedule::class)
+        ->assertSee(__('weekly-schedule.readiness.status.blocked'))
+        ->assertSee(__('weekly-schedule.readiness.actions.catalog_review'))
+        ->assertSee(__('weekly-schedule.readiness.counters.missing_subject_rows'));
+
+    expect($component->instance()->readinessSummary())
+        ->toMatchArray(['missing_subject_rows' => 1, 'missing_subject_codes' => 1, 'batch_id' => $batch->id])
+        ->and($component->instance()->reconciliationUrl())->toBe(
+            ScheduleImportReconciliationReport::getUrl(['batch' => $batch->uuid, 'issue' => 'missing_subject']),
+        );
+});
+
+it('classifies placeholder assignments as generation-ready with a non-blocking warning', function (): void {
+    [$term, $batch] = weeklyScheduleUiBatch(ImportBatch::STATUS_COMPLETED);
+    $term->update([
+        'teaching_start_date' => '2026-09-01',
+        'teaching_end_date' => '2026-09-08',
+    ]);
+    $enrollmentBatch = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', 'weekly-readiness-enrollment-source'),
+        'import_type' => ImportBatch::TYPE_ENROLLMENTS,
+        'status' => ImportBatch::STATUS_COMPLETED,
+        'imported_rows' => 1,
+    ]);
+    $enrollmentBatch->academicTerms()->attach($term->id, ['row_count' => 1]);
+    $subject = Subject::query()->create([
+        'code' => 'READY101',
+        'name' => 'مادة جاهزية',
+        'subject_type' => Subject::TYPE_THEORETICAL,
+        'is_active' => true,
+    ]);
+    $section = SubjectSection::query()->create([
+        'academic_term_id' => $term->id,
+        'subject_id' => $subject->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'T1',
+        'raw_section_number' => '1',
+    ]);
+    $slot = SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $batch->id,
+        'academic_term_id' => $term->id,
+        'subject_id' => $subject->id,
+        'subject_section_id' => $section->id,
+        'weekday' => 1,
+        'start_time' => '08:00:00',
+        'end_time' => '09:00:00',
+        'lecturer_id' => app(SchedulePlaceholderService::class)->theoreticalLecturer()->id,
+        'hall_id' => app(SchedulePlaceholderService::class)->unassignedHall()->id,
+    ]);
+
+    $component = Livewire::withQueryParams(['batch' => $batch->uuid])
+        ->actingAs(weeklyScheduleUiAdmin())
+        ->test(WeeklySchedule::class)
+        ->assertSee(__('weekly-schedule.readiness.status.placeholders'));
+
+    expect($component->instance()->readinessSummary())
+        ->toMatchArray([
+            'status' => 'placeholders',
+            'ready_slots' => 1,
+            'placeholder_lecturer_slots' => 1,
+            'placeholder_hall_slots' => 1,
+            'blocked_slots' => 0,
+            'total_weekly_slots' => 1,
+        ])
+        ->and($slot->fresh()->lecturer)->toBeInstanceOf(Lecturer::class)
+        ->and($slot->fresh()->hall)->toBeInstanceOf(Hall::class);
 });

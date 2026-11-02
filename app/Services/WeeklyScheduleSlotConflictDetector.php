@@ -2,15 +2,90 @@
 
 namespace App\Services;
 
+use App\Models\AcademicTerm;
 use App\Models\Hall;
 use App\Models\Lecturer;
 use App\Models\ScheduleImportRow;
 use App\Models\SubjectSectionScheduleSlot;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class WeeklyScheduleSlotConflictDetector
 {
+    /**
+     * Finds slots participating in real weekly conflicts without comparing the
+     * full timetable pair-by-pair. Slots are grouped by weekday and resource,
+     * then scanned in start-time order. Placeholder resources are omitted.
+     *
+     * @param  array<int, int>  $excludedSlotIds
+     * @return array<int, int>
+     */
+    public function affectedSlotIds(AcademicTerm $term, ?int $importBatchId = null, array $excludedSlotIds = []): array
+    {
+        $slots = DB::table('subject_section_schedule_slots as slots')
+            ->leftJoin('lecturers', 'lecturers.id', '=', 'slots.lecturer_id')
+            ->leftJoin('halls', 'halls.id', '=', 'slots.hall_id')
+            ->where('slots.academic_term_id', $term->id)
+            ->when($importBatchId, fn ($query, int $batchId) => $query->where('slots.import_batch_id', $batchId))
+            ->when($excludedSlotIds !== [], fn ($query) => $query->whereNotIn('slots.id', $excludedSlotIds))
+            ->whereBetween('slots.weekday', [1, 7])
+            ->whereNotNull('slots.start_time')
+            ->whereNotNull('slots.end_time')
+            ->whereColumn('slots.start_time', '<', 'slots.end_time')
+            ->get([
+                'slots.id',
+                'slots.weekday',
+                'slots.start_time',
+                'slots.end_time',
+                'slots.subject_section_id',
+                'slots.lecturer_id',
+                'slots.hall_id',
+                'lecturers.placeholder_type as lecturer_placeholder_type',
+                'halls.placeholder_type as hall_placeholder_type',
+            ]);
+        $groups = [];
+
+        foreach ($slots as $slot) {
+            $keys = ["{$slot->weekday}|section|{$slot->subject_section_id}"];
+
+            if ($slot->lecturer_id && $slot->lecturer_placeholder_type === null) {
+                $keys[] = "{$slot->weekday}|lecturer|{$slot->lecturer_id}";
+            }
+
+            if ($slot->hall_id && $slot->hall_placeholder_type === null) {
+                $keys[] = "{$slot->weekday}|hall|{$slot->hall_id}";
+            }
+
+            foreach ($keys as $key) {
+                $groups[$key][] = $slot;
+            }
+        }
+
+        $affected = [];
+
+        foreach ($groups as $group) {
+            usort($group, fn (object $left, object $right): int => [(string) $left->start_time, (int) $left->id] <=> [(string) $right->start_time, (int) $right->id]);
+            $active = [];
+
+            foreach ($group as $slot) {
+                $active = array_values(array_filter($active, fn (object $candidate): bool => (string) $candidate->end_time > (string) $slot->start_time));
+
+                foreach ($active as $candidate) {
+                    $affected[(int) $candidate->id] = true;
+                    $affected[(int) $slot->id] = true;
+                }
+
+                $active[] = $slot;
+            }
+        }
+
+        $ids = array_keys($affected);
+        sort($ids);
+
+        return $ids;
+    }
+
     public function exactSlot(ScheduleImportRow $row, array $candidate, bool $lock = false): ?SubjectSectionScheduleSlot
     {
         return SubjectSectionScheduleSlot::query()

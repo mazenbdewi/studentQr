@@ -37,7 +37,7 @@ class LectureSessionGenerationService
         return $this->previewForTerm($term, $importBatchId);
     }
 
-    public function previewForTerm(AcademicTerm $term, ?int $importBatchId = null): array
+    public function previewForTerm(AcademicTerm $term, ?int $importBatchId = null, bool $includeCandidateDetails = true): array
     {
         $term->refresh();
 
@@ -46,6 +46,9 @@ class LectureSessionGenerationService
         $excludedSlotIds = $this->excludedScheduleSlotIds($term, $importBatchId);
         $structuralReadiness = $this->structuralReadiness($term, $importBatchId);
         $plannedCandidates = [];
+        /** @var array<int|string, array<int, int>> $plannedCandidateIndex */
+        $plannedCandidateIndex = [];
+        $toCreateCountsBySlot = [];
 
         $preview = [
             'ready' => false,
@@ -117,14 +120,16 @@ class LectureSessionGenerationService
 
             foreach ($sessionDates as $sessionDate) {
                 $candidate = $this->candidateForSlot($slot, $sessionDate);
-                $evaluation = $this->evaluateCandidate($candidate, $plannedCandidates, $evaluationContext);
+                $evaluation = $this->evaluateCandidate($candidate, $plannedCandidates, $evaluationContext, $plannedCandidateIndex);
                 $candidate = [
                     ...$candidate,
                     ...$evaluation,
                 ];
 
                 $preview['candidate_session_count']++;
-                $preview['candidates'][] = $candidate;
+                if ($includeCandidateDetails) {
+                    $preview['candidates'][] = $candidate;
+                }
 
                 match ($candidate['status']) {
                     self::STATUS_TO_CREATE => $preview['to_create_count']++,
@@ -135,7 +140,9 @@ class LectureSessionGenerationService
                 };
 
                 if ($candidate['status'] === self::STATUS_TO_CREATE) {
+                    $toCreateCountsBySlot[(int) $candidate['source_slot_id']] = ($toCreateCountsBySlot[(int) $candidate['source_slot_id']] ?? 0) + 1;
                     $plannedCandidates[] = $candidate;
+                    $this->indexPlannedCandidate($plannedCandidateIndex, $candidate, (int) array_key_last($plannedCandidates));
                 }
 
                 if ($candidate['status'] === self::STATUS_CONFLICT) {
@@ -157,14 +164,21 @@ class LectureSessionGenerationService
             ->filter(fn (SubjectSectionScheduleSlot $slot): bool => $this->slotErrors($slot) === []);
         $preview['ready_slot_count'] = $readySlots->count();
         $preview['ready_slot_breakdown'] = $this->readySlotBreakdown($readySlots);
-        $preview['safe_to_create_count'] = collect($preview['candidates'])
-            ->filter(fn (array $candidate): bool => $candidate['status'] === self::STATUS_TO_CREATE)
-            ->reject(fn (array $candidate): bool => in_array((int) $candidate['source_slot_id'], $unsafeSourceSlotIds, true))
-            ->count();
+        $preview['safe_to_create_count'] = collect($toCreateCountsBySlot)
+            ->reject(fn (int $count, int $slotId): bool => in_array($slotId, $unsafeSourceSlotIds, true))
+            ->sum();
         $preview['ready_for_partial_generation'] = $prerequisiteErrors === []
             && $preview['safe_to_create_count'] > 0;
 
         return $preview;
+    }
+
+    /** @return array<int, string> */
+    public function prerequisiteErrorsForTerm(AcademicTerm $term, ?int $importBatchId = null): array
+    {
+        $term->refresh();
+
+        return $this->prerequisiteErrors($term, $this->dateRange($term), $importBatchId);
     }
 
     public function generate(AcademicTerm $term, ?User $user = null, ?int $importBatchId = null): array
@@ -492,48 +506,73 @@ class LectureSessionGenerationService
 
     public function structuralReadiness(AcademicTerm $term, ?int $importBatchId = null): array
     {
-        /** @var Collection<int, SubjectSectionScheduleSlot> $slots */
-        $slots = $this->sourceSlotQuery($term, $importBatchId)
-            ->with(['subject', 'subjectSection', 'lecturer.user.roles', 'hall'])
-            ->get();
-
-        $validSubjectAndSection = $slots->filter(fn (SubjectSectionScheduleSlot $slot): bool => $this->hasValidSubjectSection($slot));
-        $withLecturerIdentity = $slots->filter(fn (SubjectSectionScheduleSlot $slot): bool => filled($slot->lecturer_id) && filled($slot->lecturer));
-        $withValidLinkedLecturerAccountAndRole = $slots->filter(function (SubjectSectionScheduleSlot $slot): bool {
-            if ($slot->lecturer?->isPlaceholder()) {
-                return true;
-            }
-
-            $user = $slot->lecturer?->user;
-
-            return $user instanceof User
-                && ! $user->trashed()
-                && ($user->is_active ?? true)
-                && $user->status === 'active'
-                && $user->hasRole('course_lecturer');
+        $base = $this->sourceSlotQuery($term, $importBatchId);
+        $validSubjectSection = fn (Builder $query): Builder => $query->whereHas(
+            'subjectSection',
+            fn (Builder $section): Builder => $section->whereColumn('subject_sections.subject_id', 'subject_section_schedule_slots.subject_id'),
+        );
+        $validDayTime = fn (Builder $query): Builder => $query
+            ->whereBetween('weekday', [1, 7])
+            ->whereNotNull('start_time')
+            ->whereNotNull('end_time')
+            ->whereColumn('start_time', '<', 'end_time');
+        $validLecturer = fn (Builder $query): Builder => $query->whereHas('lecturer', function (Builder $lecturer): void {
+            $lecturer->whereNotNull('placeholder_type')
+                ->orWhere(function (Builder $real): void {
+                    $real->whereNull('placeholder_type')
+                        ->whereNotNull('user_id')
+                        ->whereHas('user', fn (Builder $user): Builder => $user
+                            ->where('is_active', true)
+                            ->where('status', 'active')
+                            ->whereHas('roles', fn (Builder $role): Builder => $role->where('name', 'course_lecturer')));
+                });
         });
-        $withHalls = $slots->filter(fn (SubjectSectionScheduleSlot $slot): bool => filled($slot->hall_id) && filled($slot->hall));
-        $otherwiseInvalid = $slots->reject(fn (SubjectSectionScheduleSlot $slot): bool => $this->hasValidSubjectSection($slot)
-            && $slot->weekday >= 1
-            && $slot->weekday <= 7
-            && filled($slot->start_time)
-            && filled($slot->end_time)
-            && strcmp((string) $slot->start_time, (string) $slot->end_time) < 0);
-        $ready = $slots->filter(fn (SubjectSectionScheduleSlot $slot): bool => $this->slotErrors($slot) === []);
-        $readySlotBreakdown = $this->readySlotBreakdown($ready);
+        $validHall = fn (Builder $query): Builder => $query->whereNotNull('hall_id')->whereHas('hall');
+        $readyQuery = clone $base;
+        $validSubjectSection($readyQuery);
+        $validDayTime($readyQuery);
+        $validLecturer($readyQuery);
+        $validHall($readyQuery);
+
+        $total = (clone $base)->count();
+        $validSubjectAndSection = $validSubjectSection(clone $base)->count();
+        $withLecturerIdentity = (clone $base)->whereNotNull('lecturer_id')->whereHas('lecturer')->count();
+        $withValidLinkedLecturerAccountAndRole = $validLecturer(clone $base)->count();
+        $withHalls = $validHall(clone $base)->count();
+        $validStructureAndTime = clone $base;
+        $validSubjectSection($validStructureAndTime);
+        $validDayTime($validStructureAndTime);
+        $invalidDayTimeSlots = $validDayTime(clone $base)->count();
+        $ready = (clone $readyQuery)->count();
+        $placeholderLecturerSlots = (clone $base)->whereHas('lecturer', fn (Builder $lecturer): Builder => $lecturer->whereNotNull('placeholder_type'))->count();
+        $placeholderHallSlots = (clone $base)->whereHas('hall', fn (Builder $hall): Builder => $hall->whereNotNull('placeholder_type'))->count();
+        $readyWithPlaceholderLecturer = (clone $readyQuery)->whereHas('lecturer', fn (Builder $lecturer): Builder => $lecturer->whereNotNull('placeholder_type'));
+        $readyWithPlaceholderHall = (clone $readyQuery)->whereHas('hall', fn (Builder $hall): Builder => $hall->whereNotNull('placeholder_type'));
+        $bothUnassigned = (clone $readyWithPlaceholderLecturer)->whereHas('hall', fn (Builder $hall): Builder => $hall->whereNotNull('placeholder_type'))->count();
+        $unassignedLecturer = (clone $readyWithPlaceholderLecturer)->whereDoesntHave('hall', fn (Builder $hall): Builder => $hall->whereNotNull('placeholder_type'))->count();
+        $unassignedHall = (clone $readyWithPlaceholderHall)->whereDoesntHave('lecturer', fn (Builder $lecturer): Builder => $lecturer->whereNotNull('placeholder_type'))->count();
 
         return [
-            'total_weekly_slots' => $slots->count(),
-            'valid_subject_and_section' => $validSubjectAndSection->count(),
-            'slots_with_lecturer_identity' => $withLecturerIdentity->count(),
-            'slots_without_lecturer_identity' => $slots->count() - $withLecturerIdentity->count(),
-            'slots_with_valid_linked_lecturer_account_and_role' => $withValidLinkedLecturerAccountAndRole->count(),
-            'slots_with_halls' => $withHalls->count(),
-            'slots_without_halls' => $slots->count() - $withHalls->count(),
-            'slots_otherwise_invalid' => $otherwiseInvalid->count(),
-            'ready_slots' => $ready->count(),
-            'blocked_slots' => $slots->count() - $ready->count(),
-            'ready_slot_breakdown' => $readySlotBreakdown,
+            'total_weekly_slots' => $total,
+            'valid_subject_and_section' => $validSubjectAndSection,
+            'slots_with_lecturer_identity' => $withLecturerIdentity,
+            'slots_without_lecturer_identity' => $total - $withLecturerIdentity,
+            'slots_with_valid_linked_lecturer_account_and_role' => $withValidLinkedLecturerAccountAndRole,
+            'slots_with_halls' => $withHalls,
+            'slots_without_halls' => $total - $withHalls,
+            'slots_otherwise_invalid' => $total - $validStructureAndTime->count(),
+            'invalid_day_time_slots' => $total - $invalidDayTimeSlots,
+            'placeholder_lecturer_slots' => $placeholderLecturerSlots,
+            'placeholder_hall_slots' => $placeholderHallSlots,
+            'ready_slots' => $ready,
+            'blocked_slots' => $total - $ready,
+            'ready_slot_breakdown' => [
+                'complete' => $ready - $unassignedLecturer - $unassignedHall - $bothUnassigned,
+                'unassigned_lecturer' => $unassignedLecturer,
+                'unassigned_hall' => $unassignedHall,
+                'both_unassigned' => $bothUnassigned,
+                'total' => $ready,
+            ],
         ];
     }
 
@@ -646,10 +685,10 @@ class LectureSessionGenerationService
         ];
     }
 
-    private function evaluateCandidate(array $candidate, array $plannedCandidates, ?array $evaluationContext = null): array
+    private function evaluateCandidate(array $candidate, array $plannedCandidates, ?array $evaluationContext = null, ?array $plannedCandidateIndex = null): array
     {
         if ($evaluationContext !== null) {
-            return $this->evaluateCandidateFromContext($candidate, $plannedCandidates, $evaluationContext);
+            return $this->evaluateCandidateFromContext($candidate, $plannedCandidates, $evaluationContext, $plannedCandidateIndex);
         }
 
         $sourceExists = LectureSession::query()
@@ -755,7 +794,7 @@ class LectureSessionGenerationService
     }
 
     /** @param array<string, mixed> $candidate @param array<int, array<string, mixed>> $plannedCandidates @param array{source_dates: array<string, true>, manual_sessions: array<string, true>, sessions_by_date: array<string, array<int, LectureSession>>} $evaluationContext */
-    private function evaluateCandidateFromContext(array $candidate, array $plannedCandidates, array $evaluationContext): array
+    private function evaluateCandidateFromContext(array $candidate, array $plannedCandidates, array $evaluationContext, ?array $plannedCandidateIndex = null): array
     {
         if (isset($evaluationContext['source_dates'][$candidate['source_slot_id'].'|'.$candidate['session_date']])) {
             return ['status' => self::STATUS_ALREADY_EXISTS, 'reason' => 'source_date_already_generated'];
@@ -783,7 +822,9 @@ class LectureSessionGenerationService
             }
         }
 
-        $plannedConflict = $this->plannedConflict($candidate, $plannedCandidates);
+        $plannedConflict = $plannedCandidateIndex === null
+            ? $this->plannedConflict($candidate, $plannedCandidates)
+            : $this->plannedConflictFromIndex($candidate, $plannedCandidates, $plannedCandidateIndex);
 
         if ($plannedConflict !== null) {
             return [
@@ -794,6 +835,61 @@ class LectureSessionGenerationService
         }
 
         return ['status' => self::STATUS_TO_CREATE, 'reason' => null];
+    }
+
+    /**
+     * @param  array<int|string, array<int, int>>  $index
+     * @param  array<string, mixed>  $candidate
+     *
+     * @param-out array<int|string, array<int, int>> $index
+     */
+    private function indexPlannedCandidate(array &$index, array $candidate, int $position): void
+    {
+        foreach ($this->plannedCandidateKeys($candidate) as $key) {
+            $index[$key][] = $position;
+        }
+    }
+
+    /** @param array<string, mixed> $candidate @return array<int, string> */
+    private function plannedCandidateKeys(array $candidate): array
+    {
+        $date = (string) $candidate['session_date'];
+        $keys = ["{$date}|section|{$candidate['subject_section_id']}"];
+
+        if (! $candidate['lecturer_is_placeholder'] && filled($candidate['lecturer_user_id'])) {
+            $keys[] = "{$date}|lecturer|{$candidate['lecturer_user_id']}";
+        }
+
+        if (! $candidate['hall_is_placeholder'] && filled($candidate['hall_id'])) {
+            $keys[] = "{$date}|hall|{$candidate['hall_id']}";
+        }
+
+        return $keys;
+    }
+
+    /** @param array<string, mixed> $candidate @param array<int, array<string, mixed>> $plannedCandidates @param array<int|string, array<int, int>> $index */
+    private function plannedConflictFromIndex(array $candidate, array $plannedCandidates, array $index): ?array
+    {
+        $positions = collect($this->plannedCandidateKeys($candidate))
+            ->flatMap(fn (string $key): array => $index[$key] ?? [])
+            ->unique()
+            ->sort()
+            ->values();
+
+        foreach ($positions as $position) {
+            $plannedCandidate = $plannedCandidates[$position];
+
+            if ($this->timesOverlap(
+                $plannedCandidate['start_time'],
+                $plannedCandidate['end_time'],
+                $candidate['start_time'],
+                $candidate['end_time'],
+            )) {
+                return $plannedCandidate;
+            }
+        }
+
+        return null;
     }
 
     /** @param array<string, mixed> $candidate */

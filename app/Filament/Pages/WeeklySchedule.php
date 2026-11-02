@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\AcademicTerm;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\Hall;
@@ -14,6 +15,8 @@ use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use App\Policies\ScheduleImportRowPolicy;
 use App\Services\FutureLectureSessionAssignmentService;
+use App\Services\LectureSessionGenerationService;
+use App\Services\WeeklyScheduleSlotConflictDetector;
 use App\Support\AcademicTermContext;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -41,12 +44,22 @@ class WeeklySchedule extends Page implements HasTable
 
     public ?int $resolvedAcademicTermId = null;
 
+    public ?int $resolvedImportBatchId = null;
+
+    /** @var array<string, mixed>|null */
+    private ?array $readinessSummaryCache = null;
+
     public function mount(): void
     {
         $batchUuid = request()->query('batch');
 
         if (! is_string($batchUuid) || $batchUuid === '') {
             $this->resolvedAcademicTermId = app(AcademicTermContext::class)->currentId();
+
+            if ($this->resolvedAcademicTermId) {
+                $this->resolvedImportBatchId = $this->latestBatchIdForTerm($this->resolvedAcademicTermId);
+                $this->setBatchTableFilter();
+            }
 
             return;
         }
@@ -58,10 +71,9 @@ class WeeklySchedule extends Page implements HasTable
             ->firstOrFail();
         $term = $batch->academicTerms->sole();
         $this->resolvedAcademicTermId = (int) $term->id;
+        $this->resolvedImportBatchId = (int) $batch->id;
 
-        $this->tableFilters = [
-            'import_batch_id' => ['value' => (string) $batch->id],
-        ];
+        $this->setBatchTableFilter();
     }
 
     public static function canAccess(): bool
@@ -101,6 +113,120 @@ class WeeklySchedule extends Page implements HasTable
             : null;
     }
 
+    /** @return array<string, mixed> */
+    public function readinessSummary(): array
+    {
+        if ($this->readinessSummaryCache !== null) {
+            return $this->readinessSummaryCache;
+        }
+
+        $empty = [
+            'status' => 'no_term',
+            'total_weekly_slots' => 0,
+            'ready_slots' => 0,
+            'blocked_slots' => 0,
+            'missing_lecturer_slots' => 0,
+            'missing_hall_slots' => 0,
+            'placeholder_lecturer_slots' => 0,
+            'placeholder_hall_slots' => 0,
+            'real_conflict_slots' => 0,
+            'invalid_day_time_slots' => 0,
+            'missing_subject_rows' => 0,
+            'missing_subject_codes' => 0,
+            'missing_section_rows' => 0,
+            'excluded_rows' => 0,
+            'teaching_dates_missing' => true,
+            'teaching_dates_invalid' => false,
+            'prerequisite_errors' => [],
+            'batch_id' => null,
+            'batch_uuid' => null,
+        ];
+        $term = $this->resolvedAcademicTerm();
+
+        if (! $term instanceof AcademicTerm) {
+            return $this->readinessSummaryCache = $empty;
+        }
+
+        $batchId = $this->contextBatchId();
+        $batch = $batchId ? ImportBatch::query()->find($batchId) : null;
+        $generation = app(LectureSessionGenerationService::class);
+        $structural = $generation->structuralReadiness($term, $batchId);
+        $prerequisiteErrors = $generation->prerequisiteErrorsForTerm($term, $batchId);
+        $subjectTypes = [
+            ScheduleImportIssue::TYPE_SUBJECT_NOT_FOUND,
+            ScheduleImportIssue::TYPE_SUBJECT_NOT_UNIQUE,
+            ScheduleImportIssue::TYPE_NON_AUTHORITATIVE_SUBJECT_CODE,
+            ScheduleImportIssue::TYPE_ZERO_STUDENT_SUBJECT_MISSING,
+        ];
+        $sectionTypes = [
+            ScheduleImportIssue::TYPE_SECTION_NOT_FOUND,
+            ScheduleImportIssue::TYPE_ZERO_STUDENT_SECTION_MISSING,
+        ];
+        $rows = ScheduleImportRow::query()
+            ->where('academic_term_id', $term->id)
+            ->when($batchId, fn (Builder $query): Builder => $query->where('import_batch_id', $batchId));
+        $withUnresolvedIssueTypes = fn (Builder $query, array $types): Builder => $query->whereHas('issues', fn (Builder $issues): Builder => $issues
+            ->whereIn('issue_type', $types)
+            ->whereIn('resolution_status', [ScheduleImportIssue::STATUS_UNRESOLVED, ScheduleImportIssue::STATUS_RETRY_FAILED]));
+        $subjectRows = $withUnresolvedIssueTypes(clone $rows, $subjectTypes);
+        $sectionRows = $withUnresolvedIssueTypes(clone $rows, $sectionTypes);
+        $excludedRows = (clone $rows)->whereIn('current_reconciliation_status', [
+            ScheduleImportRow::STATUS_IGNORED,
+            ScheduleImportRow::STATUS_INTENTIONALLY_UNSCHEDULED,
+            ScheduleImportRow::STATUS_EXCLUDED_FROM_BATCH_SCHEDULE,
+        ]);
+        $excludedRecords = (clone $excludedRows)->get(['id', 'import_result']);
+        $excludedSlotIds = $excludedRecords->flatMap(fn (ScheduleImportRow $row): array => $row->relatedScheduleSlotIds())->unique()->values()->all();
+        $realConflictSlotIds = app(WeeklyScheduleSlotConflictDetector::class)->affectedSlotIds($term, $batchId, $excludedSlotIds);
+        $subjectRowCount = (clone $subjectRows)->count();
+        $sectionRowCount = (clone $sectionRows)->count();
+        $blocking = $structural['blocked_slots'] + count($realConflictSlotIds) + $subjectRowCount + $sectionRowCount + count($prerequisiteErrors);
+        $datesMissing = blank($term->teaching_start_date) || blank($term->teaching_end_date);
+        $datesInvalid = ! $datesMissing && $term->teaching_end_date < $term->teaching_start_date;
+
+        return $this->readinessSummaryCache = [
+            'status' => $blocking > 0 || $datesMissing || $datesInvalid ? 'blocked' : (($structural['placeholder_lecturer_slots'] + $structural['placeholder_hall_slots']) > 0 ? 'placeholders' : 'complete'),
+            'total_weekly_slots' => $structural['total_weekly_slots'],
+            'ready_slots' => $structural['ready_slots'],
+            'blocked_slots' => $structural['blocked_slots'],
+            'missing_lecturer_slots' => $structural['slots_without_lecturer_identity'],
+            'missing_hall_slots' => $structural['slots_without_halls'],
+            'placeholder_lecturer_slots' => $structural['placeholder_lecturer_slots'],
+            'placeholder_hall_slots' => $structural['placeholder_hall_slots'],
+            'real_conflict_slots' => count($realConflictSlotIds),
+            'invalid_day_time_slots' => $structural['invalid_day_time_slots'],
+            'missing_subject_rows' => $subjectRowCount,
+            'missing_subject_codes' => (clone $subjectRows)->pluck('normalized_payload')->map(fn (mixed $payload): mixed => is_array($payload) ? ($payload['subject_code_key'] ?? null) : null)->filter()->unique()->count(),
+            'missing_section_rows' => $sectionRowCount,
+            'excluded_rows' => $excludedRecords->count(),
+            'teaching_dates_missing' => $datesMissing,
+            'teaching_dates_invalid' => $datesInvalid,
+            'prerequisite_errors' => $prerequisiteErrors,
+            'batch_id' => $batch?->id,
+            'batch_uuid' => $batch?->uuid,
+        ];
+    }
+
+    public function scheduleIssuesUrl(): string
+    {
+        $batchId = $this->contextBatchId();
+
+        return ScheduleImportIssues::getUrl($batchId ? ['batch' => $batchId] : []);
+    }
+
+    public function reconciliationUrl(): ?string
+    {
+        $summary = $this->readinessSummary();
+
+        if (! $summary['batch_uuid'] || ((int) $summary['missing_subject_rows'] === 0 && (int) $summary['missing_section_rows'] === 0)) {
+            return null;
+        }
+
+        $issue = (int) $summary['missing_subject_rows'] > 0 ? 'missing_subject' : 'missing_section';
+
+        return ScheduleImportReconciliationReport::getUrl(['batch' => $summary['batch_uuid'], 'issue' => $issue]);
+    }
+
     public function table(Table $table): Table
     {
         return $table
@@ -112,7 +238,7 @@ class WeeklySchedule extends Page implements HasTable
                 )
                 ->with([
                     'academicTerm',
-                    'subject.department.faculty',
+                    'subject',
                     'subjectSection',
                     'lecturer',
                     'hall',
@@ -255,6 +381,7 @@ class WeeklySchedule extends Page implements HasTable
                 $this->applyAssignmentsToFutureSessionsAction(),
             ])
             ->defaultSort('weekday')
+            ->defaultPaginationPageOption(50)
             ->paginated([25, 50, 100]);
     }
 
@@ -443,5 +570,37 @@ class WeeklySchedule extends Page implements HasTable
     private function canChangeHall(): bool
     {
         return Filament::auth()->user()?->can(ScheduleImportRowPolicy::CHANGE_RECONCILED_HALL) ?? false;
+    }
+
+    private function contextBatchId(): ?int
+    {
+        if ($this->resolvedImportBatchId) {
+            return $this->resolvedImportBatchId;
+        }
+
+        $value = data_get($this->getTableFilterState('import_batch_id'), 'value');
+
+        return filled($value) ? (int) $value : null;
+    }
+
+    private function latestBatchIdForTerm(int $termId): ?int
+    {
+        return ImportBatch::query()
+            ->where('import_type', ImportBatch::TYPE_WEEKLY_SCHEDULE)
+            ->whereIn('status', [ImportBatch::STATUS_COMPLETED, ImportBatch::STATUS_COMPLETED_WITH_ERRORS])
+            ->whereHas('academicTerms', fn (Builder $query): Builder => $query->whereKey($termId))
+            ->whereHas('scheduleSlots', fn (Builder $query): Builder => $query->where('academic_term_id', $termId))
+            ->latest('completed_at')
+            ->latest('id')
+            ->value('id');
+    }
+
+    private function setBatchTableFilter(): void
+    {
+        if ($this->resolvedImportBatchId) {
+            $this->tableFilters = [
+                'import_batch_id' => ['value' => (string) $this->resolvedImportBatchId],
+            ];
+        }
     }
 }
