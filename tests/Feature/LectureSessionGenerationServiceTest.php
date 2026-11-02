@@ -19,6 +19,7 @@ use App\Services\WeeklyScheduleIssueService;
 use App\Services\WeeklyScheduleSlotConflictDetector;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Excel as ExcelWriter;
 use Maatwebsite\Excel\Facades\Excel;
@@ -464,6 +465,13 @@ it('reports structural readiness even when teaching dates are missing', function
 
     expect($issues['ready_slots'])->toBe(1)
         ->and($issues['blocked_unique_count'])->toBe(0);
+
+    expect(fn (): array => app(LectureSessionGenerationService::class)->generateReadySessions(
+        $fixture['term'],
+        $fixture['admin'],
+        $fixture['scheduleBatch']->id,
+    ))->toThrow(ValidationException::class)
+        ->and(LectureSessionGenerationRun::query()->count())->toBe(0);
 });
 
 it('makes structurally valid slots generatable after teaching dates are configured', function (): void {
@@ -511,6 +519,43 @@ it('keeps an explicit schedule batch scoped to its own academic term', function 
         ->and($preview['source_slot_count'])->toBe(1)
         ->and($issues->academicTermId)->toBe($fixture['term']->id)
         ->and($issues->importBatchId)->toBe($fixture['scheduleBatch']->id);
+});
+
+it('generates exclusively from the explicitly selected schedule batch', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $fixture['term']->update(['teaching_end_date' => '2026-09-07']);
+    $otherBatch = ImportBatch::query()->create([
+        'deduplication_key' => hash('sha256', 'other-explicit-schedule-batch'),
+        'import_type' => ImportBatch::TYPE_WEEKLY_SCHEDULE,
+        'status' => ImportBatch::STATUS_COMPLETED,
+        'imported_rows' => 1,
+        'total_rows' => 1,
+        'completed_at' => now()->addSecond(),
+    ]);
+    $otherBatch->academicTerms()->attach($fixture['term']->id, ['row_count' => 1]);
+    $otherSlot = SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $otherBatch->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $fixture['section']->id,
+        'lecturer_id' => $fixture['lecturerIdentity']->id,
+        'hall_id' => $fixture['hall']->id,
+        'weekday' => Carbon::MONDAY,
+        'start_time' => '10:00:00',
+        'end_time' => '11:00:00',
+    ]);
+
+    $result = app(LectureSessionGenerationService::class)->generateReadySessions(
+        $fixture['term'],
+        $fixture['admin'],
+        $fixture['scheduleBatch']->id,
+    );
+
+    expect($result['source_slot_count'])->toBe(1)
+        ->and($result['created_session_count'])->toBe(1)
+        ->and(LectureSession::query()->where('subject_section_schedule_slot_id', $fixture['slot']->id)->count())->toBe(1)
+        ->and(LectureSession::query()->where('subject_section_schedule_slot_id', $otherSlot->id)->count())->toBe(0)
+        ->and(LectureSessionGenerationRun::query()->sole()->schedule_import_batch_id)->toBe($fixture['scheduleBatch']->id);
 });
 
 it('treats weekly schedule weekday seven as Sunday', function (): void {
@@ -577,6 +622,158 @@ it('generates only ready sessions and reports blocked weekly slots separately', 
         ->and($result['success_report'])->toHaveCount(3)
         ->and(LectureSession::query()->count())->toBe(3)
         ->and(LectureSession::query()->where('subject_section_id', $blockedSection->id)->count())->toBe(0);
+});
+
+it('generates five ready slots while skipping three blocked slots and records a completed partial run', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $fixture['term']->update(['teaching_end_date' => '2026-09-07']);
+
+    foreach ([9, 10, 11, 12] as $hour) {
+        SubjectSectionScheduleSlot::query()->create([
+            'import_batch_id' => $fixture['scheduleBatch']->id,
+            'academic_term_id' => $fixture['term']->id,
+            'subject_id' => $fixture['subject']->id,
+            'subject_section_id' => $fixture['section']->id,
+            'lecturer_id' => $fixture['lecturerIdentity']->id,
+            'hall_id' => $fixture['hall']->id,
+            'weekday' => Carbon::MONDAY,
+            'start_time' => sprintf('%02d:00:00', $hour),
+            'end_time' => sprintf('%02d:00:00', $hour + 1),
+        ]);
+    }
+
+    foreach ([13, 14, 15] as $hour) {
+        SubjectSectionScheduleSlot::query()->create([
+            'import_batch_id' => $fixture['scheduleBatch']->id,
+            'academic_term_id' => $fixture['term']->id,
+            'subject_id' => $fixture['subject']->id,
+            'subject_section_id' => $fixture['section']->id,
+            'lecturer_id' => $fixture['lecturerIdentity']->id,
+            'hall_id' => null,
+            'weekday' => Carbon::MONDAY,
+            'start_time' => sprintf('%02d:00:00', $hour),
+            'end_time' => sprintf('%02d:00:00', $hour + 1),
+        ]);
+    }
+
+    $generator = app(LectureSessionGenerationService::class);
+    $preview = $generator->preview($fixture['term'], $fixture['scheduleBatch']->id);
+    $result = $generator->generateReadySessions($fixture['term'], $fixture['admin'], $fixture['scheduleBatch']->id);
+    $run = LectureSessionGenerationRun::query()->findOrFail($result['generation_run_id']);
+
+    expect($preview['source_slot_count'])->toBe(8)
+        ->and($preview['ready_slot_count'])->toBe(5)
+        ->and($preview['skipped_blocked_slot_count'])->toBe(3)
+        ->and($preview['safe_to_create_count'])->toBe(5)
+        ->and($result['created_session_count'])->toBe(5)
+        ->and(LectureSession::query()->count())->toBe(5)
+        ->and($run->status)->toBe('completed')
+        ->and($run->summary)->toMatchArray([
+            'total_source_slots' => 8,
+            'ready_slots' => 5,
+            'skipped_blocked_slots' => 3,
+            'created_sessions' => 5,
+            'already_existing_sessions' => 0,
+            'conflict_slots' => 0,
+            'placeholder_slots' => 0,
+        ]);
+
+    $second = $generator->generateReadySessions($fixture['term'], $fixture['admin'], $fixture['scheduleBatch']->id);
+
+    expect($second['created_session_count'])->toBe(0)
+        ->and($second['already_existing_count'])->toBe(5)
+        ->and(LectureSession::query()->count())->toBe(5);
+});
+
+it('generates newly ready slots only after missing lecturer and hall assignments are fixed', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $fixture['term']->update(['teaching_end_date' => '2026-09-07']);
+    $missingLecturer = SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['scheduleBatch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $fixture['section']->id,
+        'lecturer_id' => null,
+        'hall_id' => $fixture['hall']->id,
+        'weekday' => Carbon::MONDAY,
+        'start_time' => '09:00:00',
+        'end_time' => '10:00:00',
+    ]);
+    $missingHall = SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['scheduleBatch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $fixture['section']->id,
+        'lecturer_id' => $fixture['lecturerIdentity']->id,
+        'hall_id' => null,
+        'weekday' => Carbon::MONDAY,
+        'start_time' => '10:00:00',
+        'end_time' => '11:00:00',
+    ]);
+    $generator = app(LectureSessionGenerationService::class);
+
+    $first = $generator->generateReadySessions($fixture['term'], $fixture['admin'], $fixture['scheduleBatch']->id);
+    $missingLecturer->update(['lecturer_id' => $fixture['lecturerIdentity']->id]);
+    $secondPreview = $generator->preview($fixture['term'], $fixture['scheduleBatch']->id);
+    $second = $generator->generateReadySessions($fixture['term'], $fixture['admin'], $fixture['scheduleBatch']->id);
+    $missingHall->update(['hall_id' => $fixture['hall']->id]);
+    $third = $generator->generateReadySessions($fixture['term'], $fixture['admin'], $fixture['scheduleBatch']->id);
+
+    expect($first['created_session_count'])->toBe(1)
+        ->and($secondPreview['safe_to_create_count'])->toBe(1)
+        ->and($second['created_session_count'])->toBe(1)
+        ->and($third['created_session_count'])->toBe(1)
+        ->and(LectureSession::query()->count())->toBe(3)
+        ->and(LectureSession::query()->where('subject_section_schedule_slot_id', $missingLecturer->id)->count())->toBe(1)
+        ->and(LectureSession::query()->where('subject_section_schedule_slot_id', $missingHall->id)->count())->toBe(1);
+});
+
+it('does not start a generation run when no weekly slot is ready', function (): void {
+    $fixture = lectureSessionGenerationFixture(['hall_id' => null]);
+
+    expect(fn (): array => app(LectureSessionGenerationService::class)->generateReadySessions(
+        $fixture['term'],
+        $fixture['admin'],
+        $fixture['scheduleBatch']->id,
+    ))->toThrow(ValidationException::class)
+        ->and(LectureSession::query()->count())->toBe(0)
+        ->and(LectureSessionGenerationRun::query()->count())->toBe(0);
+});
+
+it('rolls back the generation run and all sessions on a technical database failure', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $fixture['term']->update(['teaching_end_date' => '2026-09-07']);
+    SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['scheduleBatch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $fixture['section']->id,
+        'lecturer_id' => $fixture['lecturerIdentity']->id,
+        'hall_id' => $fixture['hall']->id,
+        'weekday' => Carbon::MONDAY,
+        'start_time' => '09:00:00',
+        'end_time' => '10:00:00',
+    ]);
+    $creating = 0;
+    $event = 'eloquent.creating: '.LectureSession::class;
+    Event::listen($event, function () use (&$creating): void {
+        if (++$creating === 2) {
+            throw new RuntimeException('simulated database failure');
+        }
+    });
+
+    try {
+        expect(fn (): array => app(LectureSessionGenerationService::class)->generateReadySessions(
+            $fixture['term'],
+            $fixture['admin'],
+            $fixture['scheduleBatch']->id,
+        ))->toThrow(RuntimeException::class, 'simulated database failure');
+    } finally {
+        Event::forget($event);
+    }
+
+    expect(LectureSession::query()->count())->toBe(0)
+        ->and(LectureSessionGenerationRun::query()->count())->toBe(0);
 });
 
 it('counts a slot missing both lecturer and hall once while retaining both readiness reasons', function (): void {
@@ -765,13 +962,61 @@ it('does not partially create either side of a weekly schedule conflict', functi
         'expected_student_count' => 15,
     ]);
 
-    $result = app(LectureSessionGenerationService::class)->generateReadySessions($fixture['term'], $fixture['admin']);
+    expect(fn (): array => app(LectureSessionGenerationService::class)->generateReadySessions($fixture['term'], $fixture['admin']))
+        ->toThrow(ValidationException::class)
+        ->and(LectureSession::query()->count())->toBe(0)
+        ->and(LectureSessionGenerationRun::query()->count())->toBe(0);
+});
 
-    expect($result['created_session_count'])->toBe(0)
-        ->and($result['conflict_count'])->toBe(3)
-        ->and(collect($result['error_report'])->pluck('الموعد الأسبوعي المصدر'))->toContain($fixture['slot']->id)
-        ->and(collect($result['error_report'])->pluck('الموعد الأسبوعي المصدر'))->toContain(SubjectSectionScheduleSlot::query()->latest('id')->value('id'))
-        ->and(LectureSession::query()->count())->toBe(0);
+it('skips conflicting slots until the conflict is resolved and then generates only those slots', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $fixture['term']->update(['teaching_end_date' => '2026-09-07']);
+    $secondSection = SubjectSection::query()->create([
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'lecturer_id' => $fixture['lecturerUser']->id,
+        'section_type' => Subject::TYPE_THEORETICAL,
+        'code' => 'T2',
+        'name' => 'T2',
+    ]);
+    $firstConflict = SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['scheduleBatch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $fixture['section']->id,
+        'lecturer_id' => $fixture['lecturerIdentity']->id,
+        'hall_id' => $fixture['hall']->id,
+        'weekday' => Carbon::MONDAY,
+        'start_time' => '10:00:00',
+        'end_time' => '11:00:00',
+    ]);
+    $secondConflict = SubjectSectionScheduleSlot::query()->create([
+        'import_batch_id' => $fixture['scheduleBatch']->id,
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $fixture['subject']->id,
+        'subject_section_id' => $secondSection->id,
+        'lecturer_id' => $fixture['lecturerIdentity']->id,
+        'hall_id' => $fixture['hall']->id,
+        'weekday' => Carbon::MONDAY,
+        'start_time' => '10:30:00',
+        'end_time' => '11:30:00',
+    ]);
+    $generator = app(LectureSessionGenerationService::class);
+
+    $firstPreview = $generator->preview($fixture['term'], $fixture['scheduleBatch']->id);
+    $firstRun = $generator->generateReadySessions($fixture['term'], $fixture['admin'], $fixture['scheduleBatch']->id);
+    $secondConflict->update(['start_time' => '11:00:00', 'end_time' => '12:00:00']);
+    $fixedPreview = $generator->preview($fixture['term'], $fixture['scheduleBatch']->id);
+    $secondRun = $generator->generateReadySessions($fixture['term'], $fixture['admin'], $fixture['scheduleBatch']->id);
+
+    expect($firstPreview['conflict_slot_count'])->toBe(2)
+        ->and($firstPreview['ready_slot_count'])->toBe(1)
+        ->and($firstRun['created_session_count'])->toBe(1)
+        ->and(LectureSession::query()->whereIn('subject_section_schedule_slot_id', [$firstConflict->id, $secondConflict->id])->count())->toBe(2)
+        ->and($fixedPreview['conflict_slot_count'])->toBe(0)
+        ->and($fixedPreview['safe_to_create_count'])->toBe(2)
+        ->and($secondRun['created_session_count'])->toBe(2)
+        ->and(LectureSession::query()->count())->toBe(3);
 });
 
 it('detects overlapping persisted sessions and allows adjacent sessions', function (): void {

@@ -114,7 +114,8 @@ it('releases the term-scoped generation lock on either completion path', functio
         ->toContain('} catch (\\Throwable) {')
         ->toContain('} finally {')
         ->toContain('$lock->release();')
-        ->toContain('تعذر إكمال توليد جلسات المحاضرات. لم يتم تنفيذ طلب آخر تلقائيًا. يرجى مراجعة سجل العملية ثم المحاولة مجددًا.');
+        ->toContain("__('lecture-session.weekly_generation_failed_title')")
+        ->toContain("__('lecture-session.weekly_generation_failed_body')");
 });
 
 it('renders the simplified header without changing generation-run audit records', function (): void {

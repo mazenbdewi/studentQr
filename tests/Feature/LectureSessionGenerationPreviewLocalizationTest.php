@@ -63,7 +63,9 @@ it('renders the generation preview in separate Arabic sections without internal 
     $view = file_get_contents(resource_path('views/filament/components/lecture-session-generation-preview.blade.php'));
 
     expect($html)
-        ->toContain('يمكن إنشاء 10 جلسة جديدة.')
+        ->toContain('يوجد 2 خانة جاهزة للتوليد و1 خانة تحتاج معالجة.')
+        ->toContain('يمكنك توليد الجلسات الجاهزة الآن ومعالجة البقية لاحقًا.')
+        ->toContain('سيتم تجاوز 1 خانة تحتاج معالجة')
         ->toContain('يوجد 3 جلسة منشأة مسبقًا ولن يتم تكرارها.')
         ->toContain('المشكلات التي تحتاج إلى معالجة')
         ->toContain('الخانات الجاهزة حسب حالة التعيين')
@@ -77,7 +79,7 @@ it('renders the generation preview in separate Arabic sections without internal 
         ->not->toContain('missing_lecturer_identity')
         ->not->toContain('missing_hall')
         ->not->toContain('weekly_schedule_overlap')
-        ->not->toContain('خانات محجوبة')
+        ->toContain('خانات محجوبة بتعارض حقيقي')
         ->not->toContain('لا توجد جلسات جديدة جاهزة للتوليد حاليًا');
 
     expect($view)

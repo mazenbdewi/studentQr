@@ -160,6 +160,7 @@ return [
     'generate_from_weekly_schedule_heading' => 'معاينة توليد الجلسات',
     'generate_from_weekly_schedule_description' => 'عاين الجلسات المؤرخة التي سيتم توليدها من خانات الجدول الأسبوعي. سيتم إنشاء الجلسات المستوفية للمتطلبات فقط، مع عرض تقرير واضح للحالات المستبعدة.',
     'generate_from_weekly_schedule_submit' => 'توليد الجلسات الجاهزة',
+    'weekly_generation_generating' => 'جارٍ توليد الجلسات...',
     'weekly_generation_preview' => 'معاينة توليد الجلسات',
     'weekly_generation_preview_empty' => 'اختر فصلًا دراسيًا لمعاينة توليد المرحلة الثالثة.',
     'weekly_generation_preview_summary' => 'خانات المصدر: :source. الجلسات المتوقعة: :total. سيتم إنشاؤها: :create. موجودة مسبقًا: :existing. خانات محجوبة: :blocked. تعارضات: :conflicts.',
@@ -171,6 +172,9 @@ return [
     'weekly_generation_conflict_detected' => 'تم اكتشاف تعارض جديد أثناء التوليد. لم يتم إنشاء أي جلسات.',
     'weekly_generation_completed_title' => 'تم توليد الجلسات المؤرخة',
     'weekly_generation_completed_body' => 'تم إنشاء :created من أصل :total جلسة متوقعة. تم تخطي :skipped جلسة موجودة أو غير آمنة.',
+    'weekly_generation_incremental_completed_body' => 'الجلسات الجديدة: :created. الموجودة مسبقًا: :existing. الخانات المتجاوزة مؤقتًا: :blocked.',
+    'weekly_generation_failed_title' => 'تعذر توليد جلسات المحاضرات',
+    'weekly_generation_failed_body' => 'لم تُحفظ عملية توليد جزئية. راجع البيانات ثم أعد المحاولة.',
     'assignment_readiness' => 'اكتمال التعيين',
     'needs_assignment' => 'تحتاج إلى تعيين',
     'needs_assignment_only' => 'الجلسات التي تحتاج إلى تعيين فقط',
@@ -185,10 +189,10 @@ return [
         'preview_description' => 'عاين الجلسات المؤرخة التي سيتم توليدها من خانات الجدول الأسبوعي. سيتم إنشاء الجلسات المستوفية للمتطلبات فقط، مع عرض تقرير واضح للحالات المستبعدة.',
         'academic_term' => 'الفصل الدراسي',
         'summary' => [
-            'source_slots' => 'خانات المصدر', 'expected_sessions' => 'الجلسات المتوقعة', 'to_create' => 'سيتم إنشاؤها', 'already_exists' => 'موجودة مسبقًا', 'not_ready_slots' => 'خانات غير جاهزة للتوليد', 'conflicts' => 'تعارضات',
+            'source_slots' => 'إجمالي الخانات', 'ready_slots' => 'الخانات الجاهزة', 'skipped_slots' => 'الخانات التي سيتم تجاوزها', 'expected_sessions' => 'الجلسات المتوقعة', 'to_create' => 'جلسات سيتم إنشاؤها', 'already_exists' => 'جلسات موجودة مسبقًا', 'not_ready_slots' => 'خانات غير جاهزة للتوليد', 'placeholder_slots' => 'خانات بتعيينات مؤقتة', 'conflict_slots' => 'خانات محجوبة بتعارض حقيقي', 'conflicts' => 'تعارضات',
         ],
         'main' => [
-            'title' => 'النتيجة الرئيسية', 'can_create' => 'يمكن إنشاء :count جلسة جديدة.', 'already_exists' => 'يوجد :count جلسة منشأة مسبقًا ولن يتم تكرارها.', 'none_ready' => 'لا توجد جلسات جديدة جاهزة للتوليد حاليًا.', 'resolve_issues' => 'يرجى معالجة المشكلات الموضحة أدناه.', 'no_source_slots' => 'لا توجد خانات في الجدول الأسبوعي يمكن استخدامها لتوليد الجلسات.', 'all_already_exists' => 'جميع الجلسات المتوقعة موجودة مسبقًا، ولا توجد جلسات جديدة لإنشائها.',
+            'title' => 'النتيجة الرئيسية', 'can_create' => 'يمكن إنشاء :count جلسة جديدة.', 'already_exists' => 'يوجد :count جلسة منشأة مسبقًا ولن يتم تكرارها.', 'partial_available' => 'يوجد :ready خانة جاهزة للتوليد و:blocked خانة تحتاج معالجة.', 'partial_available_hint' => 'يمكنك توليد الجلسات الجاهزة الآن ومعالجة البقية لاحقًا.', 'skipped_warning' => 'سيتم تجاوز :count خانة تحتاج معالجة، ويمكن توليدها لاحقًا بعد استكمال بياناتها.', 'none_ready' => 'لا توجد جلسات جديدة جاهزة للتوليد حاليًا.', 'resolve_issues' => 'يرجى معالجة المشكلات الموضحة أدناه.', 'no_source_slots' => 'لا توجد خانات في الجدول الأسبوعي يمكن استخدامها لتوليد الجلسات.', 'all_already_exists' => 'جميع الجلسات المتوقعة موجودة مسبقًا، ولا توجد جلسات جديدة لإنشائها.',
         ],
         'ready_breakdown' => [
             'title' => 'الخانات الجاهزة حسب حالة التعيين',

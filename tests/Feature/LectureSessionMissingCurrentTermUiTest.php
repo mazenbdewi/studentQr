@@ -42,7 +42,7 @@ it('keeps required-term operations strict while rendering lecture-session action
 
     $component = Livewire::actingAs($admin)
         ->test(ListLectureSessions::class)
-        ->assertSee('توليد الجلسات من البرنامج الأسبوعي')
+        ->assertSee('توليد الجلسات الجاهزة')
         ->assertSet('mountedActions.0.name', 'missingAcademicTerm');
 
     $headerActions = $component->instance()->getCachedHeaderActions();

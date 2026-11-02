@@ -151,6 +151,7 @@ return [
     'generate_from_weekly_schedule_heading' => 'Preview session generation',
     'generate_from_weekly_schedule_description' => 'Preview dated sessions from the weekly schedule. Only safe ready sessions will be generated, with a separate report for excluded cases.',
     'generate_from_weekly_schedule_submit' => 'Generate ready sessions',
+    'weekly_generation_generating' => 'Generating sessions...',
     'weekly_generation_preview' => 'Session generation preview',
     'weekly_generation_preview_empty' => 'Choose an academic term to preview stage three generation.',
     'weekly_generation_preview_summary' => 'Source slots: :source. Candidate sessions: :total. To create: :create. Existing: :existing. Blocked slots: :blocked. Conflicts: :conflicts.',
@@ -162,6 +163,9 @@ return [
     'weekly_generation_conflict_detected' => 'A new conflict was detected while generating sessions. No sessions were created.',
     'weekly_generation_completed_title' => 'Dated sessions generated',
     'weekly_generation_completed_body' => ':created of :total candidate sessions were created. :skipped existing or unsafe sessions were skipped.',
+    'weekly_generation_incremental_completed_body' => 'New sessions: :created. Already existing: :existing. Temporarily skipped slots: :blocked.',
+    'weekly_generation_failed_title' => 'Lecture session generation failed',
+    'weekly_generation_failed_body' => 'No partial generation was saved. Review the data and try again.',
     'assignment_readiness' => 'Assignment readiness',
     'needs_assignment' => 'Needs assignment',
     'needs_assignment_only' => 'Needs assignment only',
@@ -176,10 +180,10 @@ return [
         'preview_description' => 'Preview the dated sessions that will be generated from weekly schedule slots. Only sessions meeting the requirements will be created, with a clear report for excluded cases.',
         'academic_term' => 'Academic term',
         'summary' => [
-            'source_slots' => 'Source slots', 'expected_sessions' => 'Expected sessions', 'to_create' => 'Will be created', 'already_exists' => 'Already exists', 'not_ready_slots' => 'Slots not ready for generation', 'conflicts' => 'Conflicts',
+            'source_slots' => 'Total slots', 'ready_slots' => 'Ready slots', 'skipped_slots' => 'Slots to be skipped', 'expected_sessions' => 'Expected sessions', 'to_create' => 'New sessions to create', 'already_exists' => 'Already existing sessions', 'not_ready_slots' => 'Slots not ready for generation', 'placeholder_slots' => 'Slots with placeholder assignments', 'conflict_slots' => 'Slots blocked by real conflicts', 'conflicts' => 'Conflicts',
         ],
         'main' => [
-            'title' => 'Main result', 'can_create' => ':count new sessions can be created.', 'already_exists' => ':count sessions already exist and will not be duplicated.', 'none_ready' => 'No new sessions are currently ready for generation.', 'resolve_issues' => 'Please resolve the issues shown below.', 'no_source_slots' => 'There are no weekly schedule slots that can be used to generate sessions.', 'all_already_exists' => 'All expected sessions already exist; there are no new sessions to create.',
+            'title' => 'Main result', 'can_create' => ':count new sessions can be created.', 'already_exists' => ':count sessions already exist and will not be duplicated.', 'partial_available' => ':ready slots are ready for generation and :blocked slots need attention.', 'partial_available_hint' => 'You can generate the ready sessions now and resolve the remaining slots later.', 'skipped_warning' => ':count slots requiring attention will be skipped and can be generated later after their data is completed.', 'none_ready' => 'No new sessions are currently ready for generation.', 'resolve_issues' => 'Please resolve the issues shown below.', 'no_source_slots' => 'There are no weekly schedule slots that can be used to generate sessions.', 'all_already_exists' => 'All expected sessions already exist; there are no new sessions to create.',
         ],
         'ready_breakdown' => [
             'title' => 'Ready weekly slots by assignment state',

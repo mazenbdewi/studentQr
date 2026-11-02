@@ -5,12 +5,16 @@
         </div>
     @else
         @php
-            $toCreate = (int) ($preview['to_create_count'] ?? 0);
+            $toCreate = (int) ($preview['safe_to_create_count'] ?? $preview['to_create_count'] ?? 0);
             $alreadyExists = (int) ($preview['already_existing_count'] ?? 0) + (int) ($preview['manual_existing_count'] ?? 0);
             $blocked = (int) ($preview['blocked_slot_count'] ?? 0);
             $blockedUnique = (int) ($preview['blocked_unique_count'] ?? $blocked);
             $conflicts = (int) ($preview['conflict_count'] ?? 0);
+            $conflictSlots = (int) ($preview['conflict_slot_count'] ?? 0);
             $sourceSlots = (int) ($preview['source_slot_count'] ?? 0);
+            $readySlots = (int) ($preview['ready_slot_count'] ?? 0);
+            $skippedBlockedSlots = (int) ($preview['skipped_blocked_slot_count'] ?? $blockedUnique + $conflictSlots);
+            $placeholderSlots = (int) ($preview['placeholder_slot_count'] ?? 0);
             $readiness = $preview['structural_readiness'] ?? [];
             $readyBreakdown = $preview['ready_slot_breakdown'] ?? [];
             $blockedReadiness = $preview['blocked_readiness_counts'] ?? [];
@@ -33,11 +37,17 @@
                 <div class="text-sm font-semibold text-gray-950 dark:text-white">
                     @if ($sourceSlots === 0)
                         {{ __('lecture-session.lecture_generation.main.no_source_slots') }}
-                    @elseif ($toCreate > 0)
-                        {{ __('lecture-session.lecture_generation.main.can_create', ['count' => $toCreate]) }}
+                    @elseif ($toCreate > 0 && $skippedBlockedSlots > 0)
+                        {{ __('lecture-session.lecture_generation.main.partial_available', ['ready' => $readySlots, 'blocked' => $skippedBlockedSlots]) }}
+                        <p class="mt-1 font-normal text-gray-600 dark:text-gray-300">
+                            {{ __('lecture-session.lecture_generation.main.partial_available_hint') }}
+                        </p>
                         <p class="mt-1 font-normal text-gray-600 dark:text-gray-300">
                             {{ __('lecture-session.lecture_generation.main.already_exists', ['count' => $alreadyExists]) }}
                         </p>
+                    @elseif ($toCreate > 0)
+                        {{ __('lecture-session.lecture_generation.main.can_create', ['count' => $toCreate]) }}
+                        <p class="mt-1 font-normal text-gray-600 dark:text-gray-300">{{ __('lecture-session.lecture_generation.main.already_exists', ['count' => $alreadyExists]) }}</p>
                     @elseif ($alreadyExists > 0 && $blocked === 0 && $conflicts === 0)
                         {{ __('lecture-session.lecture_generation.main.all_already_exists') }}
                     @else
@@ -47,11 +57,20 @@
                 </div>
 
                 <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5"><div class="text-sm text-gray-600 dark:text-gray-300">{{ __('lecture-session.lecture_generation.summary.source_slots') }}</div><div class="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{{ $sourceSlots }}</div></div>
+                    <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10"><div class="text-sm text-emerald-700 dark:text-emerald-300">{{ __('lecture-session.lecture_generation.summary.ready_slots') }}</div><div class="mt-1 text-2xl font-bold text-emerald-900 dark:text-emerald-100">{{ $readySlots }}</div></div>
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10"><div class="text-sm text-amber-700 dark:text-amber-300">{{ __('lecture-session.lecture_generation.summary.skipped_slots') }}</div><div class="mt-1 text-2xl font-bold text-amber-900 dark:text-amber-100">{{ $skippedBlockedSlots }}</div></div>
                     <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10"><div class="text-sm text-emerald-700 dark:text-emerald-300">{{ __('lecture-session.lecture_generation.summary.to_create') }}</div><div class="mt-1 text-2xl font-bold text-emerald-900 dark:text-emerald-100">{{ $toCreate }}</div></div>
                     <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5"><div class="text-sm text-gray-600 dark:text-gray-300">{{ __('lecture-session.lecture_generation.summary.already_exists') }}</div><div class="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{{ $alreadyExists }}</div></div>
-                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10"><div class="text-sm text-amber-700 dark:text-amber-300">{{ __('lecture-session.lecture_generation.summary.not_ready_slots') }}</div><div class="mt-1 text-2xl font-bold text-amber-900 dark:text-amber-100">{{ $blockedUnique }}</div></div>
-                    <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/30 dark:bg-rose-500/10"><div class="text-sm text-rose-700 dark:text-rose-300">{{ __('lecture-session.lecture_generation.summary.conflicts') }}</div><div class="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-100">{{ $conflicts }}</div></div>
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10"><div class="text-sm text-amber-700 dark:text-amber-300">{{ __('lecture-session.lecture_generation.summary.placeholder_slots') }}</div><div class="mt-1 text-2xl font-bold text-amber-900 dark:text-amber-100">{{ $placeholderSlots }}</div></div>
+                    <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/30 dark:bg-rose-500/10"><div class="text-sm text-rose-700 dark:text-rose-300">{{ __('lecture-session.lecture_generation.summary.conflict_slots') }}</div><div class="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-100">{{ $conflictSlots }}</div></div>
                 </div>
+
+                @if ($skippedBlockedSlots > 0 && $readySlots > 0)
+                    <p class="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                        {{ __('lecture-session.lecture_generation.main.skipped_warning', ['count' => $skippedBlockedSlots]) }}
+                    </p>
+                @endif
             </div>
         </x-filament::section>
 

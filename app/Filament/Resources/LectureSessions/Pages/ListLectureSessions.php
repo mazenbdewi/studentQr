@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\HtmlString;
+use Illuminate\Validation\ValidationException;
 
 class ListLectureSessions extends ListRecords
 {
@@ -142,7 +143,7 @@ class ListLectureSessions extends ListRecords
     {
         return [
             Action::make('generate_from_weekly_schedule')
-                ->label('توليد الجلسات من البرنامج الأسبوعي')
+                ->label(__('lecture-session.generate_from_weekly_schedule'))
                 ->icon('heroicon-o-sparkles')
                 ->color('primary')
                 ->visible(fn (): bool => static::canGenerateFromWeeklySchedule())
@@ -157,7 +158,7 @@ class ListLectureSessions extends ListRecords
                 ->extraModalWindowAttributes(['class' => 'relative'])
                 ->modalSubmitAction(function (Action $action): Action {
                     return $action
-                        ->label(new HtmlString('<span wire:loading.remove wire:target="callMountedAction">توليد الجلسات الجاهزة</span><span wire:loading wire:target="callMountedAction">جارٍ توليد الجلسات...</span>'))
+                        ->label(new HtmlString('<span wire:loading.remove wire:target="callMountedAction">'.e(__('lecture-session.generate_from_weekly_schedule_submit')).'</span><span wire:loading wire:target="callMountedAction">'.e(__('lecture-session.weekly_generation_generating')).'</span>'))
                         ->extraAttributes([
                             'wire:loading.attr' => 'disabled',
                             'wire:target' => 'callMountedAction',
@@ -232,19 +233,26 @@ class ListLectureSessions extends ListRecords
                         );
 
                         Notification::make()
-                            ->title('تم توليد جلسات المحاضرات بنجاح.')
-                            ->body(implode("\n", [
-                                '• الجلسات الجديدة: '.$result['created_session_count'],
-                                '• الجلسات الموجودة مسبقًا: '.($result['already_existing_count'] + $result['manual_existing_count']),
-                                '• الحالات التي تحتاج مراجعة: '.$result['conflict_count'],
+                            ->title(__('lecture-session.weekly_generation_completed_title'))
+                            ->body(__('lecture-session.weekly_generation_incremental_completed_body', [
+                                'created' => $result['created_session_count'],
+                                'existing' => $result['already_existing_count'] + $result['manual_existing_count'],
+                                'blocked' => $result['skipped_blocked_slot_count'],
                             ]))
                             ->success()
                             ->send();
 
                         $this->resetTable();
+                    } catch (ValidationException) {
+                        Notification::make()
+                            ->title(__('lecture-session.weekly_generation_not_ready_title'))
+                            ->body(__('lecture-session.weekly_generation_not_ready'))
+                            ->warning()
+                            ->send();
                     } catch (\Throwable) {
                         Notification::make()
-                            ->title('تعذر إكمال توليد جلسات المحاضرات. لم يتم تنفيذ طلب آخر تلقائيًا. يرجى مراجعة سجل العملية ثم المحاولة مجددًا.')
+                            ->title(__('lecture-session.weekly_generation_failed_title'))
+                            ->body(__('lecture-session.weekly_generation_failed_body'))
                             ->danger()
                             ->send();
                     } finally {
@@ -867,9 +875,11 @@ class ListLectureSessions extends ListRecords
             return 0;
         }
 
-        return (int) app(WeeklyScheduleIssueService::class)
+        $preview = app(WeeklyScheduleIssueService::class)
             ->result($term, static::currentWeeklyScheduleBatch()?->id)
-            ->preview['to_create_count'];
+            ->preview;
+
+        return (int) ($preview['safe_to_create_count'] ?? $preview['to_create_count']);
     }
 
     /** @return array<int, array{code: string, label: string, count: int}> */
