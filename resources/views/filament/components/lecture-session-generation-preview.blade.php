@@ -30,6 +30,8 @@
             $hasScheduleIssues = isset($issueGroups['schedule_data']);
             $hasAccountIssues = isset($issueGroups['accounts']);
             $hasIssues = $hasReadinessIssues || $issueGroups !== [];
+            $canAssignPlaceholders = ($canAssignPlaceholders ?? false) === true;
+            $placeholderPreview = is_array($placeholderPreview ?? null) ? $placeholderPreview : [];
         @endphp
 
         <x-filament::section :heading="__('lecture-session.lecture_generation.main.title')" icon="heroicon-o-sparkles">
@@ -131,6 +133,26 @@
 
             @if ($hasIssues)
                 <div class="mt-4 flex flex-wrap gap-2">
+                    @if ($canAssignPlaceholders)
+                        <x-filament::button
+                            type="button"
+                            color="warning"
+                            icon="heroicon-o-sparkles"
+                            wire:click="assignGenerationPlaceholders"
+                            wire:loading.attr="disabled"
+                            wire:target="assignGenerationPlaceholders"
+                        >
+                            <span wire:loading.remove wire:target="assignGenerationPlaceholders">{{ __('lecture-session.lecture_generation.actions.assign_placeholders') }}</span>
+                            <span wire:loading wire:target="assignGenerationPlaceholders">{{ __('lecture-session.lecture_generation.actions.assigning_placeholders') }}</span>
+                        </x-filament::button>
+                        <p class="w-full text-xs text-gray-600 dark:text-gray-300">
+                            {{ __('lecture-session.lecture_generation.placeholder_assignment.preview', [
+                                'slots' => (int) ($placeholderPreview['affected_slot_count'] ?? 0),
+                                'lecturers' => (int) ($placeholderPreview['theoretical_lecturer_count'] ?? 0) + (int) ($placeholderPreview['practical_lecturer_count'] ?? 0),
+                                'halls' => (int) ($placeholderPreview['hall_count'] ?? 0),
+                            ]) }}
+                        </p>
+                    @endif
                     @if ($hasTermConfigurationIssues && filled($termSetupUrl ?? null))
                         <x-filament::button tag="a" :href="$termSetupUrl" color="warning" icon="heroicon-o-calendar-days">{{ __('lecture-session.lecture_generation.actions.configure_teaching_dates') }}</x-filament::button>
                     @endif

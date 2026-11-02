@@ -11,8 +11,10 @@ use App\Models\AppSetting;
 use App\Models\Hall;
 use App\Models\ImportBatch;
 use App\Models\Subject;
+use App\Models\User;
 use App\Services\LectureSessionCalendarService;
 use App\Services\LectureSessionGenerationService;
+use App\Services\SchedulePlaceholderAssignmentService;
 use App\Services\WeeklyScheduleIssueService;
 use App\Support\AcademicTermContext;
 use Filament\Actions\Action;
@@ -67,6 +69,36 @@ class ListLectureSessions extends ListRecords
 
         Notification::make()
             ->title('تم تحديث بيانات المحاضرات.')
+            ->success()
+            ->send();
+    }
+
+    public function assignGenerationPlaceholders(): void
+    {
+        abort_unless(static::canGenerateFromWeeklySchedule(), 403);
+
+        $term = app(AcademicTermContext::class)->currentOrNull();
+        $batch = static::currentWeeklyScheduleBatch();
+        $actor = auth()->user();
+
+        if (! $term instanceof AcademicTerm || ! $batch instanceof ImportBatch || ! $actor instanceof User) {
+            Notification::make()
+                ->title(__('lecture-session.lecture_generation.placeholder_assignment.unavailable'))
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        $result = app(SchedulePlaceholderAssignmentService::class)->apply($term, $batch, $actor);
+
+        Notification::make()
+            ->title(__('lecture-session.lecture_generation.placeholder_assignment.completed_title'))
+            ->body(__('lecture-session.lecture_generation.placeholder_assignment.completed_body', [
+                'slots' => $result['affected_slot_count'],
+                'lecturers' => $result['theoretical_lecturer_count'] + $result['practical_lecturer_count'],
+                'halls' => $result['hall_count'],
+            ]))
             ->success()
             ->send();
     }
@@ -856,6 +888,9 @@ class ListLectureSessions extends ListRecords
         $batch = static::currentWeeklyScheduleBatch();
         $issueResult = app(WeeklyScheduleIssueService::class)->result($term, $batch?->id);
         $preview = $issueResult->preview;
+        $placeholderPreview = $batch instanceof ImportBatch
+            ? app(SchedulePlaceholderAssignmentService::class)->preview($term, $batch)
+            : null;
 
         return new HtmlString(view('filament.components.lecture-session-generation-preview', [
             'preview' => $preview,
@@ -864,6 +899,9 @@ class ListLectureSessions extends ListRecords
             'issuesUrl' => static::weeklyScheduleIssuesUrl($term, $issueResult->importBatchId),
             'termSetupUrl' => AcademicTermManagement::getUrl(['term' => $term->id]),
             'accountPreparationUrl' => LecturerAccountPreparation::getUrl(['term' => $term->id]),
+            'placeholderPreview' => $placeholderPreview,
+            'canAssignPlaceholders' => static::canGenerateFromWeeklySchedule()
+                && (int) ($placeholderPreview['affected_slot_count'] ?? 0) > 0,
         ])->render());
     }
 

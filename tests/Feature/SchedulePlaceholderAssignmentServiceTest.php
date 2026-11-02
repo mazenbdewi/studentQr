@@ -204,10 +204,10 @@ it('fills only missing batch assignments and recalculates readiness idempotently
     $placeholders = app(SchedulePlaceholderService::class);
 
     expect($preview)->toMatchArray([
-        'theoretical_lecturer_count' => 2,
+        'theoretical_lecturer_count' => 1,
         'practical_lecturer_count' => 1,
         'hall_count' => 2,
-        'affected_slot_count' => 4,
+        'affected_slot_count' => 3,
         'missing_both_count' => 1,
     ])->and($result)->toBe($preview)
         ->and($fixture['theoreticalMissingBoth']->fresh()->lecturer_id)->toBe($placeholders->theoreticalLecturer()->id)
@@ -218,9 +218,11 @@ it('fills only missing batch assignments and recalculates readiness idempotently
         ->and($fixture['missingHall']->fresh()->hall_id)->toBe($placeholders->unassignedHall()->id)
         ->and($fixture['fullyAssigned']->fresh()->lecturer_id)->toBe($fixture['realLecturer']->id)
         ->and($fixture['fullyAssigned']->fresh()->hall_id)->toBe($fixture['realHall']->id)
+        ->and($fixture['invalidTime']->fresh()->lecturer_id)->toBeNull()
         ->and($fixture['otherBatchSlot']->fresh()->lecturer_id)->toBeNull()
         ->and($fixture['otherBatchSlot']->fresh()->hall_id)->toBeNull()
-        ->and($after->issueCountsByKey)->not->toHaveKeys(['missing_lecturer_identity', 'missing_hall', 'missing_active_lecturer_login', 'missing_course_lecturer_role'])
+        ->and($after->issueCountsByKey)->not->toHaveKeys(['missing_hall', 'missing_active_lecturer_login', 'missing_course_lecturer_role'])
+        ->and($after->issueCountsByKey['missing_lecturer_identity'])->toBe(1)
         ->and($after->uniqueAffectedSlots)->toBe(1)
         ->and($after->readySlots)->toBe(4);
 
@@ -232,6 +234,33 @@ it('fills only missing batch assignments and recalculates readiness idempotently
         ->and(Lecturer::query()->whereNotNull('placeholder_type')->count())->toBe(2)
         ->and(Hall::query()->whereNotNull('placeholder_type')->count())->toBe(1)
         ->and(AuditLog::query()->where('action', 'auto_fill_missing_assignments')->count())->toBe(1);
+});
+
+it('does not assign placeholders to structurally invalid slots', function (): void {
+    $term = taskTwoTerm('invalid-structure');
+    $batch = taskTwoBatch($term, 'invalid-structure');
+    $section = taskTwoSection($term, Subject::TYPE_THEORETICAL);
+    $otherSection = taskTwoSection($term, Subject::TYPE_THEORETICAL);
+    $invalidSubject = taskTwoSlot($batch, $section, [
+        'subject_id' => $otherSection->subject_id,
+    ]);
+    $invalidWeekday = taskTwoSlot($batch, $section, [
+        'weekday' => 0,
+        'start_time' => '10:00:00',
+        'end_time' => '11:00:00',
+    ]);
+    $actor = taskTwoAdmin();
+
+    $preview = app(SchedulePlaceholderAssignmentService::class)->preview($term, $batch);
+    $result = app(SchedulePlaceholderAssignmentService::class)->apply($term, $batch, $actor);
+
+    expect($preview['affected_slot_count'])->toBe(0)
+        ->and($result['affected_slot_count'])->toBe(0)
+        ->and($invalidSubject->fresh()->lecturer_id)->toBeNull()
+        ->and($invalidSubject->fresh()->hall_id)->toBeNull()
+        ->and($invalidWeekday->fresh()->lecturer_id)->toBeNull()
+        ->and($invalidWeekday->fresh()->hall_id)->toBeNull()
+        ->and(AuditLog::query()->where('action', 'auto_fill_missing_assignments')->exists())->toBeFalse();
 });
 
 it('does not treat placeholder resources as conflicts but retains real resource conflicts', function (): void {
@@ -371,7 +400,8 @@ it('uses the explicit historical batch in the bilingual page action and refreshe
     $refreshed = $component->instance()->issueResult();
 
     expect($component->get('issuesVersion'))->toBe(1)
-        ->and($refreshed->issueCountsByKey)->not->toHaveKeys(['missing_lecturer_identity', 'missing_hall'])
+        ->and($refreshed->issueCountsByKey)->not->toHaveKey('missing_hall')
+        ->and($refreshed->issueCountsByKey['missing_lecturer_identity'])->toBe(1)
         ->and($fixture['otherBatchSlot']->fresh()->lecturer_id)->toBeNull()
         ->and($fixture['otherBatchSlot']->fresh()->hall_id)->toBeNull();
 

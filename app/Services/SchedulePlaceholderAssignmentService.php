@@ -22,7 +22,38 @@ class SchedulePlaceholderAssignmentService
     {
         $this->ensureBatchBelongsToTerm($term, $batch);
 
-        return $this->summary($this->slots($term, $batch)->get(), $term, $batch);
+        $eligible = $this->eligibleSlots($term, $batch);
+        $missingTheoretical = (clone $eligible)
+            ->whereNull('lecturer_id')
+            ->whereHas('subjectSection', fn (Builder $query): Builder => $query->where('section_type', Subject::TYPE_THEORETICAL));
+        $missingPractical = (clone $eligible)
+            ->whereNull('lecturer_id')
+            ->whereHas('subjectSection', fn (Builder $query): Builder => $query->where('section_type', Subject::TYPE_PRACTICAL));
+        $missingHall = (clone $eligible)->whereNull('hall_id');
+        $affected = (clone $eligible)->where(function (Builder $query): void {
+            $query
+                ->whereNull('hall_id')
+                ->orWhere(function (Builder $query): void {
+                    $query->whereNull('lecturer_id')->whereHas(
+                        'subjectSection',
+                        fn (Builder $section): Builder => $section->whereIn('section_type', [Subject::TYPE_THEORETICAL, Subject::TYPE_PRACTICAL]),
+                    );
+                });
+        });
+
+        return [
+            'academic_term_id' => (int) $term->id,
+            'import_batch_id' => (int) $batch->id,
+            'theoretical_lecturer_count' => $missingTheoretical->count(),
+            'practical_lecturer_count' => $missingPractical->count(),
+            'hall_count' => $missingHall->count(),
+            'affected_slot_count' => $affected->count(),
+            'missing_both_count' => (clone $eligible)
+                ->whereNull('lecturer_id')
+                ->whereNull('hall_id')
+                ->whereHas('subjectSection', fn (Builder $query): Builder => $query->whereIn('section_type', [Subject::TYPE_THEORETICAL, Subject::TYPE_PRACTICAL]))
+                ->count(),
+        ];
     }
 
     /** @return array{academic_term_id: int, import_batch_id: int, theoretical_lecturer_count: int, practical_lecturer_count: int, hall_count: int, affected_slot_count: int, missing_both_count: int} */
@@ -43,7 +74,7 @@ class SchedulePlaceholderAssignmentService
 
             $theoreticalIds = $this->missingLecturerIds($slots, Subject::TYPE_THEORETICAL);
             $practicalIds = $this->missingLecturerIds($slots, Subject::TYPE_PRACTICAL);
-            $hallIds = $slots->whereNull('hall_id')->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+            $hallIds = $this->missingHallIds($slots);
 
             if ($theoreticalIds !== []) {
                 SubjectSectionScheduleSlot::query()
@@ -96,6 +127,20 @@ class SchedulePlaceholderAssignmentService
             ->where('import_batch_id', $batch->id);
     }
 
+    /** @return Builder<SubjectSectionScheduleSlot> */
+    private function eligibleSlots(AcademicTerm $term, ImportBatch $batch): Builder
+    {
+        return SubjectSectionScheduleSlot::query()
+            ->where('academic_term_id', $term->id)
+            ->where('import_batch_id', $batch->id)
+            ->whereHas('subjectSection', fn (Builder $query): Builder => $query
+                ->whereColumn('subject_sections.subject_id', 'subject_section_schedule_slots.subject_id'))
+            ->whereBetween('weekday', [1, 7])
+            ->whereNotNull('start_time')
+            ->whereNotNull('end_time')
+            ->whereColumn('start_time', '<', 'end_time');
+    }
+
     private function ensureBatchBelongsToTerm(AcademicTerm $term, ImportBatch $batch): void
     {
         ImportBatch::query()
@@ -110,7 +155,7 @@ class SchedulePlaceholderAssignmentService
     {
         $theoreticalIds = $this->missingLecturerIds($slots, Subject::TYPE_THEORETICAL);
         $practicalIds = $this->missingLecturerIds($slots, Subject::TYPE_PRACTICAL);
-        $hallIds = $slots->whereNull('hall_id')->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+        $hallIds = $this->missingHallIds($slots);
 
         return [
             'academic_term_id' => (int) $term->id,
@@ -122,6 +167,7 @@ class SchedulePlaceholderAssignmentService
             'missing_both_count' => $slots
                 ->filter(fn (SubjectSectionScheduleSlot $slot): bool => $slot->lecturer_id === null
                     && $slot->hall_id === null
+                    && $this->isStructurallyEligible($slot)
                     && in_array($this->sectionType($slot), [Subject::TYPE_THEORETICAL, Subject::TYPE_PRACTICAL], true))
                 ->count(),
         ];
@@ -132,10 +178,34 @@ class SchedulePlaceholderAssignmentService
     {
         return $slots
             ->filter(fn (SubjectSectionScheduleSlot $slot): bool => $slot->lecturer_id === null
+                && $this->isStructurallyEligible($slot)
                 && $this->sectionType($slot) === $sectionType)
             ->pluck('id')
             ->map(fn (mixed $id): int => (int) $id)
             ->all();
+    }
+
+    /** @param Collection<int, SubjectSectionScheduleSlot> $slots @return array<int, int> */
+    private function missingHallIds(Collection $slots): array
+    {
+        return $slots
+            ->filter(fn (SubjectSectionScheduleSlot $slot): bool => $slot->hall_id === null
+                && $this->isStructurallyEligible($slot))
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+    }
+
+    private function isStructurallyEligible(SubjectSectionScheduleSlot $slot): bool
+    {
+        $section = $slot->getRelation('subjectSection');
+
+        return $section instanceof SubjectSection
+            && (int) $section->subject_id === (int) $slot->subject_id
+            && in_array((int) $slot->weekday, range(1, 7), true)
+            && filled($slot->start_time)
+            && filled($slot->end_time)
+            && strcmp((string) $slot->start_time, (string) $slot->end_time) < 0;
     }
 
     private function sectionType(SubjectSectionScheduleSlot $slot): ?string

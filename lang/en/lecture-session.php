@@ -200,7 +200,13 @@ return [
             'term_configuration' => 'Academic term setup', 'schedule_data' => 'Weekly schedule data', 'accounts' => 'Lecturer accounts and permissions',
         ],
         'actions' => [
-            'configure_teaching_dates' => 'Set teaching dates', 'resolve_schedule_issues' => 'Resolve schedule issues', 'prepare_lecturer_accounts' => 'Prepare lecturer accounts',
+            'configure_teaching_dates' => 'Set teaching dates', 'resolve_schedule_issues' => 'Resolve schedule issues', 'prepare_lecturer_accounts' => 'Prepare lecturer accounts', 'assign_placeholders' => 'Assign placeholders to missing data', 'assigning_placeholders' => 'Assigning placeholders...',
+        ],
+        'placeholder_assignment' => [
+            'preview' => ':slots structurally valid slot(s) will be completed with :lecturers placeholder lecturer assignment(s) and :halls X0 hall assignment(s). Sessions will not be generated automatically.',
+            'completed_title' => 'Default assignments applied',
+            'completed_body' => ':slots slot(s) were updated (:lecturers lecturer, :halls hall). The preview was recalculated and generation was not started.',
+            'unavailable' => 'The academic term or weekly schedule batch to process could not be resolved.',
         ],
         'details' => ['title' => 'Show verification details'],
         'readiness' => [

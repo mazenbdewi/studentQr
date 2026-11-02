@@ -209,7 +209,13 @@ return [
             'term_configuration' => 'إعداد الفصل الدراسي', 'schedule_data' => 'بيانات البرنامج الأسبوعي', 'accounts' => 'حسابات وصلاحيات المدرسين',
         ],
         'actions' => [
-            'configure_teaching_dates' => 'تحديد تواريخ التدريس', 'resolve_schedule_issues' => 'معالجة مشكلات البرنامج', 'prepare_lecturer_accounts' => 'تهيئة حسابات المدرسين',
+            'configure_teaching_dates' => 'تحديد تواريخ التدريس', 'resolve_schedule_issues' => 'معالجة مشكلات البرنامج', 'prepare_lecturer_accounts' => 'تهيئة حسابات المدرسين', 'assign_placeholders' => 'تعيين القيم الافتراضية للنواقص', 'assigning_placeholders' => 'جارٍ تعيين القيم الافتراضية...',
+        ],
+        'placeholder_assignment' => [
+            'preview' => 'سيتم استكمال :slots خانة صالحة بنيويًا: :lecturers تعيين مدرس بديل و:halls تعيين قاعة X0. لن يتم توليد الجلسات تلقائيًا.',
+            'completed_title' => 'تم تعيين القيم الافتراضية',
+            'completed_body' => 'عولجت :slots خانة (:lecturers مدرس، :halls قاعة). أُعيد احتساب المعاينة ولم يبدأ التوليد.',
+            'unavailable' => 'تعذر تحديد الفصل أو دفعة البرنامج الأسبوعي المطلوب معالجتها.',
         ],
         'details' => ['title' => 'عرض تفاصيل التحقق'],
         'readiness' => [

@@ -210,6 +210,42 @@ it('routes an actual schedule data problem to schedule import issues', function 
     'missing hall' => 'missing_hall',
 ]);
 
+it('offers placeholder assignment separately without starting generation', function (): void {
+    app()->setLocale('ar');
+
+    $preview = [
+        'source_slot_count' => 3,
+        'safe_to_create_count' => 0,
+        'already_existing_count' => 0,
+        'manual_existing_count' => 0,
+        'blocked_slot_count' => 3,
+        'blocked_unique_count' => 3,
+        'blocked_readiness_counts' => ['missing_lecturer_count' => 2, 'missing_hall_count' => 1],
+        'conflict_count' => 0,
+        'prerequisite_errors' => [],
+        'blocked_slots' => [['reasons' => ['missing_lecturer_identity']], ['reasons' => ['missing_hall']]],
+        'conflicts' => [],
+        'structural_readiness' => [],
+    ];
+    $html = view('filament.components.lecture-session-generation-preview', [
+        'preview' => $preview,
+        'issues' => [],
+        'issueGroups' => generationPreviewIssueGroups($preview),
+        'canAssignPlaceholders' => true,
+        'placeholderPreview' => [
+            'affected_slot_count' => 3,
+            'theoretical_lecturer_count' => 1,
+            'practical_lecturer_count' => 1,
+            'hall_count' => 1,
+        ],
+    ])->render();
+
+    expect($html)->toContain('تعيين القيم الافتراضية للنواقص')
+        ->toContain('سيتم استكمال 3 خانة صالحة بنيويًا')
+        ->toContain('لن يتم توليد الجلسات تلقائيًا')
+        ->toContain('wire:click="assignGenerationPlaceholders"');
+});
+
 it('defines every generation preview reason in Arabic and English', function (): void {
     $reasons = [
         'missing_teaching_dates', 'invalid_teaching_date_range', 'missing_completed_enrollment_batch',
