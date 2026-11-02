@@ -30,6 +30,7 @@ use Filament\Support\Enums\Alignment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 
@@ -262,6 +263,7 @@ class ListLectureSessions extends ListRecords
                             $term,
                             auth()->user(),
                             static::currentWeeklyScheduleBatch()?->id,
+                            includeDetailedReport: false,
                         );
 
                         Notification::make()
@@ -274,14 +276,21 @@ class ListLectureSessions extends ListRecords
                             ->success()
                             ->send();
 
-                        $this->resetTable();
+                        $this->flushCachedTableRecords();
                     } catch (ValidationException) {
                         Notification::make()
                             ->title(__('lecture-session.weekly_generation_not_ready_title'))
                             ->body(__('lecture-session.weekly_generation_not_ready'))
                             ->warning()
                             ->send();
-                    } catch (\Throwable) {
+                    } catch (\Throwable $exception) {
+                        Log::error('Lecture session generation failed.', [
+                            'academic_term_id' => $term->id,
+                            'schedule_import_batch_id' => static::currentWeeklyScheduleBatch()?->id,
+                            'generation_run_id' => null,
+                            'exception' => $exception,
+                        ]);
+
                         Notification::make()
                             ->title(__('lecture-session.weekly_generation_failed_title'))
                             ->body(__('lecture-session.weekly_generation_failed_body'))

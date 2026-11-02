@@ -19,6 +19,10 @@ use Illuminate\Validation\ValidationException;
 
 class LectureSessionGenerationService
 {
+    private const BULK_INSERT_THRESHOLD = 100;
+
+    private const BULK_INSERT_CHUNK_SIZE = 500;
+
     private const STATUS_TO_CREATE = 'to_create';
 
     private const STATUS_ALREADY_EXISTS = 'already_exists';
@@ -289,7 +293,7 @@ class LectureSessionGenerationService
         });
     }
 
-    public function generateReadySessions(AcademicTerm $term, ?User $user = null, ?int $importBatchId = null): array
+    public function generateReadySessions(AcademicTerm $term, ?User $user = null, ?int $importBatchId = null, bool $includeDetailedReport = true): array
     {
         $preview = $this->preview($term, $importBatchId);
         $fatalPrerequisites = $preview['prerequisite_errors'];
@@ -302,12 +306,38 @@ class LectureSessionGenerationService
 
         $now = now(config('app.timezone', 'Asia/Damascus'));
         $unsafeSourceSlotIds = $this->unsafeConflictSourceSlotIds($preview['conflicts']);
-        $safeCandidates = collect($preview['candidates'])
-            ->filter(fn (array $candidate): bool => $candidate['status'] === self::STATUS_TO_CREATE)
-            ->reject(fn (array $candidate): bool => in_array((int) $candidate['source_slot_id'], $unsafeSourceSlotIds, true))
-            ->values();
+        $unsafeSourceSlotSet = array_fill_keys($unsafeSourceSlotIds, true);
+        $safeCandidates = [];
+        $successReport = [];
+        $successReportCount = 0;
 
-        return DB::transaction(function () use ($term, $user, $preview, $now, $safeCandidates, $unsafeSourceSlotIds): array {
+        foreach ($preview['candidates'] as $candidate) {
+            if ($candidate['status'] === self::STATUS_TO_CREATE) {
+                if (! isset($unsafeSourceSlotSet[(int) $candidate['source_slot_id']])) {
+                    $safeCandidates[] = $candidate;
+                }
+
+                continue;
+            }
+
+            if (in_array($candidate['status'], [self::STATUS_ALREADY_EXISTS, self::STATUS_MANUAL_EXISTS], true)) {
+                $successReportCount++;
+                if ($includeDetailedReport) {
+                    $successReport[] = $this->sessionSuccessReportRow($candidate, $candidate['status'] === self::STATUS_ALREADY_EXISTS ? 'already_exists' : 'manual_exists');
+                }
+            }
+        }
+
+        $useBulkInsert = count($safeCandidates) > self::BULK_INSERT_THRESHOLD;
+        $useCompactRunSummary = ! $includeDetailedReport || count($preview['candidates']) > self::BULK_INSERT_THRESHOLD;
+        if ($useCompactRunSummary) {
+            // Reports contain the information needed after generation. Release the
+            // full preview candidates before the transaction builds insert rows.
+            $preview['candidates'] = [];
+        }
+        unset($candidate);
+
+        return DB::transaction(function () use ($term, $user, &$preview, $now, &$safeCandidates, $unsafeSourceSlotIds, &$successReport, &$successReportCount, $useBulkInsert, $useCompactRunSummary, $includeDetailedReport): array {
             $run = LectureSessionGenerationRun::query()->create([
                 'academic_term_id' => $term->id,
                 'schedule_import_batch_id' => $preview['schedule_import_batch_id'] ?? $this->latestWeeklyScheduleBatch($term)?->id,
@@ -323,26 +353,30 @@ class LectureSessionGenerationService
                 'started_at' => $now,
             ]);
 
-            $successReport = collect($preview['candidates'])
-                ->filter(fn (array $candidate): bool => in_array($candidate['status'], [self::STATUS_ALREADY_EXISTS, self::STATUS_MANUAL_EXISTS], true))
-                ->map(fn (array $candidate): array => $this->sessionSuccessReportRow($candidate, $candidate['status'] === self::STATUS_ALREADY_EXISTS ? 'already_exists' : 'manual_exists'))
-                ->values()
-                ->all();
             $errorReport = $this->sessionErrorReportRows($preview['blocked_slots'], $preview['conflicts'], $unsafeSourceSlotIds);
             $createdCount = 0;
             $skipped = $preview['already_existing_count'] + $preview['manual_existing_count'];
             $runtimeConflictSlotIds = [];
-            $freshEvaluationContext = $this->candidateEvaluationContext(
-                CarbonImmutable::parse($preview['teaching_start_date']),
-                CarbonImmutable::parse($preview['teaching_end_date']),
-            );
-
-            foreach ($safeCandidates as $candidate) {
+            $pendingRows = [];
+            $qrRefreshRate = null;
+            $freshEvaluationContext = $safeCandidates === []
+                ? ['source_dates' => [], 'manual_sessions' => [], 'sessions_by_date' => []]
+                : $this->candidateEvaluationContext(
+                    CarbonImmutable::parse($preview['teaching_start_date']),
+                    CarbonImmutable::parse($preview['teaching_end_date']),
+                );
+            while ($safeCandidates !== []) {
+                $candidateIndex = array_key_first($safeCandidates);
+                $candidate = $safeCandidates[$candidateIndex];
+                unset($safeCandidates[$candidateIndex]);
                 $freshEvaluation = $this->evaluateCandidate($candidate, [], $freshEvaluationContext);
 
                 if ($freshEvaluation['status'] === self::STATUS_ALREADY_EXISTS || $freshEvaluation['status'] === self::STATUS_MANUAL_EXISTS) {
                     $skipped++;
-                    $successReport[] = $this->sessionSuccessReportRow($candidate, $freshEvaluation['status'] === self::STATUS_ALREADY_EXISTS ? 'already_exists' : 'manual_exists');
+                    $successReportCount++;
+                    if ($includeDetailedReport) {
+                        $successReport[] = $this->sessionSuccessReportRow($candidate, $freshEvaluation['status'] === self::STATUS_ALREADY_EXISTS ? 'already_exists' : 'manual_exists');
+                    }
 
                     continue;
                 }
@@ -355,7 +389,7 @@ class LectureSessionGenerationService
                     continue;
                 }
 
-                $session = LectureSession::query()->create([
+                $sessionData = [
                     'academic_term_id' => $term->id,
                     'subject_id' => $candidate['subject_id'],
                     'subject_section_id' => $candidate['subject_section_id'],
@@ -370,17 +404,43 @@ class LectureSessionGenerationService
                     'end_time' => $candidate['end_time'],
                     'status' => 'scheduled',
                     'attendance_mode' => 'qr_otp',
-                    'qr_refresh_rate' => AppSetting::defaultQrRefreshRate(),
+                    'qr_refresh_rate' => $qrRefreshRate ??= AppSetting::defaultQrRefreshRate(),
                     'expected_students' => $candidate['expected_student_count'] ?? 0,
                     'notes' => __('lecture-session.generated_from_weekly_schedule_note'),
-                ]);
+                ];
+
+                if ($useBulkInsert) {
+                    $pendingRows[] = [
+                        ...$sessionData,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                    if (count($pendingRows) >= self::BULK_INSERT_CHUNK_SIZE) {
+                        LectureSession::query()->insert($pendingRows);
+
+                        $pendingRows = [];
+                    }
+                    if ($includeDetailedReport) {
+                        $successReport[] = $this->sessionSuccessReportRow($candidate, 'created');
+                    }
+                } else {
+                    $session = LectureSession::query()->create($sessionData);
+                    if ($includeDetailedReport) {
+                        $successReport[] = [
+                            ...$this->sessionSuccessReportRow($candidate, 'created'),
+                            'lecture_session_id' => (int) $session->id,
+                        ];
+                    }
+                }
 
                 $createdCount++;
-                $successReport[] = [
-                    ...$this->sessionSuccessReportRow($candidate, 'created'),
-                    'lecture_session_id' => (int) $session->id,
-                ];
+                $successReportCount++;
             }
+
+            if ($pendingRows !== []) {
+                LectureSession::query()->insert($pendingRows);
+            }
+            unset($candidate, $pendingRows, $freshEvaluationContext);
 
             $runtimeConflictSlotIds = array_values(array_unique($runtimeConflictSlotIds));
             $finalConflictSlotCount = collect($unsafeSourceSlotIds)->merge($runtimeConflictSlotIds)->unique()->count();
@@ -394,16 +454,30 @@ class LectureSessionGenerationService
                 'success_report' => $successReport,
                 'error_report' => $errorReport,
             ];
-
-            $run->update([
+            $runUpdate = [
                 'status' => 'completed',
                 'created_session_count' => $createdCount,
                 'skipped_session_count' => $skipped,
                 'blocked_slot_count' => $finalSkippedBlockedSlotCount,
                 'conflict_count' => $finalConflictSlotCount,
-                'summary' => $summary,
+                // The detailed success rows remain in the returned result. Large
+                // runs persist counts and errors to avoid serializing thousands
+                // of duplicate success rows into the audit summary.
+                'summary' => $useCompactRunSummary
+                    ? [
+                        ...$this->generationSummary($preview),
+                        'skipped_blocked_slots' => $finalSkippedBlockedSlotCount,
+                        'conflict_slots' => $finalConflictSlotCount,
+                        'created_sessions' => $createdCount,
+                        'skipped_sessions' => $skipped,
+                        'success_report_count' => $successReportCount,
+                        'error_report' => $errorReport,
+                    ]
+                    : $summary,
                 'completed_at' => now(config('app.timezone', 'Asia/Damascus')),
-            ]);
+            ];
+
+            $run->update($runUpdate);
 
             return [
                 ...$preview,
@@ -780,13 +854,14 @@ class LectureSessionGenerationService
      * Loads existing sessions once for the selected teaching range, replacing the
      * per-candidate existence and overlap queries that caused Livewire timeouts.
      *
-     * @return array{source_dates: array<string, true>, manual_sessions: array<string, true>, sessions_by_date: array<string, array<int, LectureSession>>}
+     * @return array{source_dates: array<string, true>, manual_sessions: array<string, true>, sessions_by_date: array<string, array<int, object>>}
      */
     private function candidateEvaluationContext(CarbonImmutable $start, CarbonImmutable $end): array
     {
         $sessions = LectureSession::query()
             ->whereDate('session_date', '>=', $start->toDateString())
             ->whereDate('session_date', '<=', $end->toDateString())
+            ->toBase()
             ->get([
                 'id',
                 'subject_section_schedule_slot_id',
@@ -801,9 +876,11 @@ class LectureSessionGenerationService
 
         $sourceDates = [];
         $manualSessions = [];
+        $sessionsByDate = [];
 
         foreach ($sessions as $session) {
-            $date = $session->session_date->toDateString();
+            $date = substr((string) $session->session_date, 0, 10);
+            $sessionsByDate[$date][] = $session;
 
             if ($session->subject_section_schedule_slot_id !== null) {
                 $sourceDates[$session->subject_section_schedule_slot_id.'|'.$date] = true;
@@ -825,14 +902,11 @@ class LectureSessionGenerationService
         return [
             'source_dates' => $sourceDates,
             'manual_sessions' => $manualSessions,
-            'sessions_by_date' => $sessions
-                ->groupBy(fn (LectureSession $session): string => $session->session_date->toDateString())
-                ->map(fn (Collection $dateSessions): array => $dateSessions->all())
-                ->all(),
+            'sessions_by_date' => $sessionsByDate,
         ];
     }
 
-    /** @param array<string, mixed> $candidate @param array<int, array<string, mixed>> $plannedCandidates @param array{source_dates: array<string, true>, manual_sessions: array<string, true>, sessions_by_date: array<string, array<int, LectureSession>>} $evaluationContext */
+    /** @param array<string, mixed> $candidate @param array<int, array<string, mixed>> $plannedCandidates @param array{source_dates: array<string, true>, manual_sessions: array<string, true>, sessions_by_date: array<string, array<int, object>>} $evaluationContext */
     private function evaluateCandidateFromContext(array $candidate, array $plannedCandidates, array $evaluationContext, ?array $plannedCandidateIndex = null): array
     {
         if (isset($evaluationContext['source_dates'][$candidate['source_slot_id'].'|'.$candidate['session_date']])) {

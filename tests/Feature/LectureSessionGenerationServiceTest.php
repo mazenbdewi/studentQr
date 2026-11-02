@@ -150,6 +150,48 @@ it('loads persisted sessions once when previewing generation candidates', functi
         ->and($lectureSessionQueries->count())->toBe(1);
 });
 
+it('uses chunked inserts for a large ready generation while keeping the result idempotent', function (): void {
+    $fixture = lectureSessionGenerationFixture();
+    $fixture['term']->update(['teaching_end_date' => '2028-09-21']);
+
+    $result = app(LectureSessionGenerationService::class)->generateReadySessions(
+        $fixture['term'],
+        $fixture['admin'],
+        $fixture['scheduleBatch']->id,
+    );
+
+    expect($result['created_session_count'])->toBeGreaterThanOrEqual(100)
+        ->and(LectureSession::query()->count())->toBe($result['created_session_count'])
+        ->and($result['success_report'])->toHaveCount($result['created_session_count']);
+
+    $firstRun = LectureSessionGenerationRun::query()->findOrFail($result['generation_run_id']);
+    expect($firstRun->summary['created_sessions'])->toBe($result['created_session_count'])
+        ->and($firstRun->summary['success_report_count'])->toBe($result['created_session_count'])
+        ->and($firstRun->summary)->not->toHaveKey('success_report');
+
+    $second = app(LectureSessionGenerationService::class)->generateReadySessions(
+        $fixture['term'],
+        $fixture['admin'],
+        $fixture['scheduleBatch']->id,
+    );
+
+    expect($second['created_session_count'])->toBe(0)
+        ->and(LectureSession::query()->count())->toBe($result['created_session_count'])
+        ->and($second['success_report'])->toHaveCount($result['created_session_count']);
+
+    $compact = app(LectureSessionGenerationService::class)->generateReadySessions(
+        $fixture['term'],
+        $fixture['admin'],
+        $fixture['scheduleBatch']->id,
+        includeDetailedReport: false,
+    );
+
+    expect($compact['created_session_count'])->toBe(0)
+        ->and($compact['success_report'])->toBe([])
+        ->and(LectureSessionGenerationRun::query()->findOrFail($compact['generation_run_id'])->summary['success_report_count'])->toBe($result['created_session_count'])
+        ->and(LectureSession::query()->count())->toBe($result['created_session_count']);
+});
+
 it('finds the same real weekly conflict participants without treating placeholders as resources', function (): void {
     $fixture = lectureSessionGenerationFixture();
     $conflicting = $fixture['slot']->replicate()->fill([
