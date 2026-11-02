@@ -231,7 +231,7 @@ it('displays recurring weekly slots rather than dated lecture sessions and scope
         'practical_sections' => 1,
         'needs_review' => 1,
     ])->and($component->instance()->getTable()->getModel())->toBe(SubjectSectionScheduleSlot::class)
-        ->and($component->instance()->getTable()->getDefaultPaginationPageOption())->toBe(50)
+        ->and($component->instance()->getTable()->getDefaultPaginationPageOption())->toBe(25)
         ->and(array_keys($component->instance()->getTable()->getFilters()))->toBe([
             'faculty_id',
             'department_id',

@@ -381,7 +381,7 @@ class WeeklySchedule extends Page implements HasTable
                 $this->applyAssignmentsToFutureSessionsAction(),
             ])
             ->defaultSort('weekday')
-            ->defaultPaginationPageOption(50)
+            ->defaultPaginationPageOption(25)
             ->paginated([25, 50, 100]);
     }
 
