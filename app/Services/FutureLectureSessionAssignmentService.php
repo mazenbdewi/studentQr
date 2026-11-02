@@ -8,6 +8,7 @@ use App\Models\LectureSession;
 use App\Models\SubjectSectionScheduleSlot;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,57 @@ class FutureLectureSessionAssignmentService
         $slot->loadMissing(['lecturer.user.roles', 'hall']);
 
         return $this->buildPreview($slot, $this->sessionsForSlot($slot), $now ?? now(config('app.timezone')));
+    }
+
+    /** @return array<int, string> */
+    public function searchAvailableLecturers(SubjectSectionScheduleSlot $slot, string $search): array
+    {
+        return Lecturer::query()
+            ->whereNull('placeholder_type')
+            ->where('is_active', true)
+            ->where('name', 'like', '%'.trim($search).'%')
+            ->whereNotIn('id', $this->overlappingResourceIds($slot, 'lecturer_id'))
+            ->orderBy('name')
+            ->limit(50)
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    /** @return array<int, string> */
+    public function searchAvailableHalls(SubjectSectionScheduleSlot $slot, string $search): array
+    {
+        return Hall::query()
+            ->withoutTrashed()
+            ->whereNull('placeholder_type')
+            ->where('is_active', true)
+            ->where(function (Builder $query) use ($search): void {
+                $term = '%'.trim($search).'%';
+                $query->where('name', 'like', $term)->orWhere('code', 'like', $term);
+            })
+            ->whereNotIn('id', $this->overlappingResourceIds($slot, 'hall_id'))
+            ->orderBy('name')
+            ->limit(50)
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    public function lecturerOptionLabel(int $id): ?string
+    {
+        return Lecturer::query()
+            ->whereKey($id)
+            ->whereNull('placeholder_type')
+            ->where('is_active', true)
+            ->value('name');
+    }
+
+    public function hallOptionLabel(int $id): ?string
+    {
+        return Hall::query()
+            ->withoutTrashed()
+            ->whereKey($id)
+            ->whereNull('placeholder_type')
+            ->where('is_active', true)
+            ->value('name');
     }
 
     /** @return array<string, mixed> */
@@ -63,9 +115,19 @@ class FutureLectureSessionAssignmentService
 
             $weeklyConflicts = $this->weeklySlotConflicts($locked, $changes);
             if ($weeklyConflicts !== []) {
-                throw ValidationException::withMessages([
-                    'assignments' => __('weekly-schedule.future_assignment.validation.weekly_conflicts', ['count' => count($weeklyConflicts)]),
-                ]);
+                $messages = [];
+                $lecturerConflicts = collect($weeklyConflicts)->where('type', 'lecturer')->count();
+                $hallConflicts = collect($weeklyConflicts)->where('type', 'hall')->count();
+
+                if ($lecturerConflicts > 0) {
+                    $messages['lecturer_id'] = __('weekly-schedule.future_assignment.validation.lecturer_unavailable');
+                }
+
+                if ($hallConflicts > 0) {
+                    $messages['hall_id'] = __('weekly-schedule.future_assignment.validation.hall_unavailable');
+                }
+
+                throw ValidationException::withMessages($messages);
             }
 
             $locked->update($changes);
@@ -358,6 +420,24 @@ class FutureLectureSessionAssignmentService
         }
 
         return $conflicts->unique(fn (array $conflict): string => $conflict['type'].'|'.$conflict['slot_id'])->values()->all();
+    }
+
+    /** @return Builder<SubjectSectionScheduleSlot> */
+    private function overlappingSlots(SubjectSectionScheduleSlot $slot): Builder
+    {
+        return SubjectSectionScheduleSlot::query()
+            ->where('academic_term_id', $slot->academic_term_id)
+            ->where('weekday', $slot->weekday)
+            ->where('start_time', '<', $slot->end_time)
+            ->where('end_time', '>', $slot->start_time)
+            ->whereKeyNot($slot->id);
+    }
+
+    private function overlappingResourceIds(SubjectSectionScheduleSlot $slot, string $column): Builder
+    {
+        return $this->overlappingSlots($slot)
+            ->whereNotNull($column)
+            ->select($column);
     }
 
     private function validLecturerUserId(?Lecturer $lecturer): ?int

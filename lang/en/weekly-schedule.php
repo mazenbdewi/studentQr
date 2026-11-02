@@ -115,6 +115,8 @@ return [
             'placeholder_to_real_only' => 'Only a placeholder assignment can be replaced with an active real resource.',
             'select_replacement' => 'Select at least one real lecturer or hall replacement.',
             'weekly_conflicts' => 'The proposed weekly assignment causes :count real schedule conflict(s).',
+            'lecturer_unavailable' => 'The lecturer is no longer available at this slot time. Search for and select another lecturer.',
+            'hall_unavailable' => 'The hall is no longer available at this slot time. Search for and select another hall.',
             'session_conflicts' => 'The update would cause :count future lecture session conflict(s). No session was changed.',
         ],
     ],

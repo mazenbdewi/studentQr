@@ -363,6 +363,64 @@ it('blocks the whole update when the real hall would conflict', function (): voi
     expect($candidate->fresh()->hall_id)->toBe($fixture['placeholderHall']->id);
 });
 
+it('searches only available real resources and rechecks availability while saving', function (): void {
+    $fixture = futureAssignmentFixture();
+    $service = app(FutureLectureSessionAssignmentService::class);
+    $otherSubject = Subject::query()->create([
+        'code' => 'TASK4-CONFLICT',
+        'name' => 'Task 4 Conflict Subject',
+        'subject_type' => Subject::TYPE_PRACTICAL,
+        'is_active' => true,
+    ]);
+    $otherSection = SubjectSection::query()->create([
+        'academic_term_id' => $fixture['term']->id,
+        'subject_id' => $otherSubject->id,
+        'section_type' => Subject::TYPE_PRACTICAL,
+        'code' => 'P2',
+        'name' => 'P2',
+    ]);
+    $conflictingSlot = $fixture['slot']->replicate();
+    $conflictingSlot->subject_id = $otherSubject->id;
+    $conflictingSlot->subject_section_id = $otherSection->id;
+    $conflictingSlot->lecturer_id = $fixture['realLecturer']->id;
+    $conflictingSlot->hall_id = $fixture['realHall']->id;
+    $conflictingSlot->save();
+    $availableLecturer = Lecturer::query()->create([
+        'name' => 'أحمد المتاح',
+        'canonical_name' => 'أحمد المتاح',
+        'is_active' => true,
+    ]);
+    $availableHall = Hall::query()->create([
+        'code' => 'LAB-AVAILABLE',
+        'name' => 'المخبر المتاح',
+        'is_active' => true,
+    ]);
+
+    $lecturers = $service->searchAvailableLecturers($fixture['slot'], 'أحمد');
+    $halls = $service->searchAvailableHalls($fixture['slot'], 'المخبر');
+
+    expect($lecturers)->toHaveKey($availableLecturer->id)
+        ->not->toHaveKey($fixture['realLecturer']->id)
+        ->not->toHaveKey($fixture['placeholderLecturer']->id)
+        ->and($halls)->toHaveKey($availableHall->id)
+        ->not->toHaveKey($fixture['realHall']->id)
+        ->not->toHaveKey($fixture['placeholderHall']->id)
+        ->and(count($service->searchAvailableLecturers($fixture['slot'], '')))->toBeLessThanOrEqual(50)
+        ->and(count($service->searchAvailableHalls($fixture['slot'], '')))->toBeLessThanOrEqual(50);
+
+    try {
+        $service->replacePlaceholders($fixture['slot'], $fixture['realLecturer']->id, $fixture['realHall']->id, $fixture['admin']);
+        $this->fail('Expected the locked availability recheck to reject both resources.');
+    } catch (ValidationException $exception) {
+        expect($exception->errors())->toHaveKeys(['lecturer_id', 'hall_id'])
+            ->and($exception->errors()['lecturer_id'][0])->toBe(__('weekly-schedule.future_assignment.validation.lecturer_unavailable'))
+            ->and($exception->errors()['hall_id'][0])->toBe(__('weekly-schedule.future_assignment.validation.hall_unavailable'));
+    }
+
+    expect($fixture['slot']->fresh()->lecturer_id)->toBe($fixture['placeholderLecturer']->id)
+        ->and($fixture['slot']->fresh()->hall_id)->toBe($fixture['placeholderHall']->id);
+});
+
 it('rolls back every session update when applying the operation fails', function (): void {
     $fixture = futureAssignmentFixture();
     $realLogger = app(ActivityLogger::class);
