@@ -10,6 +10,7 @@ use App\Models\LectureSession;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -442,7 +443,10 @@ class LecturerAccountPreparationService
             'name' => $lecturer->name,
             'login_username' => null,
             'password' => Hash::make($temporaryPassword),
+            'temporary_password_encrypted' => Crypt::encryptString($temporaryPassword),
             'must_change_password' => true,
+            'password_changed_at' => null,
+            'password_reset_at' => null,
             'role' => 'course_lecturer',
             'type' => 'lecturer',
             'status' => 'active',
@@ -557,7 +561,9 @@ class LecturerAccountPreparationService
         $temporaryPassword = $this->newTemporaryPassword($usedPlainPasswords);
         $user->forceFill([
             'password' => Hash::make($temporaryPassword),
+            'temporary_password_encrypted' => Crypt::encryptString($temporaryPassword),
             'must_change_password' => true,
+            'password_reset_at' => now(),
             'status' => 'active',
             'is_active' => true,
         ])->save();

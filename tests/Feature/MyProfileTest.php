@@ -4,6 +4,7 @@ use App\Livewire\Filament\Profile\UpdatePassword;
 use App\Livewire\Filament\Profile\UpdatePinCode;
 use App\Livewire\Filament\Profile\UsernamePersonalInfo;
 use App\Models\User;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
@@ -71,6 +72,10 @@ it('updates only the authenticated user name and preserves the login username', 
 
 it('keeps the profile password-change component working without an email field', function (): void {
     $user = profileUser('admin', 'profile_password', 'current-password');
+    $user->forceFill([
+        'must_change_password' => true,
+        'temporary_password_encrypted' => Crypt::encryptString('current-password'),
+    ])->save();
 
     Livewire::actingAs($user)
         ->test(UpdatePassword::class)
@@ -82,7 +87,28 @@ it('keeps the profile password-change component working without an email field',
         ->call('submit')
         ->assertHasNoFormErrors();
 
-    expect(Hash::check('new-secure-password', (string) $user->fresh()->password))->toBeTrue();
+    expect(Hash::check('new-secure-password', (string) $user->fresh()->password))->toBeTrue()
+        ->and($user->fresh()->must_change_password)->toBeFalse()
+        ->and($user->fresh()->temporary_password_encrypted)->toBeNull()
+        ->and($user->fresh()->password_changed_at)->not->toBeNull();
+});
+
+it('clears a lecturer temporary password through the teacher profile password endpoint', function (): void {
+    $user = profileUser('course_lecturer', 'teacher_password', 'current-password');
+    DB::table('users')->where('id', $user->id)->update([
+        'temporary_password_encrypted' => Crypt::encryptString('current-password'),
+    ]);
+
+    $this->actingAs($user->fresh())
+        ->put(route('teacher.profile.password.update'), [
+            'current_password' => 'current-password',
+            'new_password' => 'new-teacher-password',
+            'new_password_confirmation' => 'new-teacher-password',
+        ])
+        ->assertRedirect();
+
+    expect(Hash::check('new-teacher-password', (string) $user->fresh()->password))->toBeTrue()
+        ->and($user->fresh()->temporary_password_encrypted)->toBeNull();
 });
 
 it('registers the profile pin component for Livewire updates', function (): void {

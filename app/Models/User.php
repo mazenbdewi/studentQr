@@ -45,6 +45,7 @@ class User extends Authenticatable implements FilamentUser
 
     protected $hidden = [
         'password',
+        'temporary_password_encrypted',
         'pin_code',
         'remember_token',
     ];
@@ -52,6 +53,8 @@ class User extends Authenticatable implements FilamentUser
     protected $casts = [
         'password' => 'hashed',
         'must_change_password' => 'boolean',
+        'password_changed_at' => 'datetime',
+        'password_reset_at' => 'datetime',
         'is_active' => 'boolean',
         'pin_enabled' => 'boolean',
         'pin_changed_at' => 'datetime',
@@ -71,6 +74,13 @@ class User extends Authenticatable implements FilamentUser
     {
         static::saving(function (self $user): void {
             $user->login_username = strtolower(trim((string) $user->login_username));
+
+            if (
+                ($user->isDirty('password') && ! $user->isDirty('temporary_password_encrypted'))
+                || (array_key_exists('must_change_password', $user->getAttributes()) && ! $user->must_change_password)
+            ) {
+                $user->temporary_password_encrypted = null;
+            }
         });
     }
 

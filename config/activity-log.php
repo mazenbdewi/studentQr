@@ -12,6 +12,7 @@ return [
     'max_depth' => 2,
     'excluded_fields' => [
         'password',
+        'temporary_password_encrypted',
         'pin_code',
         'pin_changed_at',
         'pin',

@@ -201,7 +201,6 @@ class LecturerAccountPreparation extends Page implements HasTable
                     return Excel::download(
                         LecturerAccountReportExport::successForRun(
                             LecturerAccountGenerationRun::query()->findOrFail($result['generation_run_id']),
-                            $result['credential_rows'],
                         ),
                         'lecturer-account-success-report-'.$this->safeFilenameSegment($term->display_name).'-'.now()->format('Ymd-His').'.xlsx',
                         ExcelWriter::XLSX,

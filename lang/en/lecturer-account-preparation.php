@@ -8,8 +8,8 @@ return [
     'no_credentials_generated' => 'No new temporary passwords were generated.',
     'bulk_preview_empty' => 'Choose an academic term to preview account preparation.',
     'bulk_preview_summary' => 'Lecturers used by the schedule: :total. Ready: :ready. Accounts to create: :create. Need role grant: :roles. Excluded cases: :blocked.',
-    'one_time_download_title' => 'One-time credentials download',
-    'one_time_download_warning' => 'Temporary passwords appear only in the downloaded file and are not stored in the database. If the browser download fails after account creation, the old plaintext passwords cannot be recovered; use the reset action to generate new temporary passwords.',
+    'one_time_download_title' => 'Temporary passwords',
+    'one_time_download_warning' => 'Temporary passwords remain available in the report until the lecturer changes them. An encrypted temporary copy is stored; passwords chosen later by users are never shown. Legacy accounts without a temporary copy require an explicit reset.',
     'fields' => [
         'lecturer_name' => 'Lecturer name in Arabic',
         'linked_account' => 'Linked account',
@@ -29,7 +29,7 @@ return [
         'preview_bulk_preparation' => 'Preview account preparation',
         'create_bulk_accounts' => 'Create lecturer accounts',
         'reset_temporary_passwords' => 'Reset temporary passwords for selected accounts',
-        'successful_operations_report' => 'Successful operations report (passwords unavailable after first download)',
+        'successful_operations_report' => 'Successful operations report (unchanged temporary passwords only)',
         'error_report' => 'Error and excluded cases report',
     ],
     'statuses' => [

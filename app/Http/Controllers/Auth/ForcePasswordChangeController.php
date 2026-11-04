@@ -39,6 +39,8 @@ class ForcePasswordChangeController extends Controller
         $user->forceFill([
             'password' => Hash::make((string) $data['password']),
             'must_change_password' => false,
+            'temporary_password_encrypted' => null,
+            'password_changed_at' => now(),
             'remember_token' => Str::random(60),
         ])->save();
 
