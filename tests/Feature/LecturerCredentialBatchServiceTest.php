@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\LecturerCredentialBatch;
 use App\Models\User;
 use App\Services\LecturerCredentialBatchService;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -13,29 +14,44 @@ beforeEach(function (): void {
     Storage::fake('local');
 });
 
-it('stores encrypted workbooks, decrypts them, and keeps audit metadata safe', function (): void {
+it('stores only recipient IDs and regenerates the workbook from current state', function (): void {
     $actor = User::factory()->create(['role' => 'admin', 'type' => 'admin', 'status' => 'active', 'is_active' => true]);
+    $recipient = User::factory()->create(['login_username' => 'nada187', 'must_change_password' => false]);
     $service = app(LecturerCredentialBatchService::class);
-    $batch = $service->create('initial_accounts', [['lecturer_name' => 'ندى', 'login_username' => 'nada187', 'temporary_password' => 'Secret123!']], null, $actor);
+    $batch = $service->create('password_reset', [$recipient->id], null, $actor);
 
-    expect(Storage::disk('local')->exists($batch->encrypted_file_path))->toBeTrue()
-        ->and(substr(Storage::disk('local')->get($batch->encrypted_file_path), 0, 2))->not->toBe('PK')
+    expect($batch->encrypted_file_path)->toBeNull()
+        ->and($batch->recipient_user_ids)->toBe([$recipient->id])
         ->and(substr($service->decryptedContents($batch), 0, 2))->toBe('PK');
+    expect(Storage::disk('local')->allFiles('lecturer-credentials'))->toBe([]);
 
     $service->audit($batch, 'download_prepared', $actor, ['password' => 'Secret123!', 'filename' => 'safe.xlsx', 'path' => '/tmp/plain.xlsx']);
     $action = $batch->actions()->sole();
     expect($action->safe_metadata)->toBe(['filename' => 'safe.xlsx']);
 });
 
-it('safely deletes only the selected encrypted batch and is idempotent', function (): void {
+it('safely deletes only the selected metadata batch and is idempotent', function (): void {
     $actor = User::factory()->create(['role' => 'admin', 'type' => 'admin', 'status' => 'active', 'is_active' => true]);
     $service = app(LecturerCredentialBatchService::class);
     $first = $service->create('initial_accounts', [], null, $actor);
     $second = $service->create('initial_accounts', [], null, $actor);
-    $secondPath = $second->encrypted_file_path;
     $service->delete($first, $actor);
     $service->delete($first->fresh(), $actor);
-    expect($first->fresh()->status)->toBe('deleted')->and($first->fresh()->encrypted_file_path)->toBeNull()->and(Storage::disk('local')->exists($secondPath))->toBeTrue()->and($first->actions()->where('action', 'deleted')->count())->toBe(1);
+    expect($first->fresh()->status)->toBe('deleted')->and($first->fresh()->encrypted_file_path)->toBeNull()->and($second->fresh()->status)->toBe('available')->and($first->actions()->where('action', 'deleted')->count())->toBe(1);
+});
+
+it('refuses to download a historical workbook without recipient IDs', function (): void {
+    $actor = User::factory()->create();
+    Storage::disk('local')->put('lecturer-credentials/legacy.enc', 'old encrypted workbook');
+    $batch = LecturerCredentialBatch::query()->create([
+        'batch_type' => 'password_reset', 'original_filename' => 'legacy.xlsx',
+        'encrypted_file_path' => 'lecturer-credentials/legacy.enc', 'sha256' => hash('sha256', 'legacy'),
+        'encryption_key_version' => 'test-v1', 'record_count' => 1,
+        'generated_by' => $actor->id, 'generated_at' => now(), 'status' => 'available',
+    ]);
+
+    expect(fn () => app(LecturerCredentialBatchService::class)->decryptedContents($batch))->toThrow(RuntimeException::class)
+        ->and(Storage::disk('local')->exists('lecturer-credentials/legacy.enc'))->toBeTrue();
 });
 
 it('seeds the credential permission matrix idempotently', function (): void {

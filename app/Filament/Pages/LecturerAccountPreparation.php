@@ -7,9 +7,11 @@ use App\Models\AcademicTerm;
 use App\Models\Lecturer;
 use App\Models\LecturerAccountGenerationItem;
 use App\Models\LecturerAccountGenerationRun;
+use App\Models\LecturerCredentialBatch;
 use App\Models\User;
 use App\Services\LecturerAccountPreparationService;
 use App\Services\LecturerBulkPasswordResetService;
+use App\Services\LecturerCredentialBatchService;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
@@ -124,6 +126,7 @@ class LecturerAccountPreparation extends Page implements HasTable
                 $this->createBulkAccountsAction(),
                 $this->previewBulkPreparationAction(),
                 $this->downloadLatestSuccessReportAction(),
+                $this->downloadCurrentResetReportAction(),
                 $this->downloadLatestErrorReportAction(),
             ])
             ->toolbarActions([
@@ -224,7 +227,7 @@ class LecturerAccountPreparation extends Page implements HasTable
             ->color('warning')
             ->requiresConfirmation()
             ->modalHeading('إعادة ضبط كلمات مرور المحاضرين')
-            ->modalDescription('سيتم إنشاء كلمات مرور مؤقتة جديدة للحسابات المحددة، وستتوقف كلمات المرور الحالية عن العمل فور نجاح العملية. سيُنشأ ملف مشفر قابل للتنزيل، وسيُطلب من كل محاضر تغيير كلمة المرور عند أول تسجيل دخول.')
+            ->modalDescription('سيتم إنشاء كلمات مرور مؤقتة جديدة للحسابات المحددة، وستتوقف كلمات المرور الحالية عن العمل فور نجاح العملية. يمكن تنزيل تقرير بالحالة الحالية فقط، وسيُطلب من كل محاضر تغيير كلمة المرور عند أول تسجيل دخول.')
             ->visible(fn (): bool => (bool) (Filament::auth()->user()?->hasRole('super-admin') || Filament::auth()->user()?->can('reset lecturer passwords')))
             ->form([
                 Forms\Components\Select::make('academic_term_id')
@@ -244,22 +247,70 @@ class LecturerAccountPreparation extends Page implements HasTable
                     ->required(),
                 Forms\Components\Placeholder::make('reset_password_warning')
                     ->label('تنبيه أمني')
-                    ->content('لا يتم عرض كلمات المرور المؤقتة في المتصفح. سيظهر الملف المشفر في صفحة دفعات بيانات الدخول بعد النجاح.')
+                    ->content('لا يتم عرض كلمات المرور المؤقتة في المتصفح. سيبدأ تنزيل التقرير مباشرة بعد النجاح، ويمكن إعادة تنزيله لاحقًا من حالة الحسابات الحالية.')
                     ->columnSpanFull(),
             ])
-            ->action(function (EloquentCollection $records, array $data): void {
+            ->action(function (EloquentCollection $records, array $data): BinaryFileResponse {
                 $term = filled($data['academic_term_id'] ?? null)
                     ? AcademicTerm::query()->findOrFail($data['academic_term_id'])
                     : null;
                 $service = app(LecturerBulkPasswordResetService::class);
                 $preview = $service->preview($records->pluck('user_id')->all(), $term);
-                $service->execute($preview, $preview['fingerprint'], Filament::auth()->user(), $term);
+                $result = $service->execute($preview, $preview['fingerprint'], Filament::auth()->user(), $term);
 
                 Notification::make()
                     ->title('تمت إعادة ضبط كلمات مرور المحاضرين بأمان')
-                    ->body('تم إنشاء ملف مشفر قابل للتنزيل من صفحة دفعات بيانات دخول المحاضرين.')
+                    ->body('التقرير يعرض كلمات المرور المؤقتة التي لم تُغيّر فقط.')
                     ->success()
                     ->send();
+
+                $batch = $result['batch'];
+                $batches = app(LecturerCredentialBatchService::class);
+                $batches->recordDownload($batch);
+
+                return Excel::download($batches->exportForBatch($batch), $batch->original_filename, ExcelWriter::XLSX);
+            });
+    }
+
+    private function downloadCurrentResetReportAction(): Action
+    {
+        return Action::make('download-current-lecturer-password-report')
+            ->label(__('lecturer-account-preparation.actions.current_temporary_password_report'))
+            ->icon('heroicon-o-document-arrow-down')
+            ->color('gray')
+            ->visible(fn (): bool => (bool) (Filament::auth()->user()?->hasRole('super-admin') || Filament::auth()->user()?->can('download lecturer credential batches')))
+            ->form([
+                Forms\Components\Select::make('batch_id')
+                    ->label(__('lecturer-account-preparation.actions.credential_batch'))
+                    ->placeholder(__('lecturer-account-preparation.actions.no_current_reset_batches'))
+                    ->options(fn (): array => LecturerCredentialBatch::query()
+                        ->where('batch_type', 'password_reset')
+                        ->where('status', 'available')
+                        ->whereNotNull('recipient_user_ids')
+                        ->latest('id')
+                        ->limit(50)
+                        ->pluck('original_filename', 'id')
+                        ->all())
+                    ->searchable()
+                    ->required(),
+                Forms\Components\Placeholder::make('current_report_hint')
+                    ->label('')
+                    ->content(fn (): string => LecturerCredentialBatch::query()
+                        ->where('batch_type', 'password_reset')
+                        ->where('status', 'available')
+                        ->whereNotNull('recipient_user_ids')
+                        ->exists()
+                            ? __('lecturer-account-preparation.actions.current_temporary_password_report_hint')
+                            : __('lecturer-account-preparation.actions.no_current_reset_batches')),
+            ])
+            ->action(function (array $data): BinaryFileResponse {
+                abort_unless(Filament::auth()->user()?->hasRole('super-admin') || Filament::auth()->user()?->can('download lecturer credential batches'), 403);
+                $batch = LecturerCredentialBatch::query()->findOrFail($data['batch_id']);
+                $batches = app(LecturerCredentialBatchService::class);
+                $export = $batches->exportForBatch($batch);
+                $batches->recordDownload($batch);
+
+                return Excel::download($export, $batch->original_filename, ExcelWriter::XLSX);
             });
     }
 

@@ -30,6 +30,10 @@ return [
         'create_bulk_accounts' => 'Create lecturer accounts',
         'reset_temporary_passwords' => 'Reset temporary passwords for selected accounts',
         'successful_operations_report' => 'Successful operations report (unchanged temporary passwords only)',
+        'current_temporary_password_report' => 'Download current temporary password report',
+        'current_temporary_password_report_hint' => 'Shows only temporary passwords that users have not changed yet.',
+        'credential_batch' => 'Password reset batch',
+        'no_current_reset_batches' => 'No current password-reset batches are available. Use the legacy lecturer password reset action to create a new batch.',
         'error_report' => 'Error and excluded cases report',
     ],
     'statuses' => [

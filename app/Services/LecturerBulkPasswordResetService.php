@@ -2,12 +2,12 @@
 
 namespace App\Services;
 
-use App\Exports\LecturerPasswordResetCredentialsExport;
 use App\Models\AcademicTerm;
 use App\Models\LecturerCredentialBatch;
 use App\Models\LecturerPasswordResetOperation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -98,25 +98,16 @@ class LecturerBulkPasswordResetService
         }
 
         $passwords = [];
-        $credentialRows = [];
         foreach ($freshPreview['rows'] as $row) {
             if (! $row['eligible']) {
                 continue;
             }
             $password = $this->temporaryPassword((string) $row['login_username']);
             $passwords[(int) $row['user_id']] = $password;
-            $credentialRows[] = [
-                'lecturer_name' => $row['lecturer_name'],
-                'login_username' => $row['login_username'],
-                'temporary_password' => $password,
-                'must_change_password' => true,
-            ];
         }
 
-        $staged = $this->batches->stageExport(new LecturerPasswordResetCredentialsExport($credentialRows), $this->filename($term));
-
         try {
-            $result = DB::transaction(function () use ($ids, $approvedFingerprint, $freshPreview, $passwords, $staged, $actor, $term): array {
+            $result = DB::transaction(function () use ($ids, $approvedFingerprint, $freshPreview, $passwords, $actor, $term): array {
                 if (LecturerPasswordResetOperation::query()->where('fingerprint', $approvedFingerprint)->lockForUpdate()->exists()) {
                     throw new RuntimeException('تم رفض تنفيذ متزامن لإعادة الضبط.');
                 }
@@ -143,25 +134,24 @@ class LecturerBulkPasswordResetService
                 foreach ($users as $user) {
                     $user->forceFill([
                         'password' => Hash::make($passwords[$user->id]),
+                        'temporary_password_encrypted' => Crypt::encryptString($passwords[$user->id]),
                         'must_change_password' => true,
+                        'password_reset_at' => now(),
                         'remember_token' => Str::random(60),
                     ])->save();
                 }
 
-                $batch = $this->batches->createFromStaged('password_reset', $staged, $users->count(), $term, $actor);
+                $batch = $this->batches->create('password_reset', $users->pluck('id')->all(), $term, $actor, $this->filename($term));
                 $this->batches->audit($batch, 'reset_batch_created', $actor, ['record_count' => $users->count(), 'filename' => $batch->original_filename]);
                 $this->batches->audit($batch, 'generated', $actor, ['record_count' => $users->count()]);
 
                 return ['batch' => $batch, 'reset_count' => $users->count()];
             });
-        } catch (\Throwable $exception) {
-            $this->batches->discardStaged($staged['encrypted_file_path']);
-            throw $exception;
         } finally {
             foreach ($passwords as $id => $password) {
                 $passwords[$id] = '';
             }
-            unset($credentialRows, $passwords);
+            unset($passwords);
         }
 
         return $result;

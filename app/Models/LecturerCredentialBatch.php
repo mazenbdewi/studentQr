@@ -9,9 +9,9 @@ use Illuminate\Support\Str;
 
 class LecturerCredentialBatch extends Model
 {
-    protected $fillable = ['uuid', 'academic_term_id', 'batch_type', 'original_filename', 'encrypted_file_path', 'record_count', 'sha256', 'encryption_key_version', 'generated_by', 'generated_at', 'downloaded_count', 'last_downloaded_at', 'status', 'deleted_at', 'deleted_by'];
+    protected $fillable = ['uuid', 'academic_term_id', 'batch_type', 'original_filename', 'encrypted_file_path', 'record_count', 'recipient_user_ids', 'sha256', 'encryption_key_version', 'generated_by', 'generated_at', 'downloaded_count', 'last_downloaded_at', 'status', 'deleted_at', 'deleted_by'];
 
-    protected $casts = ['generated_at' => 'datetime', 'last_downloaded_at' => 'datetime', 'downloaded_count' => 'integer', 'record_count' => 'integer'];
+    protected $casts = ['generated_at' => 'datetime', 'last_downloaded_at' => 'datetime', 'downloaded_count' => 'integer', 'record_count' => 'integer', 'recipient_user_ids' => 'array'];
 
     protected static function booted(): void
     {
