@@ -29,7 +29,7 @@ return [
         'preview_bulk_preparation' => 'Preview account preparation',
         'create_bulk_accounts' => 'Create lecturer accounts',
         'reset_temporary_passwords' => 'Reset temporary passwords for selected accounts',
-        'successful_operations_report' => 'Successful operations report',
+        'successful_operations_report' => 'Successful operations report (passwords unavailable after first download)',
         'error_report' => 'Error and excluded cases report',
     ],
     'statuses' => [

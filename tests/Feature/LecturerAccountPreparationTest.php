@@ -324,6 +324,71 @@ it('exports one-time lecturer credentials as private Arabic RTL xlsx for newly c
         ->and($gitStatus)->toBe([]);
 });
 
+it('includes new initial passwords only in the immediate success report and redacts later downloads', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    $existingLecturer = addBulkLecturerSlot($fixture, 212, 'مدرس موجود');
+    $existingUser = User::factory()->create([
+        'login_username' => 'existing-lecturer',
+        'password' => Hash::make('keep-existing-password'),
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+    $existingUser->assignRole(Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']));
+    $existingLecturer->forceFill(['user_id' => $existingUser->id])->save();
+    $originalHash = $existingUser->password;
+    $usersBefore = User::query()->count();
+
+    $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+    $password = $result['credential_rows'][0]['temporary_password'];
+    $run = LecturerAccountGenerationRun::query()->findOrFail($result['generation_run_id']);
+    $immediateSheet = spreadsheetFromXlsxBytes(Excel::raw(
+        LecturerAccountReportExport::successForRun($run, $result['credential_rows']),
+        ExcelWriter::XLSX,
+    ))->getSheetByName('العمليات الناجحة');
+    $laterSheet = spreadsheetFromXlsxBytes(Excel::raw(
+        LecturerAccountReportExport::successForRun($run),
+        ExcelWriter::XLSX,
+    ))->getSheetByName('العمليات الناجحة');
+
+    expect($result['credential_rows'])->toHaveCount(1)
+        ->and($immediateSheet?->getCell('C1')->getValue())->toBe('كلمة المرور الابتدائية')
+        ->and($immediateSheet?->getCell('C2')->getValue())->toBe($password)
+        ->and($immediateSheet?->getCell('C3')->getValue())->toBe('—')
+        ->and($laterSheet?->getCell('C2')->getValue())->toBe('—')
+        ->and($laterSheet?->getCell('C3')->getValue())->toBe('—')
+        ->and($fixture['lecturer']->fresh()->user->login_username)->toBe($result['credential_rows'][0]['login_username'])
+        ->and(Hash::check($password, $fixture['lecturer']->fresh()->user->password))->toBeTrue()
+        ->and($fixture['lecturer']->fresh()->user->must_change_password)->toBeTrue()
+        ->and($fixture['lecturer']->fresh()->user->hasRole('course_lecturer'))->toBeTrue()
+        ->and($existingUser->fresh()->password)->toBe($originalHash)
+        ->and(DB::table('users')->where('password', $password)->exists())->toBeFalse()
+        ->and(DB::table('lecturer_account_generation_items')->where('message', 'like', '%'.$password.'%')->exists())->toBeFalse()
+        ->and(DB::table('lecturer_account_generation_runs')->where('summary', 'like', '%'.$password.'%')->exists())->toBeFalse();
+
+    $createdHash = $fixture['lecturer']->fresh()->user->password;
+    $rerun = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+
+    expect($rerun['created_account_count'])->toBe(0)
+        ->and($rerun['credential_rows'])->toBe([])
+        ->and(User::query()->count())->toBe($usersBefore + 1)
+        ->and($fixture['lecturer']->fresh()->user->password)->toBe($createdHash)
+        ->and($existingUser->fresh()->password)->toBe($originalHash);
+});
+
+it('downloads the immediate success report after preparing lecturer accounts', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+
+    Livewire::actingAs(lecturerAccountPreparationAdmin())
+        ->test(LecturerAccountPreparation::class)
+        ->callTableAction('create-bulk-lecturer-accounts', data: ['academic_term_id' => $fixture['term']->id])
+        ->assertFileDownloaded();
+
+    expect($fixture['lecturer']->fresh()->user)->not->toBeNull()
+        ->and(LecturerAccountGenerationItem::query()->where('result', LecturerAccountGenerationItem::RESULT_ACCOUNT_CREATED)->exists())->toBeTrue();
+});
+
 it('signs a prepared lecturer in with the exported username and temporary password before forcing a password change', function (): void {
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     $fixture = lecturerBulkPreparationFixture();

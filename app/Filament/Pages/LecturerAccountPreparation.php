@@ -3,7 +3,6 @@
 namespace App\Filament\Pages;
 
 use App\Exports\LecturerAccountReportExport;
-use App\Exports\LecturerLoginCredentialsExport;
 use App\Models\AcademicTerm;
 use App\Models\Lecturer;
 use App\Models\LecturerAccountGenerationItem;
@@ -185,6 +184,10 @@ class LecturerAccountPreparation extends Page implements HasTable
                     ->label(__('lecturer-account-preparation.actions.preview_bulk_preparation'))
                     ->content(fn (Get $get): string => $this->bulkPreparationPreviewText($get))
                     ->columnSpanFull(),
+                Forms\Components\Placeholder::make('one_time_download_warning')
+                    ->label(__('lecturer-account-preparation.one_time_download_title'))
+                    ->content(__('lecturer-account-preparation.one_time_download_warning'))
+                    ->columnSpanFull(),
                 \Filament\Schemas\Components\View::make('filament.components.lecturer-account-generation-loading')->columnSpanFull(),
             ])
             ->action(function (array $data): ?BinaryFileResponse {
@@ -195,10 +198,14 @@ class LecturerAccountPreparation extends Page implements HasTable
                         'created' => $result['created_account_count'], 'roles' => $result['granted_role_count'], 'blocked' => $result['blocked_count'],
                     ]))->success()->send();
 
-                    return $result['credential_rows'] === [] ? null : Excel::download(
-                        new LecturerLoginCredentialsExport($result['credential_rows']),
-                        'lecturer-login-credentials-'.$this->safeFilenameSegment($term->display_name).'-'.now()->format('Ymd-His').'.xlsx',
+                    return Excel::download(
+                        LecturerAccountReportExport::successForRun(
+                            LecturerAccountGenerationRun::query()->findOrFail($result['generation_run_id']),
+                            $result['credential_rows'],
+                        ),
+                        'lecturer-account-success-report-'.$this->safeFilenameSegment($term->display_name).'-'.now()->format('Ymd-His').'.xlsx',
                         ExcelWriter::XLSX,
+                        ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
                     );
                 } catch (\RuntimeException $exception) {
                     Notification::make()->title($exception->getMessage())->warning()->send();
@@ -351,6 +358,15 @@ class LecturerAccountPreparation extends Page implements HasTable
             return null;
         }
 
+        if ($type === 'success') {
+            return Excel::download(
+                LecturerAccountReportExport::successForRun($run),
+                'lecturer-account-success-report.xlsx',
+                ExcelWriter::XLSX,
+                ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+            );
+        }
+
         $items = $run->items()->with(['lecturer', 'user.roles'])->orderBy('id')->get();
         $successResults = [
             LecturerAccountGenerationItem::RESULT_ACCOUNT_CREATED,
@@ -359,29 +375,20 @@ class LecturerAccountPreparation extends Page implements HasTable
             LecturerAccountGenerationItem::RESULT_USERNAME_ASSIGNED,
             LecturerAccountGenerationItem::RESULT_TEMPORARY_PASSWORD_RESET,
         ];
-        $rows = $type === 'success'
-            ? $items->whereIn('result', $successResults)->map(fn (LecturerAccountGenerationItem $item): array => [
+        $rows = $items->reject(fn (LecturerAccountGenerationItem $item): bool => in_array($item->result, $successResults, true))
+            ->map(fn (LecturerAccountGenerationItem $item): array => [
                 'اسم المدرس' => $item->lecturer?->name,
-                'اسم الدخول' => $item->login_username,
-                'النتيجة' => $item->result,
-                'الحساب المنشأ أو المعاد استخدامه' => $item->user_id ? __('lecturer-account-preparation.results.'.$item->result) : '',
-                'الدور' => $item->user?->hasRole('course_lecturer') ? 'course_lecturer' : '',
-                'الملاحظة' => $item->message,
-            ])->values()->all()
-            : $items->reject(fn (LecturerAccountGenerationItem $item): bool => in_array($item->result, $successResults, true))
-                ->map(fn (LecturerAccountGenerationItem $item): array => [
-                    'اسم المدرس' => $item->lecturer?->name,
-                    'اسم الدخول المقترح' => $item->login_username,
-                    'رمز الخطأ' => $item->error_code,
-                    'السبب بالعربية' => $item->message,
-                    'الإجراء المقترح' => __('lecturer-account-preparation.report_actions.'.($item->error_code ?: 'default')) !== 'lecturer-account-preparation.report_actions.'.($item->error_code ?: 'default')
-                        ? __('lecturer-account-preparation.report_actions.'.($item->error_code ?: 'default'))
-                        : __('lecturer-account-preparation.report_actions.default'),
-                ])->values()->all();
+                'اسم الدخول المقترح' => $item->login_username,
+                'رمز الخطأ' => $item->error_code,
+                'السبب بالعربية' => $item->message,
+                'الإجراء المقترح' => __('lecturer-account-preparation.report_actions.'.($item->error_code ?: 'default')) !== 'lecturer-account-preparation.report_actions.'.($item->error_code ?: 'default')
+                    ? __('lecturer-account-preparation.report_actions.'.($item->error_code ?: 'default'))
+                    : __('lecturer-account-preparation.report_actions.default'),
+            ])->values()->all();
 
         return Excel::download(
-            $type === 'success' ? LecturerAccountReportExport::success($rows) : LecturerAccountReportExport::errors($rows),
-            $type === 'success' ? 'lecturer-account-success-report.xlsx' : 'lecturer-account-errors-report.xlsx',
+            LecturerAccountReportExport::errors($rows),
+            'lecturer-account-errors-report.xlsx',
             ExcelWriter::XLSX,
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
         );

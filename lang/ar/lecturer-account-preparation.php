@@ -29,7 +29,7 @@ return [
         'preview_bulk_preparation' => 'معاينة تهيئة الحسابات',
         'create_bulk_accounts' => 'إنشاء حسابات المدرسين',
         'reset_temporary_passwords' => 'إعادة تعيين كلمات المرور المؤقتة للحسابات المحددة',
-        'successful_operations_report' => 'تقرير العمليات الناجحة',
+        'successful_operations_report' => 'تقرير العمليات الناجحة (دون كلمات المرور بعد التنزيل الأول)',
         'error_report' => 'تقرير الأخطاء والحالات المستبعدة',
     ],
     'statuses' => [
