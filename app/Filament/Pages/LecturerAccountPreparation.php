@@ -21,6 +21,7 @@ use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -126,6 +127,7 @@ class LecturerAccountPreparation extends Page implements HasTable
                 $this->createBulkAccountsAction(),
                 $this->previewBulkPreparationAction(),
                 $this->downloadLatestSuccessReportAction(),
+                $this->resetLegacyLecturerPasswordsAction(),
                 $this->downloadCurrentResetReportAction(),
                 $this->downloadLatestErrorReportAction(),
             ])
@@ -312,6 +314,110 @@ class LecturerAccountPreparation extends Page implements HasTable
 
                 return Excel::download($export, $batch->original_filename, ExcelWriter::XLSX);
             });
+    }
+
+    private function resetLegacyLecturerPasswordsAction(): Action
+    {
+        return Action::make('reset-legacy-lecturer-passwords')
+            ->label(__('lecturer-account-preparation.actions.reset_legacy_passwords'))
+            ->icon('heroicon-o-key')
+            ->color('warning')
+            ->modalWidth('3xl')
+            ->modalHeading(__('lecturer-account-preparation.actions.reset_legacy_passwords'))
+            ->modalSubmitActionLabel(__('lecturer-account-preparation.actions.reset_legacy_passwords'))
+            ->modalDescription(__('lecturer-account-preparation.actions.legacy_reset_warning'))
+            ->visible(fn (): bool => (bool) (Filament::auth()->user()?->hasRole('super-admin') || Filament::auth()->user()?->can('reset lecturer passwords')))
+            ->form([
+                Forms\Components\Placeholder::make('legacy_eligible_count')
+                    ->label(__('lecturer-account-preparation.actions.legacy_eligible_count'))
+                    ->content(fn (): string => (string) app(LecturerBulkPasswordResetService::class)->legacyCandidatesQuery()->count()),
+                Forms\Components\Placeholder::make('legacy_selected_count')
+                    ->label(__('lecturer-account-preparation.actions.legacy_selected_accounts'))
+                    ->content(function (Get $get): string {
+                        $count = count(array_filter((array) $get('user_ids'), fn (mixed $id): bool => filled($id)));
+
+                        return $count === 0
+                            ? __('lecturer-account-preparation.actions.legacy_selected_none')
+                            : __('lecturer-account-preparation.actions.legacy_selected_count', ['count' => $count]);
+                    })
+                    ->extraAttributes(['class' => 'legacy-lecturer-selection-count']),
+                Forms\Components\TextInput::make('legacy_search')
+                    ->label(__('lecturer-account-preparation.actions.search_legacy_accounts'))
+                    ->live(debounce: 400)
+                    ->afterStateUpdated(function (Set $set): void {
+                        $set('legacy_page', 1);
+                    })
+                    ->dehydrated(false),
+                Forms\Components\TextInput::make('legacy_page')
+                    ->label(__('lecturer-account-preparation.actions.legacy_page'))
+                    ->numeric()
+                    ->minValue(1)
+                    ->default(1)
+                    ->live(debounce: 400)
+                    ->dehydrated(false),
+                Forms\Components\CheckboxList::make('user_ids')
+                    ->label(__('lecturer-account-preparation.actions.legacy_accounts'))
+                    ->options(fn (Get $get): array => $this->legacyCandidateOptions($get))
+                    ->live()
+                    ->bulkToggleable()
+                    ->selectAllAction(fn (Action $action): Action => $action->label(__('lecturer-account-preparation.actions.select_all_legacy_page')))
+                    ->deselectAllAction(fn (Action $action): Action => $action->label(__('lecturer-account-preparation.actions.deselect_all_legacy_page')))
+                    ->helperText(__('lecturer-account-preparation.actions.legacy_page_hint'))
+                    ->extraAttributes(['class' => 'legacy-lecturer-reset-options'])
+                    ->required()
+                    ->minItems(1)
+                    ->maxItems(50),
+            ])
+            ->action(function (array $data): ?BinaryFileResponse {
+                $actor = Filament::auth()->user();
+                abort_unless($actor?->hasRole('super-admin') || $actor?->can('reset lecturer passwords'), 403);
+
+                try {
+                    $service = app(LecturerBulkPasswordResetService::class);
+                    $result = $service->resetLegacy($data['user_ids'] ?? [], $actor);
+                    $batch = $result['batch'];
+                    $batches = app(LecturerCredentialBatchService::class);
+                    $export = $batches->exportForBatch($batch);
+                    $batches->recordDownload($batch);
+
+                    Notification::make()->title(__('lecturer-account-preparation.actions.legacy_reset_completed'))->success()->send();
+
+                    return Excel::download($export, $batch->original_filename, ExcelWriter::XLSX);
+                } catch (\RuntimeException $exception) {
+                    Notification::make()->title($exception->getMessage())->warning()->send();
+
+                    return null;
+                }
+            });
+    }
+
+    /** @return array<int, string> */
+    private function legacyCandidateOptions(Get $get): array
+    {
+        $query = app(LecturerBulkPasswordResetService::class)->legacyCandidatesQuery();
+        $search = trim((string) $get('legacy_search'));
+
+        if ($search !== '') {
+            $query->where(function (Builder $query) use ($search): void {
+                $query->where('login_username', 'like', '%'.$search.'%')
+                    ->orWhereHas('lecturerIdentities', fn (Builder $lecturers): Builder => $lecturers
+                        ->whereNull('placeholder_type')
+                        ->where('name', 'like', '%'.$search.'%'));
+            });
+        }
+
+        $page = max(1, (int) $get('legacy_page'));
+
+        return $query->with('lecturerIdentities')
+            ->orderBy('id')
+            ->offset(($page - 1) * 50)
+            ->limit(50)
+            ->get()
+            ->mapWithKeys(fn (User $user): array => [
+                $user->id => ($user->lecturerIdentities->pluck('name')->first() ?? $user->name)
+                    .' — '.$user->login_username.' — '.__('lecturer-account-preparation.statuses.active_account'),
+            ])
+            ->all();
     }
 
     private function downloadLatestSuccessReportAction(): Action

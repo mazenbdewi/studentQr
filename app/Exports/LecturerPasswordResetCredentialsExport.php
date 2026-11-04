@@ -9,12 +9,14 @@ class LecturerPasswordResetCredentialsExport extends ArabicArrayWorkbookExport
     {
         parent::__construct([[
             'title' => 'بيانات دخول المدرسين',
-            'headings' => ['اسم المحاضر', 'اسم الدخول', 'كلمة المرور المؤقتة', 'تغيير كلمة المرور مطلوب'],
+            'headings' => ['اسم المحاضر', 'اسم الدخول', 'كلمة المرور المؤقتة', 'النتيجة', 'الدور', 'الملاحظة'],
             'rows' => collect($rows)->map(fn (array $row): array => [
                 'اسم المحاضر' => $row['lecturer_name'],
                 'اسم الدخول' => $row['login_username'],
                 'كلمة المرور المؤقتة' => $row['temporary_password'],
-                'تغيير كلمة المرور مطلوب' => ($row['must_change_password'] ?? true) ? 'نعم' : 'لا',
+                'النتيجة' => $row['result'] ?? '',
+                'الدور' => $row['role'] ?? '',
+                'الملاحظة' => $row['note'] ?? '',
             ])->all(),
         ]]);
     }

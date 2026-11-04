@@ -19,8 +19,10 @@ use App\Models\User;
 use App\Services\LecturerAccountPreparationService;
 use App\Services\PinLoginService;
 use Filament\Facades\Filament;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -324,7 +326,7 @@ it('exports one-time lecturer credentials as private Arabic RTL xlsx for newly c
         ->and($gitStatus)->toBe([]);
 });
 
-it('includes new initial passwords only in the immediate success report and redacts later downloads', function (): void {
+it('re-downloads an unchanged temporary password and never resets existing accounts', function (): void {
     $fixture = lecturerBulkPreparationFixture();
     $existingLecturer = addBulkLecturerSlot($fixture, 212, 'مدرس موجود');
     $existingUser = User::factory()->create([
@@ -353,14 +355,18 @@ it('includes new initial passwords only in the immediate success report and reda
     ))->getSheetByName('العمليات الناجحة');
 
     expect($result['credential_rows'])->toHaveCount(1)
-        ->and($immediateSheet?->getCell('C1')->getValue())->toBe('كلمة المرور الابتدائية')
+        ->and($immediateSheet?->getCell('C1')->getValue())->toBe('كلمة المرور الابتدائية / المؤقتة')
         ->and($immediateSheet?->getCell('C2')->getValue())->toBe($password)
         ->and($immediateSheet?->getCell('C3')->getValue())->toBe('—')
-        ->and($laterSheet?->getCell('C2')->getValue())->toBe('—')
+        ->and($laterSheet?->getCell('C2')->getValue())->toBe($password)
         ->and($laterSheet?->getCell('C3')->getValue())->toBe('—')
         ->and($fixture['lecturer']->fresh()->user->login_username)->toBe($result['credential_rows'][0]['login_username'])
         ->and(Hash::check($password, $fixture['lecturer']->fresh()->user->password))->toBeTrue()
         ->and($fixture['lecturer']->fresh()->user->must_change_password)->toBeTrue()
+        ->and($fixture['lecturer']->fresh()->user->password_changed_at)->toBeNull()
+        ->and($fixture['lecturer']->fresh()->user->password_reset_at)->toBeNull()
+        ->and(Crypt::decryptString($fixture['lecturer']->fresh()->user->temporary_password_encrypted))->toBe($password)
+        ->and($fixture['lecturer']->fresh()->user->toArray())->not->toHaveKey('temporary_password_encrypted')
         ->and($fixture['lecturer']->fresh()->user->hasRole('course_lecturer'))->toBeTrue()
         ->and($existingUser->fresh()->password)->toBe($originalHash)
         ->and(DB::table('users')->where('password', $password)->exists())->toBeFalse()
@@ -368,13 +374,109 @@ it('includes new initial passwords only in the immediate success report and reda
         ->and(DB::table('lecturer_account_generation_runs')->where('summary', 'like', '%'.$password.'%')->exists())->toBeFalse();
 
     $createdHash = $fixture['lecturer']->fresh()->user->password;
+    $encryptedPassword = $fixture['lecturer']->fresh()->user->temporary_password_encrypted;
     $rerun = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
 
     expect($rerun['created_account_count'])->toBe(0)
         ->and($rerun['credential_rows'])->toBe([])
         ->and(User::query()->count())->toBe($usersBefore + 1)
         ->and($fixture['lecturer']->fresh()->user->password)->toBe($createdHash)
+        ->and($fixture['lecturer']->fresh()->user->temporary_password_encrypted)->toBe($encryptedPassword)
         ->and($existingUser->fresh()->password)->toBe($originalHash);
+
+    $createdUser = $fixture['lecturer']->fresh()->user;
+    $this->actingAs($createdUser)
+        ->put(route('password.force-change.update'), [
+            'current_password' => $password,
+            'password' => 'new-secure-password',
+            'password_confirmation' => 'new-secure-password',
+        ])
+        ->assertRedirect('/admin');
+
+    $changedSheet = spreadsheetFromXlsxBytes(Excel::raw(
+        LecturerAccountReportExport::successForRun($run),
+        ExcelWriter::XLSX,
+    ))->getSheetByName('العمليات الناجحة');
+
+    expect($createdUser->fresh()->must_change_password)->toBeFalse()
+        ->and($createdUser->fresh()->temporary_password_encrypted)->toBeNull()
+        ->and($createdUser->fresh()->password_changed_at)->not->toBeNull()
+        ->and(Hash::check('new-secure-password', $createdUser->fresh()->password))->toBeTrue()
+        ->and($changedSheet?->getCell('C2')->getValue())->toBe('—');
+});
+
+it('reports an unavailable temporary password for a legacy lecturer without resetting it', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    $user = User::factory()->create([
+        'login_username' => 'legacy-lecturer',
+        'password' => Hash::make('legacy-password'),
+        'must_change_password' => true,
+        'role' => 'course_lecturer',
+        'type' => 'lecturer',
+        'status' => 'active',
+        'is_active' => true,
+    ]);
+    $user->assignRole(Role::firstOrCreate(['name' => 'course_lecturer', 'guard_name' => 'web']));
+    $fixture['lecturer']->forceFill(['user_id' => $user->id])->save();
+    $hash = $user->password;
+
+    $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+    $sheet = spreadsheetFromXlsxBytes(Excel::raw(
+        LecturerAccountReportExport::successForRun(LecturerAccountGenerationRun::findOrFail($result['generation_run_id'])),
+        ExcelWriter::XLSX,
+    ))->getSheetByName('العمليات الناجحة');
+
+    expect($result['credential_rows'])->toBe([])
+        ->and($user->fresh()->password)->toBe($hash)
+        ->and($user->fresh()->temporary_password_encrypted)->toBeNull()
+        ->and($sheet?->getCell('C2')->getValue())->toBe('غير متاحة — يلزم إعادة تعيين كلمة المرور');
+});
+
+it('does not break the report or expose ciphertext when temporary password decryption fails', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    $result = app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+    $user = $fixture['lecturer']->fresh()->user;
+    $user->forceFill(['temporary_password_encrypted' => 'invalid-ciphertext'])->save();
+
+    $sheet = spreadsheetFromXlsxBytes(Excel::raw(
+        LecturerAccountReportExport::successForRun(LecturerAccountGenerationRun::findOrFail($result['generation_run_id'])),
+        ExcelWriter::XLSX,
+    ))->getSheetByName('العمليات الناجحة');
+
+    expect($sheet?->getCell('C2')->getValue())->toBe('غير متاحة')
+        ->and(spreadsheetCellValues($sheet->getParent()))->not->toContain('invalid-ciphertext');
+});
+
+it('keeps temporary password reports available only on the existing privileged account-preparation page', function (): void {
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    $manager = User::factory()->create(['role' => 'manager', 'type' => 'admin']);
+    $manager->assignRole(Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']));
+
+    $this->actingAs($manager);
+    expect(LecturerAccountPreparation::canAccess())->toBeFalse();
+
+    $this->actingAs(lecturerAccountPreparationAdmin());
+    expect(LecturerAccountPreparation::canAccess())->toBeTrue()
+        ->and(Schema::hasColumn('users', 'temporary_password_encrypted'))->toBeTrue()
+        ->and(Schema::hasColumn('users', 'password_changed_at'))->toBeTrue()
+        ->and(Schema::hasColumn('users', 'password_reset_at'))->toBeTrue();
+});
+
+it('clears a temporary password if an administrator changes the account password directly', function (): void {
+    $fixture = lecturerBulkPreparationFixture();
+    app(LecturerAccountPreparationService::class)->prepareBulkAccounts($fixture['term']);
+    $user = $fixture['lecturer']->fresh()->user;
+    $original = $user->getOriginal();
+
+    $user->forceFill(['password' => Hash::make('admin-changed-password')])->save();
+
+    [$oldValues, $newValues] = app(\App\Services\ActivityLogger::class)->extractChangedValues($user, $original);
+
+    expect($user->fresh()->temporary_password_encrypted)->toBeNull()
+        ->and(Hash::check('admin-changed-password', $user->fresh()->password))->toBeTrue()
+        ->and($user->fresh()->toArray())->not->toHaveKey('temporary_password_encrypted')
+        ->and($oldValues)->not->toHaveKey('temporary_password_encrypted')
+        ->and($newValues)->not->toHaveKey('temporary_password_encrypted');
 });
 
 it('downloads the immediate success report after preparing lecturer accounts', function (): void {

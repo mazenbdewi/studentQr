@@ -6,6 +6,7 @@ use App\Models\AcademicTerm;
 use App\Models\LecturerCredentialBatch;
 use App\Models\LecturerPasswordResetOperation;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,42 @@ use RuntimeException;
 class LecturerBulkPasswordResetService
 {
     public function __construct(private readonly LecturerCredentialBatchService $batches) {}
+
+    /** @return Builder<User> */
+    public function legacyCandidatesQuery(): Builder
+    {
+        return User::query()
+            ->where('status', 'active')
+            ->where('is_active', true)
+            ->where('must_change_password', true)
+            ->whereNull('temporary_password_encrypted')
+            ->whereNotNull('login_username')
+            ->where('login_username', '!=', '')
+            ->whereHas('roles', fn (Builder $query): Builder => $query->where('name', 'course_lecturer'))
+            ->whereHas('lecturerIdentities', fn (Builder $query): Builder => $query->whereNull('placeholder_type'));
+    }
+
+    /** @param array<int, mixed> $userIds
+     * @return array{batch: LecturerCredentialBatch, reset_count: int}
+     */
+    public function resetLegacy(array $userIds, User $actor): array
+    {
+        $this->authorize($actor);
+        $ids = collect($userIds)->filter(fn (mixed $id): bool => filter_var($id, FILTER_VALIDATE_INT) !== false && (int) $id > 0)
+            ->map(fn (mixed $id): int => (int) $id)->unique()->sort()->values();
+
+        if ($ids->isEmpty() || $ids->count() !== count($userIds) || $ids->count() > 50
+            || $this->legacyCandidatesQuery()->whereIn('id', $ids)->count() !== $ids->count()) {
+            throw new RuntimeException('تغيّرت أهلية الحسابات المحددة. حدّث القائمة وأعد المحاولة.');
+        }
+
+        $preview = $this->preview($ids);
+        if ($preview['eligible_count'] !== $ids->count()) {
+            throw new RuntimeException('تغيّرت أهلية الحسابات المحددة. حدّث القائمة وأعد المحاولة.');
+        }
+
+        return $this->execute($preview, $preview['fingerprint'], $actor, legacyOnly: true);
+    }
 
     /** @param \Illuminate\Support\Collection<int, mixed>|array<int, mixed> $userIds
      * @return array<string, mixed>
@@ -77,7 +114,7 @@ class LecturerBulkPasswordResetService
     /** @param array<string, mixed> $preview
      * @return array{batch: LecturerCredentialBatch, reset_count: int}
      */
-    public function execute(array $preview, string $approvedFingerprint, User $actor, ?AcademicTerm $term = null): array
+    public function execute(array $preview, string $approvedFingerprint, User $actor, ?AcademicTerm $term = null, bool $legacyOnly = false): array
     {
         $this->authorize($actor);
         if (! hash_equals((string) ($preview['fingerprint'] ?? ''), $approvedFingerprint)) {
@@ -107,7 +144,7 @@ class LecturerBulkPasswordResetService
         }
 
         try {
-            $result = DB::transaction(function () use ($ids, $approvedFingerprint, $freshPreview, $passwords, $actor, $term): array {
+            $result = DB::transaction(function () use ($ids, $approvedFingerprint, $freshPreview, $passwords, $actor, $term, $legacyOnly): array {
                 if (LecturerPasswordResetOperation::query()->where('fingerprint', $approvedFingerprint)->lockForUpdate()->exists()) {
                     throw new RuntimeException('تم رفض تنفيذ متزامن لإعادة الضبط.');
                 }
@@ -117,6 +154,9 @@ class LecturerBulkPasswordResetService
                 $lockedPreview = $this->preview($users->pluck('id'), $term);
                 if ($users->count() !== $ids->count() || ! hash_equals($approvedFingerprint, $lockedPreview['fingerprint'])) {
                     throw new RuntimeException('تغيرت بيانات الحساب بعد المعاينة.');
+                }
+                if ($legacyOnly && $users->contains(fn (User $user): bool => ! $this->isLegacyCandidate($user))) {
+                    throw new RuntimeException('تغيّرت أهلية الحسابات المحددة. حدّث القائمة وأعد المحاولة.');
                 }
 
                 LecturerPasswordResetOperation::query()->create([
@@ -197,6 +237,17 @@ class LecturerBulkPasswordResetService
     private function isActive(User $user): bool
     {
         return (bool) $user->is_active && $user->status === 'active';
+    }
+
+    private function isLegacyCandidate(User $user): bool
+    {
+        return ! $user->trashed()
+            && $this->isActive($user)
+            && $user->hasRole('course_lecturer')
+            && (bool) $user->must_change_password
+            && $user->temporary_password_encrypted === null
+            && filled($user->login_username)
+            && $user->lecturerIdentities->contains(fn ($lecturer): bool => $lecturer->placeholder_type === null);
     }
 
     /** @return array<string, mixed> */

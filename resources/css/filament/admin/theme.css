@@ -508,6 +508,86 @@ html:not(.dark) select.fi-select-input optgroup {
     margin-inline-start: 8px;
 }
 
+/* Scoped to the legacy lecturer reset CheckboxList rendered by Filament. */
+.fi-fo-checkbox-list-options.legacy-lecturer-reset-options {
+    gap: 0.5rem;
+}
+
+.fi-fo-checkbox-list-options.legacy-lecturer-reset-options > .fi-fo-checkbox-list-option-ctn {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fi-fo-checkbox-list-options.legacy-lecturer-reset-options > .fi-fo-checkbox-list-option-ctn:has(input[type='checkbox'].fi-checkbox-input:checked) {
+    background-color: rgba(59, 130, 246, 0.12);
+    border-color: rgba(37, 99, 235, 0.65);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.14);
+}
+
+.fi-fo-checkbox-list-options.legacy-lecturer-reset-options .fi-fo-checkbox-list-option {
+    align-items: center;
+    cursor: pointer;
+    min-height: 2.25rem;
+}
+
+.fi-fo-checkbox-list-options.legacy-lecturer-reset-options input[type='checkbox'].fi-checkbox-input {
+    appearance: none !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    border: 2px solid #64748b !important;
+    border-radius: 4px !important;
+    box-shadow: none !important;
+    flex: 0 0 20px;
+    height: 20px !important;
+    margin: 0 !important;
+    width: 20px !important;
+}
+
+.fi-fo-checkbox-list-options.legacy-lecturer-reset-options input[type='checkbox'].fi-checkbox-input:checked {
+    background-color: #2563eb !important;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m3 8 3 3 7-7' stroke='%23fff' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    background-size: 16px 16px !important;
+    border-color: #2563eb !important;
+}
+
+.fi-fo-checkbox-list-options.legacy-lecturer-reset-options input[type='checkbox'].fi-checkbox-input:focus-visible {
+    outline: 3px solid rgba(96, 165, 250, 0.55) !important;
+    outline-offset: 2px;
+}
+
+.legacy-lecturer-selection-count {
+    color: #1e40af;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+html.dark .fi-fo-checkbox-list-options.legacy-lecturer-reset-options > .fi-fo-checkbox-list-option-ctn {
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+html.dark .fi-fo-checkbox-list-options.legacy-lecturer-reset-options > .fi-fo-checkbox-list-option-ctn:has(input[type='checkbox'].fi-checkbox-input:checked) {
+    background-color: rgba(59, 130, 246, 0.22);
+    border-color: rgba(96, 165, 250, 0.8);
+}
+
+html.dark .fi-fo-checkbox-list-options.legacy-lecturer-reset-options input[type='checkbox'].fi-checkbox-input {
+    background-color: #0f172a !important;
+    border-color: #94a3b8 !important;
+}
+
+html.dark .fi-fo-checkbox-list-options.legacy-lecturer-reset-options input[type='checkbox'].fi-checkbox-input:checked {
+    background-color: #3b82f6 !important;
+    border-color: #60a5fa !important;
+}
+
+html.dark .legacy-lecturer-selection-count {
+    color: #93c5fd;
+}
+
 /* Keep the topbar controls explicit and predictable in Arabic RTL. */
 html[lang='ar'] .fi-topbar-end > .fi-user-menu {
     order: 3;
