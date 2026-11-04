@@ -507,3 +507,16 @@ html:not(.dark) select.fi-select-input optgroup {
     font-weight: 800;
     margin-inline-start: 8px;
 }
+
+/* Keep the topbar controls explicit and predictable in Arabic RTL. */
+html[lang='ar'] .fi-topbar-end > .fi-user-menu {
+    order: 3;
+}
+
+html[lang='ar'] .fi-topbar-end > .current-academic-term-indicator {
+    order: 2;
+}
+
+html[lang='ar'] .fi-topbar-end > .fi-global-search-ctn {
+    order: 1;
+}

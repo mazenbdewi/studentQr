@@ -72,7 +72,7 @@ class AdminPanelProvider extends PanelProvider
             ->favicon(asset('images/favicon.ico'))
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->renderHook(
-                PanelsRenderHook::TOPBAR_END,
+                PanelsRenderHook::GLOBAL_SEARCH_AFTER,
                 fn () => view('filament.components.current-academic-term-indicator', [
                     'academicTerm' => app(AcademicTermContext::class)->currentOrNull(),
                     'url' => AcademicTermManagement::getUrl(),
